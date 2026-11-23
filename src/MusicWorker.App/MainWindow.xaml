@@ -32,6 +32,13 @@
             <Setter Property="ToolTipService.ShowOnDisabled" Value="True" />
         </Style>
 
+        <Style x:Key="ChannelToggle" TargetType="ToggleButton" BasedOn="{StaticResource {x:Static ToolBar.ToggleButtonStyleKey}}">
+            <Setter Property="Focusable" Value="False" />
+            <Setter Property="MinWidth" Value="26" />
+            <Setter Property="Padding" Value="6,3" />
+            <Setter Property="FontWeight" Value="Bold" />
+        </Style>
+
         <!-- Equalizer-Regler -->
         <Style x:Key="EqDimWhenOff" TargetType="FrameworkElement">
             <Style.Triggers>
@@ -97,6 +104,7 @@
                     </MenuItem.ItemContainerStyle>
                 </MenuItem>
                 <MenuItem Header="_Exportieren …" Command="{Binding ExportCommand}" InputGestureText="Strg+E" />
+                <MenuItem Header="_Kanäle als Mono-Dateien exportieren …" Command="{Binding ExportChannelsCommand}" />
                 <Separator />
                 <MenuItem Header="_Beenden" Click="OnExitClick" InputGestureText="Alt+F4" />
             </MenuItem>
@@ -113,10 +121,21 @@
                 <MenuItem Header="Alles a_uswählen" Command="{Binding SelectAllCommand}" InputGestureText="Strg+A" />
                 <Separator />
                 <MenuItem Header="_Stille einfügen …" Command="{Binding InsertSilenceCommand}" />
+                <Separator />
+                <MenuItem Header="Ka_näle">
+                    <MenuItem Header="Effekte auf _linken Kanal" IsCheckable="True" IsChecked="{Binding EditLeft, Mode=TwoWay}" IsEnabled="{Binding IsStereo}" />
+                    <MenuItem Header="Effekte auf _rechten Kanal" IsCheckable="True" IsChecked="{Binding EditRight, Mode=TwoWay}" IsEnabled="{Binding IsStereo}" />
+                    <Separator />
+                    <MenuItem Header="Nur linken Kanal _behalten (Mono)" Command="{Binding KeepLeftChannelCommand}" />
+                    <MenuItem Header="Nur rechten Kanal b_ehalten (Mono)" Command="{Binding KeepRightChannelCommand}" />
+                </MenuItem>
             </MenuItem>
             <MenuItem Header="_Wiedergabe">
                 <MenuItem Header="_Abspielen / Pause" Command="{Binding TogglePlayPauseCommand}" InputGestureText="Leertaste" />
                 <MenuItem Header="_Stopp" Command="{Binding StopCommand}" InputGestureText="Esc" />
+                <Separator />
+                <MenuItem Header="_Linken Kanal hören" IsCheckable="True" IsChecked="{Binding HearLeft, Mode=TwoWay}" IsEnabled="{Binding IsStereo}" />
+                <MenuItem Header="_Rechten Kanal hören" IsCheckable="True" IsChecked="{Binding HearRight, Mode=TwoWay}" IsEnabled="{Binding IsStereo}" />
             </MenuItem>
             <MenuItem Header="E_ffekte">
                 <MenuItem Header="_Lautstärke ändern …" Command="{Binding ChangeGainCommand}" />
@@ -160,6 +179,24 @@
                 <Button Style="{StaticResource ToolButton}" Command="{Binding StopCommand}" ToolTip="Stopp (Esc)">
                     <TextBlock Style="{StaticResource Glyph}" Text="&#xE71A;" />
                 </Button>
+            </ToolBar>
+            <ToolBar IsEnabled="{Binding IsStereo}" ToolTipService.ShowOnDisabled="True"
+                     ToolTip="Kanal-Werkzeuge (nur für Stereo-Dateien)">
+                <TextBlock Margin="2,0,4,0" VerticalAlignment="Center" Text="Bearbeiten:" />
+                <ToggleButton Style="{StaticResource ChannelToggle}" Content="L" Foreground="#0277BD"
+                              IsChecked="{Binding EditLeft, Mode=TwoWay}"
+                              ToolTip="Effekte wirken auf den linken Kanal. (Schneiden und Einfügen betreffen immer beide Kanäle.)" />
+                <ToggleButton Style="{StaticResource ChannelToggle}" Content="R" Foreground="#C2185B"
+                              IsChecked="{Binding EditRight, Mode=TwoWay}"
+                              ToolTip="Effekte wirken auf den rechten Kanal. (Schneiden und Einfügen betreffen immer beide Kanäle.)" />
+                <Separator />
+                <TextBlock Margin="4,0,4,0" VerticalAlignment="Center" Text="Hören:" />
+                <ToggleButton Style="{StaticResource ChannelToggle}" Content="L" Foreground="#0277BD"
+                              IsChecked="{Binding HearLeft, Mode=TwoWay}"
+                              ToolTip="Linken Kanal abhören (aus = beim Abspielen stumm; die Datei bleibt unverändert)" />
+                <ToggleButton Style="{StaticResource ChannelToggle}" Content="R" Foreground="#C2185B"
+                              IsChecked="{Binding HearRight, Mode=TwoWay}"
+                              ToolTip="Rechten Kanal abhören (aus = beim Abspielen stumm; die Datei bleibt unverändert)" />
             </ToolBar>
             <ToolBar>
                 <Button Style="{StaticResource ToolButton}" Command="{Binding UndoCommand}" ToolTip="Rückgängig (Strg+Z)">
@@ -216,6 +253,9 @@
                 <TextBlock Text="{Binding FormatText}" Margin="8,0" />
             </StatusBarItem>
             <StatusBarItem DockPanel.Dock="Right">
+                <TextBlock Text="{Binding ChannelTargetText}" Margin="8,0" Foreground="#C2185B" FontWeight="SemiBold" />
+            </StatusBarItem>
+            <StatusBarItem DockPanel.Dock="Right">
                 <TextBlock Text="{Binding EqualizerIndicator}" Margin="8,0" Foreground="#0078D4" FontWeight="SemiBold"
                            ToolTip="Der Live-Equalizer verändert gerade den Klang der Wiedergabe." />
             </StatusBarItem>
@@ -270,9 +310,9 @@
                     <TextBlock Grid.Row="0" Grid.Column="0" Margin="0,4,0,0" HorizontalAlignment="Center"
                                FontSize="11" Foreground="Gray" Text="Live" />
                     <controls:SpectrumView Grid.Row="0" Grid.Column="2" Width="600" Height="130" Margin="0,0,0,8"
-                                           Spectrum="{Binding DataContext.Spectrum, RelativeSource={RelativeSource AncestorType=Window}}"
+                                           Spectra="{Binding DataContext.Spectra, RelativeSource={RelativeSource AncestorType=Window}}"
                                            EqualizerCurve="{Binding DataContext.EqualizerCurve, RelativeSource={RelativeSource AncestorType=Window}}"
-                                           ToolTip="Blau: Spektrum der Wiedergabe nach dem Equalizer · Orange: eingestellte EQ-Kurve" />
+                                           ToolTip="Spektrum der Wiedergabe nach dem Equalizer (Stereo: blau = links, rosa = rechts) · Orange: eingestellte EQ-Kurve" />
 
                     <StackPanel Grid.Row="1" Grid.Column="0" Width="52" Style="{StaticResource EqDimWhenOff}"
                                 ToolTip="Vorverstärkung vor dem Equalizer – Doppelklick setzt auf 0 dB">
@@ -315,6 +355,8 @@
                                    Buffer="{Binding Buffer}"
                                    Selection="{Binding Selection}"
                                    PlayheadFrame="{Binding PlayheadFrame}"
+                                   ActiveChannels="{Binding ActiveChannels}"
+                                   MutedChannels="{Binding MutedChannels}"
                                    FollowPlayhead="{Binding IsPlaying}" />
 
             <Border Background="#AA000000"

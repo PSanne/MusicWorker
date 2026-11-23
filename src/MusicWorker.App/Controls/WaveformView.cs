@@ -30,6 +30,14 @@ public sealed class WaveformView : FrameworkElement
         nameof(PlayheadFrame), typeof(int), typeof(WaveformView),
         new FrameworkPropertyMetadata(0, FrameworkPropertyMetadataOptions.AffectsRender, OnPlayheadFrameChanged));
 
+    public static readonly DependencyProperty ActiveChannelsProperty = DependencyProperty.Register(
+        nameof(ActiveChannels), typeof(bool[]), typeof(WaveformView),
+        new FrameworkPropertyMetadata(null, FrameworkPropertyMetadataOptions.AffectsRender));
+
+    public static readonly DependencyProperty MutedChannelsProperty = DependencyProperty.Register(
+        nameof(MutedChannels), typeof(bool[]), typeof(WaveformView),
+        new FrameworkPropertyMetadata(null, FrameworkPropertyMetadataOptions.AffectsRender));
+
     public static readonly DependencyProperty FollowPlayheadProperty = DependencyProperty.Register(
         nameof(FollowPlayhead), typeof(bool), typeof(WaveformView), new PropertyMetadata(false));
 
@@ -41,7 +49,15 @@ public sealed class WaveformView : FrameworkElement
     private static readonly Brush RulerTextBrush = Frozen(new SolidColorBrush(Color.FromRgb(0x9A, 0xA0, 0xAA)));
     private static readonly Brush HintBrush = Frozen(new SolidColorBrush(Color.FromRgb(0x7A, 0x80, 0x8A)));
     private static readonly Brush SelectionBrush = Frozen(new SolidColorBrush(Color.FromArgb(0x50, 0x4F, 0xC3, 0xF7)));
-    private static readonly Pen WavePen = Frozen(new Pen(Frozen(new SolidColorBrush(Color.FromRgb(0x4F, 0xC3, 0xF7))), 1));
+    // Farben je Kanal – passend zur Spektrumanzeige: links blau, rechts rosa.
+    private static readonly Pen[] ChannelPens =
+    [
+        Frozen(new Pen(Frozen(new SolidColorBrush(Color.FromRgb(0x4F, 0xC3, 0xF7))), 1)),
+        Frozen(new Pen(Frozen(new SolidColorBrush(Color.FromRgb(0xF0, 0x62, 0x92))), 1)),
+    ];
+    private static readonly Pen MutedPen = Frozen(new Pen(Frozen(new SolidColorBrush(Color.FromRgb(0x55, 0x5A, 0x64))), 1));
+    private static readonly Pen LaneSeparatorPen = Frozen(new Pen(Frozen(new SolidColorBrush(Color.FromArgb(0x60, 0xFF, 0xFF, 0xFF))), 1));
+    private static readonly Brush LaneLabelBrush = Frozen(new SolidColorBrush(Color.FromRgb(0xC8, 0xCC, 0xD4)));
     private static readonly Pen CenterLinePen = Frozen(new Pen(Frozen(new SolidColorBrush(Color.FromArgb(0x40, 0xFF, 0xFF, 0xFF))), 1));
     private static readonly Pen RulerTickPen = Frozen(new Pen(RulerTextBrush, 1));
     private static readonly Pen SelectionEdgePen = Frozen(new Pen(Frozen(new SolidColorBrush(Color.FromRgb(0x81, 0xD4, 0xFA))), 1));
@@ -57,7 +73,7 @@ public sealed class WaveformView : FrameworkElement
 
     // Zwischenspeicher, damit beim Bewegen der Abspielposition nicht alles neu berechnet wird.
     private ViewKey _cachedKey;
-    private Geometry? _cachedWaveform;
+    private Geometry[]? _cachedWaveforms;
 
     private bool _isSelecting;
     private int _anchorFrame;
@@ -89,6 +105,20 @@ public sealed class WaveformView : FrameworkElement
     }
 
     /// <summary>Wenn true, scrollt die Ansicht mit, sobald die Abspielposition den sichtbaren Bereich verlässt.</summary>
+    /// <summary>Kanäle, auf die Effekte wirken (null = alle). Die Auswahl wird nur dort markiert.</summary>
+    public bool[]? ActiveChannels
+    {
+        get => (bool[]?)GetValue(ActiveChannelsProperty);
+        set => SetValue(ActiveChannelsProperty, value);
+    }
+
+    /// <summary>Kanäle, die beim Abhören stumm sind (null = keiner). Sie werden grau gezeichnet.</summary>
+    public bool[]? MutedChannels
+    {
+        get => (bool[]?)GetValue(MutedChannelsProperty);
+        set => SetValue(MutedChannelsProperty, value);
+    }
+
     public bool FollowPlayhead
     {
         get => (bool)GetValue(FollowPlayheadProperty);
@@ -196,33 +226,79 @@ public sealed class WaveformView : FrameworkElement
         dc.DrawRectangle(BackgroundBrush, null, new Rect(size));
 
         var buffer = Buffer;
-        if (buffer is null || buffer.IsEmpty || size.Width < 1 || size.Height <= RulerHeight)
+        if (buffer is null || buffer.IsEmpty || size.Width < 1 || size.Height <= RulerHeight + 10)
         {
             DrawHint(dc, size);
             return;
         }
 
         EnsureView();
-        var waveArea = new Rect(0, RulerHeight, size.Width, size.Height - RulerHeight);
-
         DrawRuler(dc, buffer, size.Width);
-        DrawSelection(dc, size);
-        dc.DrawLine(CenterLinePen, new Point(0, waveArea.Top + waveArea.Height / 2),
-            new Point(size.Width, waveArea.Top + waveArea.Height / 2));
-        dc.DrawGeometry(null, WavePen, GetWaveformGeometry(buffer, waveArea));
+        DrawSelectionBackground(dc, size);
+
+        // Jeder Kanal bekommt eine eigene Spur (Stereo: oben links, unten rechts).
+        var waveforms = GetWaveformGeometries(buffer, size);
+        var muted = MutedChannels;
+        double pixelsPerDip = VisualTreeHelper.GetDpi(this).PixelsPerDip;
+        for (int channel = 0; channel < buffer.Channels; channel++)
+        {
+            var lane = LaneRect(channel, buffer.Channels, size);
+            bool isMuted = muted is not null && channel < muted.Length && muted[channel];
+
+            DrawSelectionInLane(dc, lane, channel);
+            dc.DrawLine(CenterLinePen, new Point(0, lane.Top + lane.Height / 2), new Point(size.Width, lane.Top + lane.Height / 2));
+            dc.DrawGeometry(null, isMuted ? MutedPen : ChannelPens[Math.Min(channel, ChannelPens.Length - 1)], waveforms[channel]);
+            if (channel > 0)
+            {
+                dc.DrawLine(LaneSeparatorPen, new Point(0, lane.Top), new Point(size.Width, lane.Top));
+            }
+
+            if (buffer.Channels > 1)
+            {
+                string label = buffer.Channels == 2 ? (channel == 0 ? "L" : "R") : $"{channel + 1}";
+                if (isMuted)
+                {
+                    label += "  (stumm)";
+                }
+
+                var text = new FormattedText(label, CultureInfo.CurrentCulture, FlowDirection.LeftToRight,
+                    LabelTypeface, 12, LaneLabelBrush, pixelsPerDip);
+                dc.DrawText(text, new Point(6, lane.Top + 4));
+            }
+        }
+
         DrawPlayhead(dc, size);
     }
 
-    private Geometry GetWaveformGeometry(AudioBuffer buffer, Rect area)
+    private static Rect LaneRect(int channel, int channels, Size size)
     {
-        var key = new ViewKey(buffer, _viewStart, _viewLength, area.Width, area.Height);
-        if (_cachedWaveform is not null && key == _cachedKey)
+        double laneHeight = (size.Height - RulerHeight) / channels;
+        return new Rect(0, RulerHeight + channel * laneHeight, size.Width, laneHeight);
+    }
+
+    private Geometry[] GetWaveformGeometries(AudioBuffer buffer, Size size)
+    {
+        var key = new ViewKey(buffer, _viewStart, _viewLength, size.Width, size.Height);
+        if (_cachedWaveforms is not null && key == _cachedKey)
         {
-            return _cachedWaveform;
+            return _cachedWaveforms;
         }
 
+        var geometries = new Geometry[buffer.Channels];
+        for (int channel = 0; channel < buffer.Channels; channel++)
+        {
+            geometries[channel] = CreateWaveformGeometry(buffer, channel, LaneRect(channel, buffer.Channels, size));
+        }
+
+        _cachedKey = key;
+        _cachedWaveforms = geometries;
+        return geometries;
+    }
+
+    private Geometry CreateWaveformGeometry(AudioBuffer buffer, int channel, Rect area)
+    {
         double middle = area.Top + area.Height / 2;
-        double halfHeight = area.Height / 2 * 0.95;
+        double halfHeight = area.Height / 2 * 0.92;
         double Y(float sample) => Math.Clamp(middle - sample * halfHeight, area.Top, area.Bottom);
 
         var geometry = new StreamGeometry();
@@ -230,18 +306,12 @@ public sealed class WaveformView : FrameworkElement
         {
             if (_viewLength < area.Width)
             {
-                // Stark hineingezoomt: einzelne Samples als verbundene Linie (Mittelwert der Kanäle).
+                // Stark hineingezoomt: einzelne Samples als verbundene Linie.
                 int first = Math.Max(0, (int)Math.Floor(_viewStart));
                 int last = Math.Min(buffer.FrameCount - 1, (int)Math.Ceiling(_viewStart + _viewLength));
                 for (int frame = first; frame <= last; frame++)
                 {
-                    float sum = 0;
-                    for (int channel = 0; channel < buffer.Channels; channel++)
-                    {
-                        sum += buffer.GetSample(frame, channel);
-                    }
-
-                    var point = new Point(FrameToX(frame), Y(sum / buffer.Channels));
+                    var point = new Point(FrameToX(frame), Y(buffer.GetSample(frame, channel)));
                     if (frame == first)
                     {
                         context.BeginFigure(point, false, false);
@@ -257,7 +327,7 @@ public sealed class WaveformView : FrameworkElement
                 // Übersicht: pro Pixelspalte ein senkrechter Strich von Minimum bis Maximum.
                 int columns = (int)Math.Ceiling(area.Width);
                 var peaks = WaveformPeaks.Compute(
-                    buffer, (int)Math.Floor(_viewStart), (int)Math.Ceiling(_viewLength), columns);
+                    buffer, (int)Math.Floor(_viewStart), (int)Math.Ceiling(_viewLength), columns, channel);
                 for (int column = 0; column < peaks.Length; column++)
                 {
                     double top = Y(peaks[column].Max);
@@ -276,8 +346,6 @@ public sealed class WaveformView : FrameworkElement
         }
 
         geometry.Freeze();
-        _cachedKey = key;
-        _cachedWaveform = geometry;
         return geometry;
     }
 
@@ -305,24 +373,51 @@ public sealed class WaveformView : FrameworkElement
         }
     }
 
-    private void DrawSelection(DrawingContext dc, Size size)
+    private bool TryGetSelectionX(Size size, out double left, out double right)
     {
+        left = right = 0;
         var selection = Selection;
         if (selection.IsEmpty)
         {
-            return;
+            return false;
         }
 
-        double left = Math.Clamp(FrameToX(selection.Start), -1, size.Width + 1);
-        double right = Math.Clamp(FrameToX(selection.End), -1, size.Width + 1);
+        left = Math.Clamp(FrameToX(selection.Start), -1, size.Width + 1);
+        right = Math.Clamp(FrameToX(selection.End), -1, size.Width + 1);
         if (right - left < 1)
         {
             right = left + 1;
         }
 
-        dc.DrawRectangle(SelectionBrush, null, new Rect(left, 0, right - left, size.Height));
+        return true;
+    }
+
+    /// <summary>Auswahlränder über die ganze Höhe (auch in der Zeitleiste).</summary>
+    private void DrawSelectionBackground(DrawingContext dc, Size size)
+    {
+        if (!TryGetSelectionX(size, out double left, out double right))
+        {
+            return;
+        }
+
+        dc.DrawRectangle(SelectionBrush, null, new Rect(left, 0, right - left, RulerHeight));
         dc.DrawLine(SelectionEdgePen, new Point(left, 0), new Point(left, size.Height));
         dc.DrawLine(SelectionEdgePen, new Point(right, 0), new Point(right, size.Height));
+    }
+
+    /// <summary>Auswahlfläche nur in den Spuren der Kanäle, auf die Effekte wirken.</summary>
+    private void DrawSelectionInLane(DrawingContext dc, Rect lane, int channel)
+    {
+        var active = ActiveChannels;
+        if (active is not null && channel < active.Length && !active[channel])
+        {
+            return;
+        }
+
+        if (TryGetSelectionX(RenderSize, out double left, out double right))
+        {
+            dc.DrawRectangle(SelectionBrush, null, new Rect(left, lane.Top, right - left, lane.Height));
+        }
     }
 
     private void DrawPlayhead(DrawingContext dc, Size size)

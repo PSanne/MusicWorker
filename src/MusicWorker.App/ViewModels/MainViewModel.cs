@@ -26,7 +26,8 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     private readonly SettingsService _settings;
     private CancellationTokenSource? _playheadUpdates;
     private EqualizerProcessor? _liveEqualizer;
-    private SpectrumAnalyzer? _spectrumAnalyzer;
+    private SpectrumAnalyzer[]? _spectrumAnalyzers;
+    private ChannelMonitorSampleProvider? _channelMonitor;
 
     /// <summary>Spalten der Spektrumanzeige (je 1/6 Oktave über 10 Oktaven).</summary>
     private const int SpectrumBands = 60;
@@ -53,9 +54,32 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     [ObservableProperty]
     private bool _isEqualizerVisible;
 
-    /// <summary>Live-Spektrum der Wiedergabe (nach dem EQ) in dBFS; null, wenn nichts spielt.</summary>
+    /// <summary>
+    /// Live-Spektrum der Wiedergabe (nach dem EQ) in dBFS – ein Array pro Kanal (Stereo: links, rechts);
+    /// null, wenn nichts spielt.
+    /// </summary>
     [ObservableProperty]
-    private float[]? _spectrum;
+    private float[][]? _spectra;
+
+    /// <summary>Effekte wirken auf den linken Kanal.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ActiveChannels), nameof(ChannelTargetText))]
+    private bool _editLeft = true;
+
+    /// <summary>Effekte wirken auf den rechten Kanal.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ActiveChannels), nameof(ChannelTargetText))]
+    private bool _editRight = true;
+
+    /// <summary>Linken Kanal abhören (aus = beim Abspielen stumm).</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(MutedChannels), nameof(ChannelTargetText))]
+    private bool _hearLeft = true;
+
+    /// <summary>Rechten Kanal abhören (aus = beim Abspielen stumm).</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(MutedChannels), nameof(ChannelTargetText))]
+    private bool _hearRight = true;
 
     /// <summary>Frequenzgang des Live-EQ in dB für die Kurve über dem Spektrum.</summary>
     [ObservableProperty]
@@ -97,6 +121,43 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
 
     /// <summary>Hinweis in der Statusleiste, solange der Live-EQ den Klang verändert.</summary>
     public string EqualizerIndicator => Equalizer.IsActive ? "EQ aktiv" : string.Empty;
+
+    /// <summary>Stereo-Datei geladen – dann sind die Kanal-Werkzeuge verfügbar.</summary>
+    public bool IsStereo => HasAudio && Buffer.Channels == 2;
+
+    /// <summary>Für die Wellenform: In welchen Kanälen wird die Auswahl bearbeitet?</summary>
+    public bool[]? ActiveChannels => IsStereo ? [EditLeft, EditRight] : null;
+
+    /// <summary>Für die Wellenform: Welche Kanäle sind beim Abhören stumm?</summary>
+    public bool[]? MutedChannels => IsStereo ? [!HearLeft, !HearRight] : null;
+
+    /// <summary>Hinweis in der Statusleiste, wenn nicht beide Kanäle bearbeitet oder gehört werden.</summary>
+    public string ChannelTargetText
+    {
+        get
+        {
+            if (!IsStereo)
+            {
+                return string.Empty;
+            }
+
+            var parts = new List<string>();
+            if (!EditsAllChannels)
+            {
+                parts.Add(EditLeft ? "Effekte: nur L" : "Effekte: nur R");
+            }
+
+            if (!HearLeft || !HearRight)
+            {
+                parts.Add(!HearLeft && !HearRight ? "beide Kanäle stumm" : HearLeft ? "Hören: nur L" : "Hören: nur R");
+            }
+
+            return string.Join(" · ", parts);
+        }
+    }
+
+    /// <summary>True, wenn Effekte auf alle Kanäle wirken (immer bei Mono).</summary>
+    private bool EditsAllChannels => !IsStereo || (EditLeft && EditRight);
 
     /// <summary>Einträge für „Datei → Zuletzt geöffnet“.</summary>
     public ObservableCollection<RecentFileItem> RecentFiles { get; } = [];
@@ -252,6 +313,70 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         }
     }
 
+    /// <summary>Speichert linken und rechten Kanal als zwei Mono-Dateien (…_L und …_R).</summary>
+    [RelayCommand(CanExecute = nameof(CanUseStereo))]
+    private async Task ExportChannelsAsync()
+    {
+        string suggestedName = Path.GetFileNameWithoutExtension(FileName) + ".wav";
+        string? basePath = _dialogs.ShowSaveFileDialog(
+            AudioFileService.ExportFilter, suggestedName, "Kanäle als Mono-Dateien exportieren – Basisname wählen");
+        if (basePath is null)
+        {
+            return;
+        }
+
+        string directory = Path.GetDirectoryName(basePath) ?? string.Empty;
+        string name = Path.GetFileNameWithoutExtension(basePath);
+        string extension = Path.GetExtension(basePath);
+        string leftPath = Path.Combine(directory, $"{name}_L{extension}");
+        string rightPath = Path.Combine(directory, $"{name}_R{extension}");
+
+        if ((File.Exists(leftPath) || File.Exists(rightPath)) && !_dialogs.Confirm(
+                $"Mindestens eine dieser Dateien existiert bereits und wird überschrieben:\n\n{leftPath}\n{rightPath}",
+                "Dateien überschreiben?"))
+        {
+            return;
+        }
+
+        EqualizerEffect? equalizer = null;
+        if (Equalizer.IsActive && _dialogs.Confirm(
+                "Der Live-Equalizer ist eingeschaltet. Soll er in die exportierten Dateien eingerechnet werden?",
+                "Equalizer beim Export"))
+        {
+            equalizer = new EqualizerEffect(Equalizer.ToSettings(), Equalizer.PreventClipping);
+        }
+
+        StopPlayback();
+        IsBusy = true;
+        StatusText = "Exportiere linken und rechten Kanal …";
+        var buffer = Buffer;
+        try
+        {
+            await Task.Run(() =>
+            {
+                var source = equalizer is null ? buffer : equalizer.Apply(buffer);
+                _files.Export(source.GetChannel(0), leftPath);
+                _files.Export(source.GetChannel(1), rightPath);
+            });
+            StatusText = $"Exportiert: „{Path.GetFileName(leftPath)}“ und „{Path.GetFileName(rightPath)}“.";
+        }
+        catch (Exception ex)
+        {
+            StatusText = "Export fehlgeschlagen.";
+            _dialogs.ShowError($"Die Dateien konnten nicht gespeichert werden.\n\n{ex.Message}");
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+    }
+
+    [RelayCommand(CanExecute = nameof(CanUseStereo))]
+    private void KeepLeftChannel() => Edit(() => _editor.KeepChannel(0));
+
+    [RelayCommand(CanExecute = nameof(CanUseStereo))]
+    private void KeepRightChannel() => Edit(() => _editor.KeepChannel(1));
+
     /// <summary>Wird beim Schließen des Fensters gefragt.</summary>
     public bool ConfirmClose() => ConfirmDiscardChanges();
 
@@ -406,7 +531,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         }
     }
 
-    [RelayCommand(CanExecute = nameof(CanUseAudio))]
+    [RelayCommand(CanExecute = nameof(CanChangeTempo))]
     private async Task TempoPitchAsync()
     {
         if (_dialogs.AskTempoAndPitch() is not { } values)
@@ -447,6 +572,11 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     private bool CanOpen() => !IsBusy;
 
     private bool CanApplyEqualizer() => HasAudio && !IsBusy && Equalizer.IsActive;
+
+    private bool CanUseStereo() => IsStereo && !IsBusy;
+
+    /// <summary>Tempo/Tonhöhe ändern die Länge – das geht nur für alle Kanäle gemeinsam.</summary>
+    private bool CanChangeTempo() => CanUseAudio() && EditsAllChannels;
 
     private bool CanUseAudio() => HasAudio && !IsBusy;
 
@@ -491,30 +621,46 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         var processor = new EqualizerProcessor(
             source.WaveFormat.SampleRate, source.WaveFormat.Channels, Equalizer.EffectiveSettings);
         _liveEqualizer = processor;
-        _spectrumAnalyzer = new SpectrumAnalyzer(source.WaveFormat.SampleRate);
 
-        // Reihenfolge: Puffer → Equalizer → Spektrum-Abgriff → Soundkarte (das Spektrum zeigt also den EQ-Klang).
-        return new SpectrumTapSampleProvider(new EqualizerSampleProvider(source, processor), _spectrumAnalyzer);
+        // Stereo: ein Analysator pro Kanal, sonst einer für die Summe.
+        int analyzerCount = source.WaveFormat.Channels == 2 ? 2 : 1;
+        _spectrumAnalyzers = Enumerable.Range(0, analyzerCount)
+            .Select(_ => new SpectrumAnalyzer(source.WaveFormat.SampleRate))
+            .ToArray();
+
+        // Stummschalten gilt nur für Stereo – eine Mono-Datei bleibt immer hörbar.
+        _channelMonitor = new ChannelMonitorSampleProvider(source, IsStereo ? [!HearLeft, !HearRight] : []);
+
+        // Reihenfolge: Puffer → Kanal-Stummschaltung → Equalizer → Spektrum-Abgriff → Soundkarte.
+        // Das Spektrum zeigt also genau das, was zu hören ist.
+        return new SpectrumTapSampleProvider(
+            new EqualizerSampleProvider(_channelMonitor, processor), _spectrumAnalyzers);
     }
 
     private void UpdateSpectrum()
     {
-        if (_spectrumAnalyzer is null)
+        if (_spectrumAnalyzers is null)
         {
             return;
         }
 
-        var bands = _spectrumAnalyzer.GetBands(SpectrumBands);
-        if (Spectrum is { Length: SpectrumBands } previous)
+        var spectra = new float[_spectrumAnalyzers.Length][];
+        for (int c = 0; c < spectra.Length; c++)
         {
-            // Sofort steigen, langsam fallen – so wirkt die Anzeige ruhig und gut ablesbar.
-            for (int i = 0; i < bands.Length; i++)
+            var bands = _spectrumAnalyzers[c].GetBands(SpectrumBands);
+            if (Spectra is { } previous && previous.Length == spectra.Length && previous[c].Length == SpectrumBands)
             {
-                bands[i] = Math.Max(bands[i], previous[i] - SpectrumFallPerFrame);
+                // Sofort steigen, langsam fallen – so wirkt die Anzeige ruhig und gut ablesbar.
+                for (int i = 0; i < bands.Length; i++)
+                {
+                    bands[i] = Math.Max(bands[i], previous[c][i] - SpectrumFallPerFrame);
+                }
             }
+
+            spectra[c] = bands;
         }
 
-        Spectrum = bands;
+        Spectra = spectra;
     }
 
     private void UpdateEqualizerCurve()
@@ -530,6 +676,42 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         UpdateEqualizerCurve();
         OnPropertyChanged(nameof(EqualizerIndicator));
         ApplyEqualizerCommand.NotifyCanExecuteChanged();
+    }
+
+    partial void OnEditLeftChanged(bool value)
+    {
+        if (!value && !EditRight)
+        {
+            EditRight = true; // mindestens ein Kanal bleibt Ziel der Effekte
+        }
+
+        TempoPitchCommand.NotifyCanExecuteChanged();
+    }
+
+    partial void OnEditRightChanged(bool value)
+    {
+        if (!value && !EditLeft)
+        {
+            EditLeft = true;
+        }
+
+        TempoPitchCommand.NotifyCanExecuteChanged();
+    }
+
+    partial void OnHearLeftChanged(bool value)
+    {
+        if (IsStereo)
+        {
+            _channelMonitor?.SetMuted(0, !value);
+        }
+    }
+
+    partial void OnHearRightChanged(bool value)
+    {
+        if (IsStereo)
+        {
+            _channelMonitor?.SetMuted(1, !value);
+        }
     }
 
     partial void OnIsEqualizerVisibleChanged(bool value)
@@ -558,6 +740,11 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         if (!HasAudio)
         {
             return false;
+        }
+
+        if (!EditsAllChannels)
+        {
+            effect = new ChannelEffect(effect, EditLeft ? [0] : [1]);
         }
 
         StopPlayback();
@@ -621,8 +808,9 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     {
         _playback.Stop();
         _liveEqualizer = null;
-        _spectrumAnalyzer = null;
-        Spectrum = null;
+        _spectrumAnalyzers = null;
+        _channelMonitor = null;
+        Spectra = null;
         IsPlaying = false;
         StopPlayheadUpdates();
         PlayheadFrame = Selection.Start;
@@ -671,8 +859,9 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     private void OnPlaybackEnded(object? sender, StoppedEventArgs e)
     {
         IsPlaying = false;
-        _spectrumAnalyzer = null;
-        Spectrum = null;
+        _spectrumAnalyzers = null;
+        _channelMonitor = null;
+        Spectra = null;
         StopPlayheadUpdates();
         PlayheadFrame = Selection.Start;
         if (e.Exception is not null)
@@ -691,6 +880,10 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         OnPropertyChanged(nameof(RedoText));
         OnPropertyChanged(nameof(PositionText));
         OnPropertyChanged(nameof(FormatText));
+        OnPropertyChanged(nameof(IsStereo));
+        OnPropertyChanged(nameof(ActiveChannels));
+        OnPropertyChanged(nameof(MutedChannels));
+        OnPropertyChanged(nameof(ChannelTargetText));
         UpdateEqualizerCurve();
         RefreshCommands();
     }
@@ -722,7 +915,8 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     {
         IRelayCommand[] commands =
         [
-            OpenCommand, OpenRecentCommand, ExportCommand,
+            OpenCommand, OpenRecentCommand, ExportCommand, ExportChannelsCommand,
+            KeepLeftChannelCommand, KeepRightChannelCommand,
             PlayCommand, PauseCommand, StopCommand, TogglePlayPauseCommand,
             SelectAllCommand, CutCommand, CopyCommand, PasteCommand, DeleteCommand, TrimCommand,
             InsertSilenceCommand, UndoCommand, RedoCommand,

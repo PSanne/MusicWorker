@@ -161,6 +161,27 @@ public sealed class AudioEditor
         Execute(new ReplaceRangeCommand(description, range.Start, range.Length, processed), selectionAfter);
     }
 
+    /// <summary>
+    /// Macht aus einer Mehrkanal-Datei eine Mono-Datei, die nur den angegebenen Kanal enthält
+    /// (0 = links, 1 = rechts). Rückgängig machbar.
+    /// </summary>
+    public void KeepChannel(int channel)
+    {
+        RequireAudio();
+        if (Buffer.Channels < 2)
+        {
+            throw new InvalidOperationException("Das Audio hat nur einen Kanal.");
+        }
+
+        string description = channel switch
+        {
+            0 => "Nur linken Kanal behalten",
+            1 => "Nur rechten Kanal behalten",
+            _ => $"Nur Kanal {channel + 1} behalten",
+        };
+        Execute(new ReplaceBufferCommand(description, Buffer.GetChannel(channel)), _selection);
+    }
+
     /// <summary>Fügt am Cursor (Anfang der Auswahl) Stille ein und markiert sie.</summary>
     public void InsertSilence(TimeSpan duration)
     {

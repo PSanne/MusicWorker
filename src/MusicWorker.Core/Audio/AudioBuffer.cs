@@ -98,6 +98,57 @@ public sealed class AudioBuffer
 
     public AudioBuffer Insert(int atFrame, AudioBuffer other) => ReplaceRange(atFrame, 0, other);
 
+    /// <summary>Kopiert einen einzelnen Kanal als Mono-Puffer heraus (0 = links, 1 = rechts).</summary>
+    public AudioBuffer GetChannel(int channel) => ExtractChannels([channel]);
+
+    /// <summary>Kopiert die angegebenen Kanäle (in dieser Reihenfolge) in einen neuen Puffer.</summary>
+    public AudioBuffer ExtractChannels(IReadOnlyList<int> channels)
+    {
+        ArgumentNullException.ThrowIfNull(channels);
+        if (channels.Count == 0 || channels.Any(c => c < 0 || c >= Channels))
+        {
+            throw new ArgumentOutOfRangeException(nameof(channels), "Ungültige Kanalnummer.");
+        }
+
+        int frames = FrameCount;
+        var result = new float[frames * channels.Count];
+        for (int frame = 0; frame < frames; frame++)
+        {
+            for (int i = 0; i < channels.Count; i++)
+            {
+                result[frame * channels.Count + i] = _samples[frame * Channels + channels[i]];
+            }
+        }
+
+        return new AudioBuffer(result, SampleRate, channels.Count);
+    }
+
+    /// <summary>
+    /// Liefert eine Kopie, in der die angegebenen Kanäle durch die Kanäle von
+    /// <paramref name="replacement"/> ersetzt sind (gleiche Länge erforderlich).
+    /// </summary>
+    public AudioBuffer ReplaceChannels(IReadOnlyList<int> channels, AudioBuffer replacement)
+    {
+        ArgumentNullException.ThrowIfNull(channels);
+        ArgumentNullException.ThrowIfNull(replacement);
+        if (replacement.Channels != channels.Count || replacement.FrameCount != FrameCount ||
+            replacement.SampleRate != SampleRate)
+        {
+            throw new ArgumentException("Kanalanzahl, Länge oder Abtastrate passen nicht.", nameof(replacement));
+        }
+
+        var result = _samples.ToArray();
+        for (int frame = 0; frame < FrameCount; frame++)
+        {
+            for (int i = 0; i < channels.Count; i++)
+            {
+                result[frame * Channels + channels[i]] = replacement._samples[frame * channels.Count + i];
+            }
+        }
+
+        return new AudioBuffer(result, SampleRate, Channels);
+    }
+
     private void ValidateRange(int startFrame, int frameCount)
     {
         if (startFrame < 0 || frameCount < 0 || startFrame > FrameCount - frameCount)

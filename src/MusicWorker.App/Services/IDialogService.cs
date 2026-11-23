@@ -20,7 +20,7 @@ public interface IDialogService
 {
     string? ShowOpenFileDialog(string filter);
 
-    string? ShowSaveFileDialog(string filter, string suggestedFileName);
+    string? ShowSaveFileDialog(string filter, string suggestedFileName, string title = "Exportieren");
 
     /// <summary>Fragt einen Zahlenwert ab; null = abgebrochen.</summary>
     double? AskValue(ValueRequest request);

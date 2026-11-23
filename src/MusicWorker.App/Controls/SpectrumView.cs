@@ -12,8 +12,8 @@ namespace MusicWorker.App.Controls;
 /// </summary>
 public sealed class SpectrumView : FrameworkElement
 {
-    public static readonly DependencyProperty SpectrumProperty = DependencyProperty.Register(
-        nameof(Spectrum), typeof(float[]), typeof(SpectrumView),
+    public static readonly DependencyProperty SpectraProperty = DependencyProperty.Register(
+        nameof(Spectra), typeof(float[][]), typeof(SpectrumView),
         new FrameworkPropertyMetadata(null, FrameworkPropertyMetadataOptions.AffectsRender));
 
     public static readonly DependencyProperty EqualizerCurveProperty = DependencyProperty.Register(
@@ -32,8 +32,12 @@ public sealed class SpectrumView : FrameworkElement
         LineJoin = PenLineJoin.Round,
     });
     private static readonly Brush CurveFill = Frozen(new SolidColorBrush(Color.FromArgb(0x38, 0xFF, 0x9F, 0x1C)));
-    private static readonly Brush BarBrush = Frozen(new LinearGradientBrush(
-        Color.FromRgb(0x81, 0xD4, 0xFA), Color.FromRgb(0x15, 0x65, 0xC0), new Point(0, 0), new Point(0, 1)));
+    // Farben je Kanal – passend zur Wellenform: links blau, rechts rosa.
+    private static readonly Brush[] BarBrushes =
+    [
+        Frozen(new LinearGradientBrush(Color.FromRgb(0x81, 0xD4, 0xFA), Color.FromRgb(0x15, 0x65, 0xC0), new Point(0, 0), new Point(0, 1))),
+        Frozen(new LinearGradientBrush(Color.FromRgb(0xF8, 0xBB, 0xD0), Color.FromRgb(0xC2, 0x18, 0x5B), new Point(0, 0), new Point(0, 1))),
+    ];
     private static readonly Typeface LabelTypeface = new("Segoe UI");
 
     private static readonly (double Frequency, string Label)[] FrequencyGrid =
@@ -48,11 +52,14 @@ public sealed class SpectrumView : FrameworkElement
         SnapsToDevicePixels = true;
     }
 
-    /// <summary>Pegel je Spalte in dBFS (null = keine Wiedergabe).</summary>
-    public float[]? Spectrum
+    /// <summary>
+    /// Pegel je Spalte in dBFS – ein Array pro Kanal (eins = Summe, zwei = links/rechts);
+    /// null = keine Wiedergabe.
+    /// </summary>
+    public float[][]? Spectra
     {
-        get => (float[]?)GetValue(SpectrumProperty);
-        set => SetValue(SpectrumProperty, value);
+        get => (float[][]?)GetValue(SpectraProperty);
+        set => SetValue(SpectraProperty, value);
     }
 
     /// <summary>EQ-Frequenzgang in dB, gleichmäßig über die Frequenzachse verteilt.</summary>
@@ -93,18 +100,25 @@ public sealed class SpectrumView : FrameworkElement
         DrawLabel(dc, "+12", new Point(2, curveMiddle - 12 * curveScale - 7), pixelsPerDip);
         DrawLabel(dc, "-12", new Point(2, curveMiddle + 12 * curveScale - 7), pixelsPerDip);
 
-        // Spektrum-Balken
-        if (Spectrum is { Length: > 0 } spectrum)
+        // Spektrum-Balken: bei Stereo pro Spalte zwei schmale Balken nebeneinander (L | R).
+        var spectra = Spectra;
+        if (spectra is { Length: > 0 } && spectra[0].Length > 0)
         {
-            double barWidth = width / spectrum.Length;
-            for (int i = 0; i < spectrum.Length; i++)
+            int columns = spectra[0].Length;
+            double columnWidth = width / columns;
+            double barWidth = Math.Max(1, (columnWidth - 1.5) / spectra.Length);
+            for (int c = 0; c < spectra.Length; c++)
             {
-                double level = (spectrum[i] - SpectrumAnalyzer.FloorDb) / (TopDb - SpectrumAnalyzer.FloorDb);
-                double barHeight = Math.Clamp(level, 0, 1) * height;
-                if (barHeight >= 1)
+                var brush = BarBrushes[Math.Min(c, BarBrushes.Length - 1)];
+                for (int i = 0; i < columns && i < spectra[c].Length; i++)
                 {
-                    dc.DrawRectangle(BarBrush, null,
-                        new Rect(i * barWidth + 0.5, height - barHeight, Math.Max(1, barWidth - 1.5), barHeight));
+                    double level = (spectra[c][i] - SpectrumAnalyzer.FloorDb) / (TopDb - SpectrumAnalyzer.FloorDb);
+                    double barHeight = Math.Clamp(level, 0, 1) * height;
+                    if (barHeight >= 1)
+                    {
+                        dc.DrawRectangle(brush, null,
+                            new Rect(i * columnWidth + 0.5 + c * barWidth, height - barHeight, barWidth, barHeight));
+                    }
                 }
             }
         }
@@ -150,8 +164,16 @@ public sealed class SpectrumView : FrameworkElement
         }
 
         // Legende
-        var legend = new FormattedText("▮ Spektrum   ━ EQ-Kurve", CultureInfo.CurrentCulture,
-            FlowDirection.LeftToRight, LabelTypeface, 10, LabelBrush, pixelsPerDip);
+        bool stereo = spectra is { Length: 2 };
+        var legend = new FormattedText(stereo ? "▮ L   ▮ R   ━ EQ-Kurve" : "▮ Spektrum   ━ EQ-Kurve",
+            CultureInfo.CurrentCulture, FlowDirection.LeftToRight, LabelTypeface, 10, LabelBrush, pixelsPerDip);
+        if (stereo)
+        {
+            // „L“ und „R“ in ihren Kanalfarben einfärben
+            legend.SetForegroundBrush(BarBrushes[0], 0, 1);
+            legend.SetForegroundBrush(BarBrushes[1], 6, 1);
+        }
+
         dc.DrawText(legend, new Point(width - legend.Width - 6, 3));
     }
 

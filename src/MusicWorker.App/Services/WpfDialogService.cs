@@ -15,11 +15,11 @@ public sealed class WpfDialogService : IDialogService
         return Show(dialog) ? dialog.FileName : null;
     }
 
-    public string? ShowSaveFileDialog(string filter, string suggestedFileName)
+    public string? ShowSaveFileDialog(string filter, string suggestedFileName, string title = "Exportieren")
     {
         var dialog = new SaveFileDialog
         {
-            Title = "Exportieren",
+            Title = title,
             Filter = filter,
             FileName = suggestedFileName,
             DefaultExt = ".wav",

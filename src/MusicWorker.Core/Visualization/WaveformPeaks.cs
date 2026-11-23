@@ -12,9 +12,10 @@ public static class WaveformPeaks
     /// Teilt den Bereich [<paramref name="startFrame"/>, +<paramref name="frameCount"/>) in
     /// <paramref name="columns"/> Spalten und liefert je Spalte Minimum und Maximum.
     /// Ist man so weit hineingezoomt, dass eine Spalte weniger als ein Frame umfasst,
-    /// wird das nächstliegende Frame verwendet.
+    /// wird das nächstliegende Frame verwendet. Mit <c>channel</c> ≥ 0 wird nur dieser Kanal
+    /// ausgewertet, mit -1 alle Kanäle zusammen.
     /// </summary>
-    public static PeakColumn[] Compute(AudioBuffer buffer, int startFrame, int frameCount, int columns)
+    public static PeakColumn[] Compute(AudioBuffer buffer, int startFrame, int frameCount, int columns, int channel = -1)
     {
         ArgumentNullException.ThrowIfNull(buffer);
         if (columns <= 0)
@@ -51,8 +52,11 @@ public static class WaveformPeaks
 
             float min = float.MaxValue;
             float max = float.MinValue;
-            foreach (float sample in samples[(first * channels)..(last * channels)])
+            int offset = channel < 0 ? 0 : channel;
+            int step = channel < 0 ? 1 : channels;
+            for (int i = first * channels + offset; i < last * channels; i += step)
             {
+                float sample = samples[i];
                 if (sample < min)
                 {
                     min = sample;

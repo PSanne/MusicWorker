@@ -51,6 +51,19 @@ public sealed class SpectrumAnalyzer
         }
     }
 
+    /// <summary>Nimmt nur einen Kanal aus verschachtelten Samples auf (für getrennte L/R-Anzeige). Thread-sicher.</summary>
+    public void WriteChannel(ReadOnlySpan<float> samples, int channels, int channel)
+    {
+        lock (_lock)
+        {
+            for (int i = channel; i < samples.Length; i += channels)
+            {
+                _ring[_writePosition] = samples[i];
+                _writePosition = (_writePosition + 1) % FftSize;
+            }
+        }
+    }
+
     /// <summary>
     /// Liefert den Pegel (dBFS) für <paramref name="bandCount"/> gleich breite Spalten der
     /// <see cref="SpectrumScale"/>. Ein Vollaussteuerungs-Sinus ergibt 0 dB.
