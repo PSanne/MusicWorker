@@ -11,7 +11,7 @@ Version 0.2 bietet einen vollständigen Audio-Editor mit 15-Band-Equalizer sowie
 |---|---|
 | **Öffnen & Abspielen** | WAV, MP3, FLAC, AIFF, M4A/AAC, WMA öffnen (Menü, Strg+O oder Drag & Drop) · **zuletzt geöffnete Dateien** · Wellenform mit Zeitleiste · Abspielen, Pause, Stopp · laufende Abspielposition |
 | **Schneiden & Trimmen** | Bereich mit der Maus markieren · Ausschneiden, Kopieren, Einfügen, Löschen · Auf Auswahl zuschneiden · **Stille einfügen** · **Rückgängig/Wiederholen** (50 Schritte) |
-| **Equalizer** | **15 Bänder** von 25 Hz bis 16 kHz (2/3-Oktave, ±12 dB) · Vorverstärkung · 13 Voreinstellungen (Bass-Boost, Rock, Stimme, Loudness …) · **Live-Vorhören** · Schutz vor Übersteuerung · letzte Einstellung wird gespeichert |
+| **Live-Equalizer** | **15 Bänder** von 25 Hz bis 16 kHz (2/3-Oktave, ±12 dB) · Vorverstärkung · 13 Voreinstellungen (Bass-Boost, Rock, Stimme, Loudness …) · **wirkt sofort beim Abspielen** · Ein/Aus für Vorher-/Nachher-Vergleich · „In Audio übernehmen“ · beim Export einrechenbar · Schutz vor Übersteuerung · Einstellung wird gespeichert |
 | **Tempo & Tonhöhe** | Tempo 50–200 % ohne Tonhöhenänderung · Tonhöhe ±12 Halbtöne ohne Tempoänderung · beides kombinierbar |
 | **Weitere Effekte** | Lautstärke ändern (±24 dB) · Normalisieren (-1 dB) · Einblenden/Ausblenden (Fade In/Out) · Umkehren · Stummschalten |
 | **Export** | WAV (16 Bit) · MP3 (192 kbit/s, über den in Windows eingebauten Encoder) |
@@ -33,11 +33,13 @@ Version 0.2 bietet einen vollständigen Audio-Editor mit 15-Band-Equalizer sowie
 | Ausschneiden / Kopieren / Einfügen | Strg+X / Strg+C / Strg+V |
 | Löschen | Entf |
 | Alles auswählen / Zuschneiden | Strg+A / Strg+T |
-| Equalizer | Strg+Umschalt+E |
+| Equalizer ein-/ausblenden | Strg+Umschalt+E |
+| EQ-Regler auf 0 dB | Doppelklick auf den Regler |
 
 > **Tipp:** Ist nichts markiert, wirken *Lautstärke* und *Normalisieren* auf die ganze Datei.
 > *Abspielen* spielt die Auswahl, oder ab dem Cursor bis zum Ende.
-> Im Equalizer spielt *Vorhören* die Auswahl in Schleife, und jede Reglerbewegung ist sofort hörbar.
+> Der **Live-Equalizer** unter der Wellenform wirkt sofort auf die Wiedergabe. Deine Datei ändert er erst,
+> wenn du auf *In Audio übernehmen* klickst; beim Exportieren fragt MusicWorker, ob er eingerechnet werden soll.
 
 ## Loslegen
 
@@ -102,7 +104,7 @@ die Oberfläche nur in `MusicWorker.App`. So können Mehrspur- und Noten-Editor 
 ## Fahrplan
 
 - [x] **v0.1 – Audio-Editor:** Öffnen, Abspielen, Schneiden, Effekte, Export
-- [x] **v0.2 – Komfort & Klang:** 15-Band-Equalizer mit Live-Vorhören, Tempo/Tonhöhe, Stille einfügen, Umkehren, Stummschalten, zuletzt geöffnete Dateien
+- [x] **v0.2 – Komfort & Klang:** 15-Band-Live-Equalizer, Tempo/Tonhöhe, Stille einfügen, Umkehren, Stummschalten, zuletzt geöffnete Dateien
 - [ ] **v0.3 – Mehrspur-Mixer:** mehrere Spuren, Clips verschieben, Lautstärke/Panorama/Mute/Solo pro Spur, Mixdown, **Projekte speichern/laden**
 - [ ] **v0.4 – Noten-/MIDI-Editor:** MIDI importieren/exportieren, Piano-Roll, Noten bearbeiten, Wiedergabe über Software-Synthesizer
 - [ ] **v0.5 – Aufnahme:** Mikrofon-/Line-In-Aufnahme direkt in eine Spur

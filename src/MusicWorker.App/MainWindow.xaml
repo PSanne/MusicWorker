@@ -8,7 +8,7 @@
         mc:Ignorable="d"
         d:DataContext="{d:DesignInstance Type=vm:MainViewModel}"
         Title="{Binding WindowTitle}"
-        Width="1100" Height="620" MinWidth="640" MinHeight="360"
+        Width="1100" Height="760" MinWidth="980" MinHeight="420"
         WindowStartupLocation="CenterScreen"
         AllowDrop="True"
         DragOver="OnDragOver"
@@ -31,6 +31,31 @@
             <Setter Property="Padding" Value="7,4" />
             <Setter Property="ToolTipService.ShowOnDisabled" Value="True" />
         </Style>
+
+        <!-- Equalizer-Regler -->
+        <Style x:Key="EqSlider" TargetType="Slider">
+            <Setter Property="Orientation" Value="Vertical" />
+            <Setter Property="Height" Value="150" />
+            <Setter Property="Minimum" Value="-12" />
+            <Setter Property="Maximum" Value="12" />
+            <Setter Property="SmallChange" Value="0.5" />
+            <Setter Property="LargeChange" Value="3" />
+            <Setter Property="TickFrequency" Value="3" />
+            <Setter Property="TickPlacement" Value="Both" />
+            <Setter Property="IsMoveToPointEnabled" Value="True" />
+            <Setter Property="HorizontalAlignment" Value="Center" />
+        </Style>
+        <Style x:Key="EqValueLabel" TargetType="TextBlock">
+            <Setter Property="HorizontalAlignment" Value="Center" />
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="FontFamily" Value="Consolas" />
+            <Setter Property="Margin" Value="0,0,0,4" />
+        </Style>
+        <Style x:Key="EqBandLabel" TargetType="TextBlock">
+            <Setter Property="HorizontalAlignment" Value="Center" />
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="Margin" Value="0,4,0,0" />
+        </Style>
     </Window.Resources>
 
     <Window.InputBindings>
@@ -44,7 +69,7 @@
         <KeyBinding Key="V" Modifiers="Ctrl" Command="{Binding PasteCommand}" />
         <KeyBinding Key="A" Modifiers="Ctrl" Command="{Binding SelectAllCommand}" />
         <KeyBinding Key="T" Modifiers="Ctrl" Command="{Binding TrimCommand}" />
-        <KeyBinding Key="E" Modifiers="Ctrl+Shift" Command="{Binding EqualizerCommand}" />
+        <KeyBinding Key="E" Modifiers="Ctrl+Shift" Command="{Binding ToggleEqualizerCommand}" />
         <KeyBinding Key="Delete" Command="{Binding DeleteCommand}" />
         <KeyBinding Key="Space" Command="{Binding TogglePlayPauseCommand}" />
         <KeyBinding Key="Escape" Command="{Binding StopCommand}" />
@@ -89,7 +114,7 @@
             <MenuItem Header="E_ffekte">
                 <MenuItem Header="_Lautstärke ändern …" Command="{Binding ChangeGainCommand}" />
                 <MenuItem Header="_Normalisieren" Command="{Binding NormalizeCommand}" />
-                <MenuItem Header="_Equalizer …" Command="{Binding EqualizerCommand}" InputGestureText="Strg+Umschalt+E" />
+                <MenuItem Header="_Equalizer in Audio übernehmen" Command="{Binding ApplyEqualizerCommand}" />
                 <MenuItem Header="_Tempo &amp; Tonhöhe …" Command="{Binding TempoPitchCommand}" />
                 <Separator />
                 <MenuItem Header="_Einblenden (Fade In)" Command="{Binding FadeInCommand}" />
@@ -103,6 +128,9 @@
                 <MenuItem Header="V_erkleinern" Click="OnZoomOutClick" InputGestureText="Strg+Mausrad" />
                 <MenuItem Header="_Ganze Datei" Click="OnZoomFitClick" />
                 <MenuItem Header="_Auswahl einpassen" Click="OnZoomSelectionClick" />
+                <Separator />
+                <MenuItem Header="_Equalizer anzeigen" IsCheckable="True"
+                          IsChecked="{Binding IsEqualizerVisible, Mode=TwoWay}" InputGestureText="Strg+Umschalt+E" />
             </MenuItem>
         </Menu>
 
@@ -155,7 +183,10 @@
                     <TextBlock Style="{StaticResource Glyph}" Text="&#xE767;" />
                 </Button>
                 <Button Style="{StaticResource ToolButton}" Command="{Binding NormalizeCommand}" Content="Normalisieren" ToolTip="Auf -1 dB normalisieren" />
-                <Button Style="{StaticResource ToolButton}" Command="{Binding EqualizerCommand}" Content="Equalizer" ToolTip="15-Band-Equalizer mit Live-Vorhören (Strg+Umschalt+E)" />
+                <ToggleButton Focusable="False" Padding="7,4" Content="Equalizer"
+                              Style="{StaticResource {x:Static ToolBar.ToggleButtonStyleKey}}"
+                              IsChecked="{Binding IsEqualizerVisible, Mode=TwoWay}"
+                              ToolTip="Live-Equalizer ein-/ausblenden (Strg+Umschalt+E)" />
                 <Button Style="{StaticResource ToolButton}" Command="{Binding TempoPitchCommand}" Content="Tempo/Tonhöhe" ToolTip="Tempo und Tonhöhe unabhängig voneinander ändern" />
                 <Button Style="{StaticResource ToolButton}" Command="{Binding FadeInCommand}" Content="Fade In" ToolTip="Auswahl einblenden" />
                 <Button Style="{StaticResource ToolButton}" Command="{Binding FadeOutCommand}" Content="Fade Out" ToolTip="Auswahl ausblenden" />
@@ -177,6 +208,10 @@
             <StatusBarItem DockPanel.Dock="Right">
                 <TextBlock Text="{Binding FormatText}" Margin="8,0" />
             </StatusBarItem>
+            <StatusBarItem DockPanel.Dock="Right">
+                <TextBlock Text="{Binding EqualizerIndicator}" Margin="8,0" Foreground="#0078D4" FontWeight="SemiBold"
+                           ToolTip="Der Live-Equalizer verändert gerade den Klang der Wiedergabe." />
+            </StatusBarItem>
             <Separator DockPanel.Dock="Right" />
             <StatusBarItem DockPanel.Dock="Right">
                 <TextBlock Text="{Binding PositionText}" Margin="8,0" FontFamily="Consolas" />
@@ -189,6 +224,73 @@
                 <TextBlock Text="{Binding StatusText}" TextTrimming="CharacterEllipsis" />
             </StatusBarItem>
         </StatusBar>
+
+        <!-- Live-Equalizer: wirkt sofort auf die Wiedergabe -->
+        <Border DockPanel.Dock="Bottom"
+                DataContext="{Binding Equalizer}"
+                Visibility="{Binding DataContext.IsEqualizerVisible, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource BoolToVisibility}}"
+                Background="#F7F7F9" BorderBrush="#D9D9DE" BorderThickness="0,1,0,0">
+            <DockPanel Margin="14,10">
+                <StackPanel DockPanel.Dock="Left" Width="200" Margin="0,0,18,0">
+                    <TextBlock FontSize="14" FontWeight="SemiBold" Text="Equalizer" />
+                    <CheckBox Margin="0,8,0,0" Content="Equalizer eingeschaltet" IsChecked="{Binding IsEnabled}"
+                              ToolTip="Ausschalten zum direkten Vorher-/Nachher-Vergleich" />
+                    <TextBlock Margin="0,10,0,2" Text="Voreinstellung:" />
+                    <ComboBox ItemsSource="{Binding Presets}" SelectedItem="{Binding SelectedPreset}" DisplayMemberPath="Name" />
+                    <Button Margin="0,8,0,0" Padding="8,2" Content="Alle Regler auf 0" Command="{Binding ResetCommand}" />
+                    <Button Margin="0,8,0,0" Padding="8,3" FontWeight="SemiBold" Content="In Audio übernehmen"
+                            Command="{Binding DataContext.ApplyEqualizerCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                            ToolTip="Rechnet den Klang fest in die Auswahl (oder die ganze Datei) ein. Danach stehen die Regler wieder auf 0." />
+                    <CheckBox Margin="0,8,0,0" IsChecked="{Binding PreventClipping}"
+                              ToolTip="Beim Übernehmen und Exportieren den Pegel bei Bedarf auf -1 dB absenken.">
+                        <TextBlock TextWrapping="Wrap" Text="Übersteuerung verhindern" />
+                    </CheckBox>
+                </StackPanel>
+
+                <StackPanel Orientation="Horizontal">
+                    <StackPanel.Style>
+                        <Style TargetType="StackPanel">
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding IsEnabled}" Value="False">
+                                    <Setter Property="Opacity" Value="0.45" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </StackPanel.Style>
+
+                    <StackPanel Width="52" ToolTip="Vorverstärkung vor dem Equalizer – Doppelklick setzt auf 0 dB">
+                        <TextBlock Style="{StaticResource EqValueLabel}" Text="{Binding PreampDb, StringFormat={}{0:+0.0;-0.0;0.0}}" />
+                        <Slider Style="{StaticResource EqSlider}" Value="{Binding PreampDb}" MouseDoubleClick="OnEqSliderDoubleClick" />
+                        <TextBlock Style="{StaticResource EqBandLabel}" FontWeight="SemiBold" Text="Pegel" />
+                    </StackPanel>
+
+                    <Border Width="1" Margin="6,0" Background="#D9D9DE" />
+
+                    <ItemsControl ItemsSource="{Binding Bands}" Focusable="False">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <StackPanel Orientation="Horizontal" />
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <StackPanel Width="40" ToolTip="{Binding ToolTip}">
+                                    <TextBlock Style="{StaticResource EqValueLabel}" Text="{Binding GainDb, StringFormat={}{0:+0.0;-0.0;0.0}}" />
+                                    <Slider Style="{StaticResource EqSlider}" Value="{Binding GainDb}" MouseDoubleClick="OnEqSliderDoubleClick" />
+                                    <TextBlock Style="{StaticResource EqBandLabel}" Text="{Binding Label}" />
+                                </StackPanel>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+
+                    <Grid Margin="6,19,0,0" Height="150" VerticalAlignment="Top">
+                        <TextBlock VerticalAlignment="Top" FontSize="10" Foreground="Gray" Text="+12 dB" />
+                        <TextBlock VerticalAlignment="Center" FontSize="10" Foreground="Gray" Text="0 dB" />
+                        <TextBlock VerticalAlignment="Bottom" FontSize="10" Foreground="Gray" Text="-12 dB" />
+                    </Grid>
+                </StackPanel>
+            </DockPanel>
+        </Border>
 
         <Grid>
             <controls:WaveformView x:Name="Waveform"

@@ -13,6 +13,10 @@ public sealed class AppSettings
     public double EqualizerPreampDb { get; set; }
 
     public bool EqualizerPreventClipping { get; set; } = true;
+
+    public bool EqualizerEnabled { get; set; } = true;
+
+    public bool EqualizerVisible { get; set; }
 }
 
 /// <summary>Lädt und speichert <see cref="AppSettings"/> unter %APPDATA%\MusicWorker\settings.json.</summary>

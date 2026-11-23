@@ -1,5 +1,8 @@
 using System.ComponentModel;
 using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
+using System.Windows.Input;
 using MusicWorker.App.ViewModels;
 
 namespace MusicWorker.App;
@@ -36,6 +39,16 @@ public partial class MainWindow : Window
     private void OnZoomFitClick(object sender, RoutedEventArgs e) => Waveform.ZoomToFit();
 
     private void OnZoomSelectionClick(object sender, RoutedEventArgs e) => Waveform.ZoomToSelection();
+
+    private void OnEqSliderDoubleClick(object sender, MouseButtonEventArgs e)
+    {
+        if (sender is Slider slider)
+        {
+            // SetCurrentValue behält die Datenbindung bei.
+            slider.SetCurrentValue(RangeBase.ValueProperty, 0.0);
+            e.Handled = true;
+        }
+    }
 
     private void OnDragOver(object sender, DragEventArgs e)
     {

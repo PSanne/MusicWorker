@@ -1,7 +1,6 @@
 using System.Globalization;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using MusicWorker.App.Audio;
 using MusicWorker.Core.Dsp;
 
 namespace MusicWorker.App.ViewModels;
@@ -27,18 +26,20 @@ public sealed partial class EqualizerBandViewModel : ObservableObject
         ? (Frequency / 1000).ToString("0.#", CultureInfo.CurrentCulture) + "k"
         : Frequency.ToString("0", CultureInfo.CurrentCulture);
 
-    public string ToolTip => Frequency >= 1000
+    public string ToolTip => (Frequency >= 1000
         ? (Frequency / 1000).ToString("0.#", CultureInfo.CurrentCulture) + " kHz"
-        : Frequency.ToString("0", CultureInfo.CurrentCulture) + " Hz";
+        : Frequency.ToString("0", CultureInfo.CurrentCulture) + " Hz") + " – Doppelklick setzt auf 0 dB";
 
     partial void OnGainDbChanged(double value) => GainChanged?.Invoke(this, EventArgs.Empty);
 }
 
-/// <summary>Steuerlogik des Equalizer-Fensters inklusive Presets und Live-Vorhören.</summary>
-public sealed partial class EqualizerViewModel : ObservableObject, IDisposable
+/// <summary>
+/// Zustand des Live-Equalizers im Hauptfenster: 15 Regler, Vorverstärkung, Presets, Ein/Aus.
+/// Jede Änderung löst <see cref="SettingsChanged"/> aus – die Wiedergabe übernimmt sie sofort.
+/// </summary>
+public sealed partial class EqualizerViewModel : ObservableObject
 {
-    private readonly EqualizerPreview? _preview;
-    private bool _applyingPreset;
+    private bool _loading;
 
     [ObservableProperty]
     private double _preampDb;
@@ -50,109 +51,102 @@ public sealed partial class EqualizerViewModel : ObservableObject, IDisposable
     private EqualizerPreset? _selectedPreset;
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(PreviewButtonText))]
-    private bool _isPreviewing;
+    private bool _isEnabled;
 
-    public EqualizerViewModel(EqualizerSettings initial, bool preventClipping, EqualizerPreview? preview)
+    public EqualizerViewModel(EqualizerSettings initial, bool isEnabled, bool preventClipping)
     {
-        _preview = preview;
-        _preampDb = initial.PreampDb;
+        _isEnabled = isEnabled;
         _preventClipping = preventClipping;
 
         Bands = EqualizerSettings.BandFrequencies
-            .Select((frequency, i) => new EqualizerBandViewModel(frequency, initial.GainsDb[i]))
+            .Select(frequency => new EqualizerBandViewModel(frequency, 0))
             .ToArray();
         foreach (var band in Bands)
         {
             band.GainChanged += OnBandChanged;
         }
 
-        _selectedPreset = EqualizerPresets.All.FirstOrDefault(p => p.GainsDb.SequenceEqual(initial.GainsDb));
+        LoadSettings(initial);
     }
+
+    /// <summary>Regler, Pegel oder Ein/Aus wurden verändert.</summary>
+    public event EventHandler? SettingsChanged;
 
     public IReadOnlyList<EqualizerBandViewModel> Bands { get; }
 
     public IReadOnlyList<EqualizerPreset> Presets => EqualizerPresets.All;
 
-    public double MaxGainDb => EqualizerSettings.MaxGainDb;
-
-    public bool CanPreview => _preview is not null;
-
-    public string PreviewButtonText => IsPreviewing ? "■  Vorhören stoppen" : "▶  Vorhören";
-
+    /// <summary>Die Einstellung laut Reglern (unabhängig davon, ob der EQ eingeschaltet ist).</summary>
     public EqualizerSettings ToSettings() => new(Bands.Select(b => b.GainDb).ToArray(), PreampDb);
 
+    /// <summary>Das, was tatsächlich zu hören sein soll: neutral, wenn der EQ ausgeschaltet ist.</summary>
+    public EqualizerSettings EffectiveSettings => IsEnabled ? ToSettings() : EqualizerSettings.Neutral;
+
+    /// <summary>True, wenn der EQ eingeschaltet ist und den Klang tatsächlich verändert.</summary>
+    public bool IsActive => IsEnabled && !ToSettings().IsNeutral;
+
+    /// <summary>Setzt alle Regler auf die angegebenen Werte.</summary>
+    public void LoadSettings(EqualizerSettings settings)
+    {
+        _loading = true;
+        for (int i = 0; i < Bands.Count; i++)
+        {
+            Bands[i].GainDb = settings.GainsDb[i];
+        }
+
+        PreampDb = settings.PreampDb;
+        SelectedPreset = EqualizerPresets.All.FirstOrDefault(p => p.GainsDb.SequenceEqual(settings.GainsDb));
+        _loading = false;
+        RaiseSettingsChanged();
+    }
+
     [RelayCommand]
-    private void Reset()
-    {
-        SelectedPreset = EqualizerPresets.All[0];
-        PreampDb = 0;
-    }
-
-    [RelayCommand(CanExecute = nameof(CanPreview))]
-    private void TogglePreview()
-    {
-        if (IsPreviewing)
-        {
-            StopPreview();
-            return;
-        }
-
-        _preview!.Start(ToSettings());
-        IsPreviewing = true;
-    }
-
-    public void StopPreview()
-    {
-        _preview?.Stop();
-        IsPreviewing = false;
-    }
-
-    public void Dispose()
-    {
-        StopPreview();
-        foreach (var band in Bands)
-        {
-            band.GainChanged -= OnBandChanged;
-        }
-    }
+    private void Reset() => LoadSettings(EqualizerSettings.Neutral);
 
     partial void OnSelectedPresetChanged(EqualizerPreset? value)
     {
-        if (value is null)
+        if (value is null || _loading)
         {
             return;
         }
 
-        _applyingPreset = true;
+        _loading = true;
         for (int i = 0; i < Bands.Count; i++)
         {
             Bands[i].GainDb = value.GainsDb[i];
         }
 
-        _applyingPreset = false;
-        PushToPreview();
+        _loading = false;
+        RaiseSettingsChanged();
     }
 
-    partial void OnPreampDbChanged(double value) => PushToPreview();
+    partial void OnPreampDbChanged(double value)
+    {
+        if (!_loading)
+        {
+            RaiseSettingsChanged();
+        }
+    }
+
+    partial void OnIsEnabledChanged(bool value) => RaiseSettingsChanged();
 
     private void OnBandChanged(object? sender, EventArgs e)
     {
-        if (_applyingPreset)
+        if (_loading)
         {
             return;
         }
 
         // Von Hand verändert → passt nicht mehr zur gewählten Voreinstellung.
+        _loading = true;
         SelectedPreset = null;
-        PushToPreview();
+        _loading = false;
+        RaiseSettingsChanged();
     }
 
-    private void PushToPreview()
+    private void RaiseSettingsChanged()
     {
-        if (IsPreviewing)
-        {
-            _preview?.Update(ToSettings());
-        }
+        OnPropertyChanged(nameof(IsActive));
+        SettingsChanged?.Invoke(this, EventArgs.Empty);
     }
 }

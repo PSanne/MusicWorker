@@ -1,5 +1,3 @@
-using MusicWorker.App.ViewModels;
-
 namespace MusicWorker.App.Services;
 
 /// <summary>Beschreibt eine Zahlen-Abfrage mit Schieberegler (z. B. Lautstärke, Dauer).</summary>
@@ -29,9 +27,6 @@ public interface IDialogService
 
     /// <summary>Fragt Tempo (in %) und Tonhöhe (in Halbtönen) ab; null = abgebrochen.</summary>
     (double TempoPercent, double Semitones)? AskTempoAndPitch();
-
-    /// <summary>Zeigt den Equalizer; true = „Anwenden“ gewählt.</summary>
-    bool ShowEqualizer(EqualizerViewModel equalizer);
 
     bool Confirm(string message, string title);
 

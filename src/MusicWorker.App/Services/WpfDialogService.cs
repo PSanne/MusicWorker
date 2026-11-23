@@ -1,6 +1,5 @@
 using System.Windows;
 using Microsoft.Win32;
-using MusicWorker.App.ViewModels;
 using MusicWorker.App.Views;
 
 namespace MusicWorker.App.Services;
@@ -40,13 +39,6 @@ public sealed class WpfDialogService : IDialogService
     {
         var dialog = new TempoPitchDialog { Owner = Owner };
         return dialog.ShowDialog() == true ? (dialog.TempoPercent, dialog.Semitones) : null;
-    }
-
-    public bool ShowEqualizer(EqualizerViewModel equalizer)
-    {
-        var window = new EqualizerWindow { Owner = Owner, DataContext = equalizer };
-        window.Closed += (_, _) => equalizer.StopPreview();
-        return window.ShowDialog() == true;
     }
 
     public bool Confirm(string message, string title)

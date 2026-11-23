@@ -25,6 +25,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     private readonly PlaybackService _playback;
     private readonly SettingsService _settings;
     private CancellationTokenSource? _playheadUpdates;
+    private EqualizerProcessor? _liveEqualizer;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(FileName), nameof(WindowTitle))]
@@ -41,6 +42,9 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     private int _playheadFrame;
 
     [ObservableProperty]
+    private bool _isEqualizerVisible;
+
+    [ObservableProperty]
     private string _statusText = "Bereit – öffne eine Audiodatei (Strg+O) oder ziehe sie ins Fenster.";
 
     public MainViewModel(
@@ -52,6 +56,14 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         _settings = settings;
         RefreshRecentFiles();
 
+        var saved = settings.Settings;
+        var initialEq = saved.EqualizerGainsDb is { Length: var n } gains && n == EqualizerSettings.BandFrequencies.Count
+            ? new EqualizerSettings(gains, saved.EqualizerPreampDb)
+            : EqualizerSettings.Neutral;
+        Equalizer = new EqualizerViewModel(initialEq, saved.EqualizerEnabled, saved.EqualizerPreventClipping);
+        Equalizer.SettingsChanged += OnEqualizerSettingsChanged;
+        _isEqualizerVisible = saved.EqualizerVisible;
+
         _editor.Changed += OnEditorChanged;
         _editor.SelectionChanged += OnEditorSelectionChanged;
         _playback.PlaybackEnded += OnPlaybackEnded;
@@ -61,6 +73,12 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     public event EventHandler? DocumentLoaded;
 
     public AudioBuffer Buffer => _editor.Buffer;
+
+    /// <summary>Der Live-Equalizer: wirkt sofort auf jede Wiedergabe.</summary>
+    public EqualizerViewModel Equalizer { get; }
+
+    /// <summary>Hinweis in der Statusleiste, solange der Live-EQ den Klang verändert.</summary>
+    public string EqualizerIndicator => Equalizer.IsActive ? "EQ aktiv" : string.Empty;
 
     /// <summary>Einträge für „Datei → Zuletzt geöffnet“.</summary>
     public ObservableCollection<RecentFileItem> RecentFiles { get; } = [];
@@ -183,13 +201,24 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             return;
         }
 
+        // Live-EQ einrechnen? (Er verändert sonst nur die Wiedergabe, nicht die Datei.)
+        EqualizerEffect? equalizer = null;
+        if (Equalizer.IsActive && _dialogs.Confirm(
+                "Der Live-Equalizer ist eingeschaltet, aber noch nicht in das Audio übernommen.\n\n" +
+                "Soll er in die exportierte Datei eingerechnet werden?\n\n" +
+                "Ja = mit Equalizer exportieren\nNein = ohne Equalizer exportieren",
+                "Equalizer beim Export"))
+        {
+            equalizer = new EqualizerEffect(Equalizer.ToSettings(), Equalizer.PreventClipping);
+        }
+
         StopPlayback();
         IsBusy = true;
         StatusText = $"Exportiere „{Path.GetFileName(path)}“ …";
         var buffer = Buffer;
         try
         {
-            await Task.Run(() => _files.Export(buffer, path));
+            await Task.Run(() => _files.Export(equalizer is null ? buffer : equalizer.Apply(buffer), path));
             _editor.MarkSaved();
             FilePath = path;
             StatusText = $"Exportiert nach „{Path.GetFileName(path)}“.";
@@ -231,7 +260,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
 
         try
         {
-            _playback.Play(Buffer, start, end);
+            _playback.Play(Buffer, start, end, effects: AttachLiveEqualizer);
         }
         catch (Exception ex)
         {
@@ -341,39 +370,21 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     [RelayCommand(CanExecute = nameof(CanUseAudio))]
     private Task NormalizeAsync() => ApplyEffectAsync(new NormalizeEffect());
 
-    [RelayCommand(CanExecute = nameof(CanUseAudio))]
-    private async Task EqualizerAsync()
+    [RelayCommand]
+    private void ToggleEqualizer() => IsEqualizerVisible = !IsEqualizerVisible;
+
+    /// <summary>
+    /// Rechnet den Live-EQ fest in das Audio ein (Auswahl oder ganze Datei) und stellt die Regler
+    /// danach auf neutral – sonst würde der EQ beim Abspielen ein zweites Mal wirken.
+    /// </summary>
+    [RelayCommand(CanExecute = nameof(CanApplyEqualizer))]
+    private async Task ApplyEqualizerAsync()
     {
-        StopPlayback();
-
-        // Vorhören: die Auswahl – oder ab dem Cursor bis zum Ende – in Schleife.
-        var selection = Selection;
-        int start = selection.Start < Buffer.FrameCount ? selection.Start : 0;
-        int end = selection.IsEmpty ? Buffer.FrameCount : selection.End;
-        var preview = new EqualizerPreview(_playback, Buffer, start, end);
-
-        var saved = _settings.Settings;
-        var initial = saved.EqualizerGainsDb is { Length: var n } gains && n == EqualizerSettings.BandFrequencies.Count
-            ? new EqualizerSettings(gains, saved.EqualizerPreampDb)
-            : EqualizerSettings.Neutral;
-
-        using var equalizer = new EqualizerViewModel(initial, saved.EqualizerPreventClipping, preview);
-        bool apply = _dialogs.ShowEqualizer(equalizer);
-        equalizer.StopPreview();
-        if (!apply)
+        var effect = new EqualizerEffect(Equalizer.ToSettings(), Equalizer.PreventClipping);
+        if (await ApplyEffectAsync(effect))
         {
-            return;
-        }
-
-        var settings = equalizer.ToSettings();
-        saved.EqualizerGainsDb = settings.GainsDb.ToArray();
-        saved.EqualizerPreampDb = settings.PreampDb;
-        saved.EqualizerPreventClipping = equalizer.PreventClipping;
-        _settings.Save();
-
-        if (!settings.IsNeutral)
-        {
-            await ApplyEffectAsync(new EqualizerEffect(settings, equalizer.PreventClipping));
+            Equalizer.LoadSettings(EqualizerSettings.Neutral);
+            StatusText = "Equalizer in das Audio übernommen – die Regler stehen wieder auf 0 dB.";
         }
     }
 
@@ -406,6 +417,8 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
 
     public void Dispose()
     {
+        SaveEqualizerSettings();
+        Equalizer.SettingsChanged -= OnEqualizerSettingsChanged;
         StopPlayback();
         _playback.PlaybackEnded -= OnPlaybackEnded;
         _playback.Dispose();
@@ -414,6 +427,8 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     // ───────────── Hilfsmethoden ─────────────
 
     private bool CanOpen() => !IsBusy;
+
+    private bool CanApplyEqualizer() => HasAudio && !IsBusy && Equalizer.IsActive;
 
     private bool CanUseAudio() => HasAudio && !IsBusy;
 
@@ -452,15 +467,49 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         }
     }
 
+    /// <summary>Schaltet den Live-Equalizer zwischen Puffer und Soundkarte.</summary>
+    private ISampleProvider AttachLiveEqualizer(ISampleProvider source)
+    {
+        var processor = new EqualizerProcessor(
+            source.WaveFormat.SampleRate, source.WaveFormat.Channels, Equalizer.EffectiveSettings);
+        _liveEqualizer = processor;
+        return new EqualizerSampleProvider(source, processor);
+    }
+
+    private void OnEqualizerSettingsChanged(object? sender, EventArgs e)
+    {
+        // Sofort hörbar: der laufende Filter übernimmt die neuen Werte ohne Neustart.
+        _liveEqualizer?.Update(Equalizer.EffectiveSettings);
+        OnPropertyChanged(nameof(EqualizerIndicator));
+        ApplyEqualizerCommand.NotifyCanExecuteChanged();
+    }
+
+    partial void OnIsEqualizerVisibleChanged(bool value)
+    {
+        _settings.Settings.EqualizerVisible = value;
+        _settings.Save();
+    }
+
+    private void SaveEqualizerSettings()
+    {
+        var saved = _settings.Settings;
+        var settings = Equalizer.ToSettings();
+        saved.EqualizerGainsDb = settings.GainsDb.ToArray();
+        saved.EqualizerPreampDb = settings.PreampDb;
+        saved.EqualizerEnabled = Equalizer.IsEnabled;
+        saved.EqualizerPreventClipping = Equalizer.PreventClipping;
+        _settings.Save();
+    }
+
     /// <summary>
     /// Berechnet einen Effekt im Hintergrund (die Oberfläche bleibt bedienbar) und übernimmt
     /// das Ergebnis anschließend im UI-Thread als rückgängig machbaren Schritt.
     /// </summary>
-    private async Task ApplyEffectAsync(IAudioEffect effect)
+    private async Task<bool> ApplyEffectAsync(IAudioEffect effect)
     {
         if (!HasAudio)
         {
-            return;
+            return false;
         }
 
         StopPlayback();
@@ -474,11 +523,13 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             var output = await Task.Run(() => effect.Apply(input));
             _editor.ApplyEffectResult(effect.Name, range, output);
             StatusText = $"{effect.Name} ✓";
+            return true;
         }
         catch (Exception ex)
         {
             StatusText = $"{effect.Name} fehlgeschlagen.";
             _dialogs.ShowError($"Der Effekt „{effect.Name}“ konnte nicht angewendet werden.\n\n{ex.Message}");
+            return false;
         }
         finally
         {
@@ -521,6 +572,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     private void StopPlayback()
     {
         _playback.Stop();
+        _liveEqualizer = null;
         IsPlaying = false;
         StopPlayheadUpdates();
         PlayheadFrame = Selection.Start;
@@ -620,7 +672,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             PlayCommand, PauseCommand, StopCommand, TogglePlayPauseCommand,
             SelectAllCommand, CutCommand, CopyCommand, PasteCommand, DeleteCommand, TrimCommand,
             InsertSilenceCommand, UndoCommand, RedoCommand,
-            ChangeGainCommand, NormalizeCommand, EqualizerCommand, TempoPitchCommand,
+            ChangeGainCommand, NormalizeCommand, ApplyEqualizerCommand, TempoPitchCommand,
             FadeInCommand, FadeOutCommand, ReverseCommand, MuteCommand,
         ];
         foreach (var command in commands)
