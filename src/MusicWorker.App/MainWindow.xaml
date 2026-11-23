@@ -106,6 +106,8 @@
         <KeyBinding Key="Delete" Command="{Binding DeleteCommand}" />
         <KeyBinding Key="Space" Command="{Binding TogglePlayPauseCommand}" />
         <KeyBinding Key="Escape" Command="{Binding StopCommand}" />
+        <KeyBinding Key="Right" Modifiers="Ctrl" Command="{Binding SkipForwardCommand}" />
+        <KeyBinding Key="Left" Modifiers="Ctrl" Command="{Binding SkipBackCommand}" />
     </Window.InputBindings>
 
     <DockPanel>
@@ -152,6 +154,8 @@
             <MenuItem Header="_Wiedergabe">
                 <MenuItem Header="_Abspielen / Pause" Command="{Binding TogglePlayPauseCommand}" InputGestureText="Leertaste" />
                 <MenuItem Header="_Stopp" Command="{Binding StopCommand}" InputGestureText="Esc" />
+                <MenuItem Header="5 Sekunden _vor" Command="{Binding SkipForwardCommand}" InputGestureText="Strg+→" />
+                <MenuItem Header="5 Sekunden _zurück" Command="{Binding SkipBackCommand}" InputGestureText="Strg+←" />
                 <Separator />
                 <MenuItem Header="_Linken Kanal hören" IsCheckable="True" IsChecked="{Binding HearLeft, Mode=TwoWay}" IsEnabled="{Binding IsStereo}" />
                 <MenuItem Header="_Rechten Kanal hören" IsCheckable="True" IsChecked="{Binding HearRight, Mode=TwoWay}" IsEnabled="{Binding IsStereo}" />
@@ -190,6 +194,9 @@
                 </Button>
             </ToolBar>
             <ToolBar>
+                <Button Style="{StaticResource ToolButton}" Command="{Binding SkipBackCommand}" ToolTip="5 Sekunden zurück (Strg+←)">
+                    <TextBlock Style="{StaticResource Glyph}" Text="&#xEB9E;" />
+                </Button>
                 <Button Style="{StaticResource ToolButton}" Command="{Binding PlayCommand}" ToolTip="Abspielen (Leertaste) – spielt die Auswahl oder ab dem Cursor">
                     <TextBlock Style="{StaticResource Glyph}" Text="&#xE768;" />
                 </Button>
@@ -198,6 +205,9 @@
                 </Button>
                 <Button Style="{StaticResource ToolButton}" Command="{Binding StopCommand}" ToolTip="Stopp (Esc)">
                     <TextBlock Style="{StaticResource Glyph}" Text="&#xE71A;" />
+                </Button>
+                <Button Style="{StaticResource ToolButton}" Command="{Binding SkipForwardCommand}" ToolTip="5 Sekunden vor (Strg+→)">
+                    <TextBlock Style="{StaticResource Glyph}" Text="&#xEB9D;" />
                 </Button>
             </ToolBar>
             <ToolBar IsEnabled="{Binding IsStereo}" ToolTipService.ShowOnDisabled="True"
@@ -471,6 +481,7 @@
                                    Buffer="{Binding Buffer}"
                                    Selection="{Binding Selection}"
                                    PlayheadFrame="{Binding PlayheadFrame}"
+                                   SeekCommand="{Binding SeekCommand}"
                                    ActiveChannels="{Binding ActiveChannels}"
                                    MutedChannels="{Binding MutedChannels}"
                                    FollowPlayhead="{Binding IsPlaying}" />

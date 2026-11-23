@@ -38,6 +38,9 @@ public sealed class WaveformView : FrameworkElement
         nameof(MutedChannels), typeof(bool[]), typeof(WaveformView),
         new FrameworkPropertyMetadata(null, FrameworkPropertyMetadataOptions.AffectsRender));
 
+    public static readonly DependencyProperty SeekCommandProperty = DependencyProperty.Register(
+        nameof(SeekCommand), typeof(ICommand), typeof(WaveformView), new PropertyMetadata(null));
+
     public static readonly DependencyProperty FollowPlayheadProperty = DependencyProperty.Register(
         nameof(FollowPlayhead), typeof(bool), typeof(WaveformView), new PropertyMetadata(false));
 
@@ -61,7 +64,13 @@ public sealed class WaveformView : FrameworkElement
     private static readonly Pen CenterLinePen = Frozen(new Pen(Frozen(new SolidColorBrush(Color.FromArgb(0x40, 0xFF, 0xFF, 0xFF))), 1));
     private static readonly Pen RulerTickPen = Frozen(new Pen(RulerTextBrush, 1));
     private static readonly Pen SelectionEdgePen = Frozen(new Pen(Frozen(new SolidColorBrush(Color.FromRgb(0x81, 0xD4, 0xFA))), 1));
-    private static readonly Pen PlayheadPen = Frozen(new Pen(Frozen(new SolidColorBrush(Color.FromRgb(0xFF, 0x52, 0x52))), 1.5));
+    private static readonly Brush PlayheadBrush = Frozen(new SolidColorBrush(Color.FromRgb(0xFF, 0x52, 0x52)));
+    private static readonly Pen PlayheadPen = Frozen(new Pen(PlayheadBrush, 1.5));
+    private static readonly Pen PlayheadHandleEdgePen = Frozen(new Pen(Frozen(new SolidColorBrush(Color.FromRgb(0x8E, 0x1B, 0x1B))), 1));
+    private static readonly Brush SeekTimeBackground = Frozen(new SolidColorBrush(Color.FromArgb(0xE0, 0x12, 0x14, 0x18)));
+
+    /// <summary>Beim Ziehen des Positionsgriffs höchstens so oft wirklich springen (flüssig, ohne Stottern).</summary>
+    private static readonly TimeSpan SeekThrottle = TimeSpan.FromMilliseconds(90);
     private static readonly Typeface LabelTypeface = new("Segoe UI");
 
     private static readonly double[] TickSteps =
@@ -76,6 +85,9 @@ public sealed class WaveformView : FrameworkElement
     private Geometry[]? _cachedWaveforms;
 
     private bool _isSelecting;
+    private bool _isSeeking;
+    private int _seekFrame;
+    private DateTime _lastSeekSent;
     private int _anchorFrame;
 
     public WaveformView()
@@ -117,6 +129,16 @@ public sealed class WaveformView : FrameworkElement
     {
         get => (bool[]?)GetValue(MutedChannelsProperty);
         set => SetValue(MutedChannelsProperty, value);
+    }
+
+    /// <summary>
+    /// Wird mit der Ziel-Frame-Nummer (int) ausgeführt, wenn der Positionsgriff in der Zeitleiste
+    /// gezogen oder in die Zeitleiste geklickt wird.
+    /// </summary>
+    public ICommand? SeekCommand
+    {
+        get => (ICommand?)GetValue(SeekCommandProperty);
+        set => SetValue(SeekCommandProperty, value);
     }
 
     public bool FollowPlayhead
@@ -422,10 +444,41 @@ public sealed class WaveformView : FrameworkElement
 
     private void DrawPlayhead(DrawingContext dc, Size size)
     {
-        double x = FrameToX(PlayheadFrame);
-        if (x >= 0 && x <= size.Width)
+        // Beim Ziehen folgt die Linie direkt der Maus (nicht erst der Wiedergabe).
+        int frame = _isSeeking ? _seekFrame : PlayheadFrame;
+        double x = FrameToX(frame);
+        if (x < -8 || x > size.Width + 8)
         {
-            dc.DrawLine(PlayheadPen, new Point(x, 0), new Point(x, size.Height));
+            return;
+        }
+
+        dc.DrawLine(PlayheadPen, new Point(x, 0), new Point(x, size.Height));
+
+        // Griff in der Zeitleiste zum Anfassen: ein nach unten zeigendes Dreieck.
+        var handle = new StreamGeometry();
+        using (var context = handle.Open())
+        {
+            context.BeginFigure(new Point(x - 7, 1), isFilled: true, isClosed: true);
+            context.LineTo(new Point(x + 7, 1), isStroked: true, isSmoothJoin: false);
+            context.LineTo(new Point(x + 7, RulerHeight - 9), isStroked: true, isSmoothJoin: false);
+            context.LineTo(new Point(x, RulerHeight - 1), isStroked: true, isSmoothJoin: false);
+            context.LineTo(new Point(x - 7, RulerHeight - 9), isStroked: true, isSmoothJoin: false);
+        }
+
+        handle.Freeze();
+        dc.DrawGeometry(PlayheadBrush, PlayheadHandleEdgePen, handle);
+
+        if (_isSeeking && Buffer is { } buffer)
+        {
+            // Beim Ziehen die Zielzeit groß anzeigen.
+            var text = new FormattedText(
+                TimeFormatter.Format(buffer.FrameToTime(frame)),
+                CultureInfo.CurrentCulture, FlowDirection.LeftToRight, LabelTypeface, 13,
+                Brushes.White, VisualTreeHelper.GetDpi(this).PixelsPerDip);
+            double left = Math.Clamp(x + 10, 2, Math.Max(2, size.Width - text.Width - 10));
+            dc.DrawRoundedRectangle(SeekTimeBackground, null,
+                new Rect(left - 4, RulerHeight + 4, text.Width + 8, text.Height + 4), 3, 3);
+            dc.DrawText(text, new Point(left, RulerHeight + 6));
         }
     }
 
@@ -450,7 +503,20 @@ public sealed class WaveformView : FrameworkElement
         }
 
         EnsureView();
-        int frame = XToFrame(e.GetPosition(this).X);
+        var position = e.GetPosition(this);
+        int frame = XToFrame(position.X);
+
+        // Klick in die Zeitleiste (oder auf den roten Griff): Position verschieben statt markieren.
+        if (position.Y < RulerHeight)
+        {
+            _isSeeking = CaptureMouse();
+            _seekFrame = frame;
+            SendSeek(force: true);
+            InvalidateVisual();
+            e.Handled = true;
+            return;
+        }
+
         if ((Keyboard.Modifiers & ModifierKeys.Shift) != 0)
         {
             // Auswahl erweitern: das weiter entfernte Ende bleibt fest.
@@ -472,12 +538,36 @@ public sealed class WaveformView : FrameworkElement
     protected override void OnMouseMove(MouseEventArgs e)
     {
         base.OnMouseMove(e);
+        var position = e.GetPosition(this);
+        if (!_isSelecting && !_isSeeking)
+        {
+            // Hand über der Zeitleiste zeigt: hier kann man die Position anfassen.
+            Cursor = HasAudio && position.Y < RulerHeight ? Cursors.Hand : Cursors.IBeam;
+        }
+
+        if (_isSeeking && HasAudio)
+        {
+            if (position.X < 0)
+            {
+                ScrollBy(-0.02);
+            }
+            else if (position.X > ActualWidth)
+            {
+                ScrollBy(0.02);
+            }
+
+            _seekFrame = XToFrame(Math.Clamp(position.X, 0, ActualWidth));
+            SendSeek(force: false);
+            InvalidateVisual();
+            return;
+        }
+
         if (!_isSelecting || !HasAudio)
         {
             return;
         }
 
-        double x = e.GetPosition(this).X;
+        double x = position.X;
         if (x < 0)
         {
             ScrollBy(-0.02);
@@ -494,6 +584,16 @@ public sealed class WaveformView : FrameworkElement
     protected override void OnMouseLeftButtonUp(MouseButtonEventArgs e)
     {
         base.OnMouseLeftButtonUp(e);
+        if (_isSeeking)
+        {
+            SendSeek(force: true);   // genau an der Loslass-Stelle weiterspielen
+            _isSeeking = false;
+            ReleaseMouseCapture();
+            InvalidateVisual();
+            e.Handled = true;
+            return;
+        }
+
         if (_isSelecting)
         {
             _isSelecting = false;
@@ -506,6 +606,27 @@ public sealed class WaveformView : FrameworkElement
     {
         base.OnLostMouseCapture(e);
         _isSelecting = false;
+        if (_isSeeking)
+        {
+            _isSeeking = false;
+            InvalidateVisual();
+        }
+    }
+
+    /// <summary>Führt den Sprung aus – beim Ziehen gedrosselt, beim Klicken/Loslassen sofort.</summary>
+    private void SendSeek(bool force)
+    {
+        var now = DateTime.UtcNow;
+        if (!force && now - _lastSeekSent < SeekThrottle)
+        {
+            return;
+        }
+
+        _lastSeekSent = now;
+        if (SeekCommand is { } command && command.CanExecute(_seekFrame))
+        {
+            command.Execute(_seekFrame);
+        }
     }
 
     protected override void OnMouseWheel(MouseWheelEventArgs e)
@@ -554,7 +675,7 @@ public sealed class WaveformView : FrameworkElement
     private static void OnPlayheadFrameChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
     {
         var view = (WaveformView)d;
-        if (view.FollowPlayhead)
+        if (view.FollowPlayhead && !view._isSeeking)
         {
             view.ScrollIntoView((int)e.NewValue);
         }

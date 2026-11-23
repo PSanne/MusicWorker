@@ -192,6 +192,11 @@ public sealed class Knob : FrameworkElement
     protected override void OnKeyDown(KeyEventArgs e)
     {
         base.OnKeyDown(e);
+        if ((Keyboard.Modifiers & ModifierKeys.Control) != 0)
+        {
+            return; // Strg+Pfeil gehört dem Hauptfenster (5 Sekunden vor/zurück)
+        }
+
         double? step = e.Key switch
         {
             Key.Up or Key.Right => Range / 100,

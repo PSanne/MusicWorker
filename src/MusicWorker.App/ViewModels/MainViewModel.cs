@@ -529,6 +529,39 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     [RelayCommand(CanExecute = nameof(CanUseAudio))]
     private void Stop() => StopPlayback();
 
+    /// <summary>
+    /// Springt an eine Stelle (Positionsgriff in der Zeitleiste): Während Wiedergabe oder Pause läuft es
+    /// dort weiter, im Stopp wird der Cursor dorthin gesetzt.
+    /// </summary>
+    [RelayCommand(CanExecute = nameof(CanUseAudio))]
+    private void Seek(int frame)
+    {
+        frame = Math.Clamp(frame, 0, Buffer.FrameCount);
+        if (_playback.State != PlaybackState.Stopped)
+        {
+            _playback.Seek(frame);
+            PlayheadFrame = frame;
+            return;
+        }
+
+        _editor.Selection = SelectionRange.Caret(frame);
+        PlayheadFrame = frame;
+    }
+
+    /// <summary>5 Sekunden vorspulen.</summary>
+    [RelayCommand(CanExecute = nameof(CanUseAudio))]
+    private void SkipForward() => SkipBy(TimeSpan.FromSeconds(5));
+
+    /// <summary>5 Sekunden zurückspulen.</summary>
+    [RelayCommand(CanExecute = nameof(CanUseAudio))]
+    private void SkipBack() => SkipBy(TimeSpan.FromSeconds(-5));
+
+    private void SkipBy(TimeSpan offset)
+    {
+        int current = _playback.State != PlaybackState.Stopped ? _playback.CurrentFrame : Selection.Start;
+        Seek(current + (int)(offset.TotalSeconds * Buffer.SampleRate));
+    }
+
     [RelayCommand(CanExecute = nameof(CanUseAudio))]
     private void TogglePlayPause()
     {
@@ -1290,6 +1323,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             OpenCommand, OpenRecentCommand, ExportCommand, ExportChannelsCommand,
             KeepLeftChannelCommand, KeepRightChannelCommand,
             PlayCommand, PauseCommand, StopCommand, TogglePlayPauseCommand,
+            SeekCommand, SkipForwardCommand, SkipBackCommand,
             SelectAllCommand, CutCommand, CopyCommand, PasteCommand, DeleteCommand, TrimCommand,
             InsertSilenceCommand, UndoCommand, RedoCommand,
             ChangeGainCommand, NormalizeCommand, ApplyEqualizerCommand, ApplyReverbCommand, TempoPitchCommand,
