@@ -19,6 +19,7 @@ public sealed class InsertChain
     private readonly CompressorProcessor _compressor;
     private BiquadCoefficients[] _coefficients = [];
     private bool _compress;
+    private double _compressionPercent = double.NaN;
     private TrackInserts? _applied;
 
     public InsertChain(int sampleRate, TrackInserts inserts)
@@ -45,10 +46,14 @@ public sealed class InsertChain
             BiquadCoefficients.HighShelf(_sampleRate, HighShelfHz, inserts.HighDb),
         ];
 
-        double amount = Math.Clamp(inserts.CompressionPercent, 0, 100) / 100;
-        _compress = amount > 0;
-        _compressor.Update(new CompressorSettings(
-            [100], thresholdDb: -30 * amount, ratio: 3, attackMs: 10, releaseMs: 120, makeupDb: 12 * amount));
+        if (inserts.CompressionPercent != _compressionPercent)
+        {
+            _compressionPercent = inserts.CompressionPercent;
+            double amount = Math.Clamp(inserts.CompressionPercent, 0, 100) / 100;
+            _compress = amount > 0;
+            _compressor.Update(new CompressorSettings(
+                [100], thresholdDb: -30 * amount, ratio: 3, attackMs: 10, releaseMs: 120, makeupDb: 12 * amount));
+        }
     }
 
     public void Process(Span<float> stereo)

@@ -19,6 +19,7 @@
 
     <Window.Resources>
         <BooleanToVisibilityConverter x:Key="BoolToVisibility" />
+        <local:InverseBoolToVisibilityConverter x:Key="InverseBoolToVisibility" />
 
         <!-- Symbole aus der Windows-Schrift „Segoe MDL2 Assets“ -->
         <Style x:Key="Glyph" TargetType="TextBlock">
@@ -1104,8 +1105,17 @@
                             <Separator />
                             <ToggleButton Style="{StaticResource ChannelToggle}" Content="Inserts" IsChecked="{Binding Mixer.ShowInserts}"
                                           ToolTip="EQ, Hochpass und Kompressor in den Kanalzügen ein-/ausblenden" />
-                            <TextBlock Margin="8,0" VerticalAlignment="Center" Foreground="#80868F" FontSize="11"
-                                       Text="Tipp: Clips auf andere Spuren ziehen · Umschalt+Ziehen = Loop-Bereich" />
+                        </ToolBar>
+                        <ToolBar Band="1">
+                            <ToggleButton Style="{StaticResource ChannelToggle}" IsChecked="{Binding Mixer.IsEnvelopeMode}"
+                                          ToolTip="Hüllkurven bearbeiten: Klick setzt einen Punkt, Ziehen verschiebt, Doppel- oder Rechtsklick löscht. Welche Kurve gezeigt wird, wählst du links in der Spurliste.">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Style="{StaticResource Glyph}" Text="&#xE9D2;" />
+                                    <TextBlock Margin="4,0,0,0" Text="Hüllkurven" />
+                                </StackPanel>
+                            </ToggleButton>
+                            <Button Style="{StaticResource ToolButton}" Command="{Binding Mixer.ClearAutomationCommand}" Content="Kurve löschen"
+                                    ToolTip="Die gezeigte Hüllkurve der zuletzt bearbeiteten (bzw. gewählten) Spur löschen – dann gilt wieder der Regler" />
                         </ToolBar>
                     </ToolBarTray>
 
@@ -1161,6 +1171,20 @@
                                                             <StackPanel ToolTip="Kompressor: gleicht Lautstärkeschwankungen aus (0 % = aus) – Doppelklick = aus">
                                                                 <controls:Knob Width="24" Height="24" Minimum="0" Maximum="100" DefaultValue="0" Value="{Binding Compression}" Accent="#FF8A65" />
                                                                 <TextBlock Style="{StaticResource StripSmall}" Text="Komp." />
+                                                            </StackPanel>
+                                                        </UniformGrid>
+                                                        <TextBlock Style="{StaticResource StripSmall}" Margin="0,6,0,2" Text="Absenken durch" />
+                                                        <ComboBox FontSize="10" DisplayMemberPath="Name" SelectedItem="{Binding DuckSource}"
+                                                                  ItemsSource="{Binding DataContext.Mixer.DuckChoices, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                                  ToolTip="Auto-Absenkung: Diese Spur wird leiser, sobald die gewählte Spur (z. B. Sprache) spielt" />
+                                                        <UniformGrid Margin="0,4,0,0" Columns="2">
+                                                            <StackPanel ToolTip="Wie stark abgesenkt wird – Doppelklick für 12 dB">
+                                                                <controls:Knob Width="24" Height="24" Minimum="0" Maximum="30" DefaultValue="12" Value="{Binding DuckAmount}" Accent="#9575CD" />
+                                                                <TextBlock Style="{StaticResource StripSmall}" Text="{Binding DuckAmountText}" />
+                                                            </StackPanel>
+                                                            <StackPanel ToolTip="Schwelle: ab diesem Pegel der Quellspur wird abgesenkt – Doppelklick für -40 dB">
+                                                                <controls:Knob Width="24" Height="24" Minimum="-60" Maximum="-10" DefaultValue="-40" Value="{Binding DuckThreshold}" Accent="#4DB6AC" />
+                                                                <TextBlock Style="{StaticResource StripSmall}" Text="{Binding DuckThresholdText}" />
                                                             </StackPanel>
                                                         </UniformGrid>
                                                     </StackPanel>
@@ -1324,7 +1348,13 @@
                                                                 <ToggleButton Style="{StaticResource StripToggle}" Content="M" IsChecked="{Binding Mute}" ToolTip="Stumm (Mute)" />
                                                                 <ToggleButton Style="{StaticResource StripToggle}" Margin="4,0,0,0" Content="S" IsChecked="{Binding Solo}" ToolTip="Solo" />
                                                                 <TextBlock Margin="8,0,0,0" VerticalAlignment="Center" FontSize="11" Foreground="#9AA0AA" FontFamily="Consolas"
-                                                                           Text="{Binding VolumeText}" />
+                                                                           Text="{Binding VolumeText}"
+                                                                           Visibility="{Binding DataContext.Mixer.IsEnvelopeMode, RelativeSource={RelativeSource AncestorType=ItemsControl}, Converter={StaticResource InverseBoolToVisibility}}" />
+                                                                <ComboBox Margin="6,0,0,0" Width="78" FontSize="10" VerticalAlignment="Center"
+                                                                          ItemsSource="{Binding AutomationChoices}" DisplayMemberPath="Name"
+                                                                          SelectedValuePath="Target" SelectedValue="{Binding ShownAutomation}"
+                                                                          ToolTip="Welche Hüllkurve dieser Spur gezeigt und bearbeitet wird"
+                                                                          Visibility="{Binding DataContext.Mixer.IsEnvelopeMode, RelativeSource={RelativeSource AncestorType=ItemsControl}, Converter={StaticResource BoolToVisibility}}" />
                                                             </StackPanel>
                                                         </StackPanel>
                                                     </DockPanel>
@@ -1350,7 +1380,9 @@
                                                        ShowGrid="{Binding Mixer.ShowGrid}"
                                                        IsLooping="{Binding Mixer.IsLooping}"
                                                        LoopStart="{Binding Mixer.LoopStart}"
-                                                       LoopEnd="{Binding Mixer.LoopEnd}" />
+                                                       LoopEnd="{Binding Mixer.LoopEnd}"
+                                                       IsEnvelopeMode="{Binding Mixer.IsEnvelopeMode}"
+                                                       EditAutomationCommand="{Binding Mixer.EditAutomationCommand}" />
                             </Grid>
                         </ScrollViewer>
 

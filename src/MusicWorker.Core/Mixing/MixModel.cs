@@ -43,6 +43,8 @@ public sealed record TrackInserts(
 /// <param name="SendLevels">Pegel je Effekt-Bus, 0 … 1 (nach dem Fader abgegriffen).</param>
 /// <param name="GroupIndex">Index der Gruppe (-1 = keine).</param>
 /// <param name="Inserts">Insert-Effekte (vor dem Fader); null = keine.</param>
+/// <param name="Automation">Hüllkurven (Lautstärke, Panorama, Sends, Hochpass); leere werden ignoriert.</param>
+/// <param name="Ducking">Auto-Absenkung durch eine andere Spur; null = aus.</param>
 public sealed record MixTrack(
     IReadOnlyList<MixClip> Clips,
     double VolumeDb = 0,
@@ -51,7 +53,29 @@ public sealed record MixTrack(
     bool Solo = false,
     IReadOnlyList<double>? SendLevels = null,
     int GroupIndex = -1,
-    TrackInserts? Inserts = null);
+    TrackInserts? Inserts = null,
+    IReadOnlyList<AutomationLane>? Automation = null,
+    DuckingSettings? Ducking = null)
+{
+    /// <summary>Die (nicht leere) Hüllkurve für ein Ziel oder null.</summary>
+    public AutomationLane? LaneFor(AutomationTarget target)
+    {
+        if (Automation is null)
+        {
+            return null;
+        }
+
+        foreach (var lane in Automation)
+        {
+            if (lane.Target == target && !lane.IsEmpty)
+            {
+                return lane;
+            }
+        }
+
+        return null;
+    }
+}
 
 /// <summary>Eine Gruppe: Ihr Fader und Mute wirken auf alle zugeordneten Spuren.</summary>
 public sealed record MixGroup(double VolumeDb = 0, bool Mute = false);

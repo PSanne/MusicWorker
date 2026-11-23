@@ -69,7 +69,28 @@ public sealed class ProjectTrack
 
     public double Compression { get; set; }
 
+    /// <summary>Index der Spur, die diese Spur absenkt (-1 = keine).</summary>
+    public int DuckSource { get; set; } = -1;
+
+    public double DuckAmount { get; set; } = 12;
+
+    public double DuckThreshold { get; set; } = -40;
+
+    public string ShownAutomation { get; set; } = "Volume";
+
+    public List<ProjectAutomation> Automation { get; set; } = [];
+
     public List<ProjectClip> Clips { get; set; } = [];
+}
+
+/// <summary>Eine Hüllkurve: Ziel (z. B. „Volume“) und ihre Punkte.</summary>
+public sealed class ProjectAutomation
+{
+    public string Target { get; set; } = "Volume";
+
+    public List<long> Frames { get; set; } = [];
+
+    public List<double> Values { get; set; } = [];
 }
 
 public sealed class ProjectClip

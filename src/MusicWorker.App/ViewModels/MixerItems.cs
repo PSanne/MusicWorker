@@ -45,6 +45,41 @@ public sealed record ClipMove(ClipViewModel Clip, long NewStart, TrackViewModel?
 /// <summary>Ein Loop-Bereich auf der Zeitleiste.</summary>
 public sealed record LoopRange(long Start, long End);
 
+/// <summary>Art einer Hüllkurven-Bearbeitung.</summary>
+public enum AutomationEditKind
+{
+    Add,
+    Move,
+    Remove,
+}
+
+/// <summary>Bearbeitung eines Hüllkurven-Punkts (von der Spuransicht an das Mischpult).</summary>
+public sealed class AutomationEdit(TrackViewModel track, AutomationEditKind kind, int index, long frame, double value, bool dragStarted = false)
+{
+    public TrackViewModel Track { get; } = track;
+
+    public AutomationEditKind Kind { get; } = kind;
+
+    public int Index { get; } = index;
+
+    public long Frame { get; } = frame;
+
+    public double Value { get; } = value;
+
+    /// <summary>True beim ersten Schritt eines Ziehvorgangs (für „Rückgängig“).</summary>
+    public bool DragStarted { get; } = dragStarted;
+
+    /// <summary>Vom Mischpult gesetzt: Index des neuen bzw. verschobenen Punkts.</summary>
+    public int ResultIndex { get; set; } = -1;
+}
+
+/// <summary>Eintrag der Auswahlliste „welche Hüllkurve wird gezeigt“.</summary>
+public sealed record AutomationChoice(AutomationTarget Target, string Name)
+{
+    public static IReadOnlyList<AutomationChoice> All { get; } =
+        Automation.Targets.Select(t => new AutomationChoice(t, Automation.RangeOf(t).Name)).ToArray();
+}
+
 /// <summary>Eine Spur mit Kanalzug: Fader, Panorama, Mute/Solo, Sends und Gruppe.</summary>
 public sealed partial class TrackViewModel : ObservableObject
 {
@@ -106,6 +141,28 @@ public sealed partial class TrackViewModel : ObservableObject
     [ObservableProperty]
     private double _compression;
 
+    /// <summary>Hüllkurven der Spur (nur nicht leere; unveränderlich, wird bei jeder Bearbeitung ersetzt).</summary>
+    [ObservableProperty]
+    private IReadOnlyList<AutomationLane> _automation = [];
+
+    /// <summary>Welche Hüllkurve in der Spuransicht gezeigt und bearbeitet wird.</summary>
+    [ObservableProperty]
+    private AutomationTarget _shownAutomation = AutomationTarget.Volume;
+
+    /// <summary>Auto-Absenkung: Diese Spur wird leiser, wenn die gewählte Spur spielt.</summary>
+    [ObservableProperty]
+    private TrackViewModel? _duckSource;
+
+    /// <summary>Stärke der Absenkung in dB.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(DuckAmountText))]
+    private double _duckAmount = 12;
+
+    /// <summary>Ab diesem Pegel der Quellspur wird abgesenkt (dBFS).</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(DuckThresholdText))]
+    private double _duckThreshold = -40;
+
     public TrackViewModel(string name, string color, Action changed)
     {
         _name = name;
@@ -130,8 +187,58 @@ public sealed partial class TrackViewModel : ObservableObject
 
     public TrackInserts Inserts => new(EqLow, EqMid, EqHigh, HighPassHz, Compression);
 
+    public IReadOnlyList<AutomationChoice> AutomationChoices => AutomationChoice.All;
+
+    public string DuckAmountText => string.Format(CultureInfo.CurrentCulture, "-{0:0} dB", DuckAmount);
+
+    public string DuckThresholdText => string.Format(CultureInfo.CurrentCulture, "{0:0} dB", DuckThreshold);
+
+    /// <summary>Wird aufgerufen, wenn sich nur die Darstellung ändert (z. B. andere Hüllkurve gezeigt).</summary>
+    internal Action? Redraw { get; set; }
+
+    /// <summary>Übernimmt alle Einstellungen einer Vorlage (außer Name, Farbe, Clips und Absenk-Quelle).</summary>
+    internal void Apply(TrackViewModel template)
+    {
+        VolumeDb = template.VolumeDb;
+        Pan = template.Pan;
+        Mute = template.Mute;
+        Solo = template.Solo;
+        SendHall = template.SendHall;
+        SendEcho = template.SendEcho;
+        Group = template.Group ?? Group;
+        EqLow = template.EqLow;
+        EqMid = template.EqMid;
+        EqHigh = template.EqHigh;
+        HighPassHz = template.HighPassHz;
+        Compression = template.Compression;
+        Automation = template.Automation;
+        ShownAutomation = template.ShownAutomation;
+        DuckAmount = template.DuckAmount;
+        DuckThreshold = template.DuckThreshold;
+    }
+
+    /// <summary>Die Hüllkurve für ein Ziel (leer, wenn es keine gibt).</summary>
+    public AutomationLane LaneFor(AutomationTarget target) =>
+        Automation.FirstOrDefault(l => l.Target == target) ?? new AutomationLane(target, []);
+
+    /// <summary>Ersetzt eine Hüllkurve (leere werden entfernt).</summary>
+    public void SetLane(AutomationLane lane) =>
+        Automation = Automation.Where(l => l.Target != lane.Target).Append(lane).Where(l => !l.IsEmpty).ToArray();
+
+    /// <summary>Wert des Reglers, der ohne Hüllkurve gilt (in der Einheit der Hüllkurve).</summary>
+    public double KnobValue(AutomationTarget target) => target switch
+    {
+        AutomationTarget.Volume => 0, // Lautstärke-Hüllkurve wirkt zusätzlich zum Fader
+        AutomationTarget.Pan => Pan / 100,
+        AutomationTarget.SendHall => SendHall / 100,
+        AutomationTarget.SendEcho => SendEcho / 100,
+        _ => HighPassHz,
+    };
+
     /// <summary>Für die Misch-Engine – überlappende Clips bekommen automatisch eine Überblendung.</summary>
-    public MixTrack ToMixTrack(int groupIndex) => new(
+    /// <param name="groupIndex">Index der Gruppe (-1 = keine).</param>
+    /// <param name="duckSourceIndex">Index der Spur, die diese Spur absenkt (-1 = keine).</param>
+    public MixTrack ToMixTrack(int groupIndex, int duckSourceIndex = -1) => new(
         ClipTools.WithCrossfades(Clips.Select(c => new MixClip(c.Audio, c.StartFrame))),
         VolumeDb,
         Pan / 100,
@@ -139,7 +246,9 @@ public sealed partial class TrackViewModel : ObservableObject
         Solo,
         [SendHall / 100, SendEcho / 100],
         groupIndex,
-        Inserts.IsNeutral ? null : Inserts);
+        Inserts.IsNeutral ? null : Inserts,
+        Automation.Count > 0 ? Automation : null,
+        duckSourceIndex >= 0 ? new DuckingSettings(duckSourceIndex, DuckAmount, DuckThreshold) : null);
 
     internal static string FormatDb(double db) => db <= MixMath.SilenceDb
         ? "-∞ dB"
@@ -170,6 +279,16 @@ public sealed partial class TrackViewModel : ObservableObject
     partial void OnHighPassHzChanged(double value) => _changed();
 
     partial void OnCompressionChanged(double value) => _changed();
+
+    partial void OnAutomationChanged(IReadOnlyList<AutomationLane> value) => _changed();
+
+    partial void OnShownAutomationChanged(AutomationTarget value) => Redraw?.Invoke();
+
+    partial void OnDuckSourceChanged(TrackViewModel? value) => _changed();
+
+    partial void OnDuckAmountChanged(double value) => _changed();
+
+    partial void OnDuckThresholdChanged(double value) => _changed();
 }
 
 /// <summary>Eine Gruppe: Fader und Mute wirken auf alle zugeordneten Spuren.</summary>

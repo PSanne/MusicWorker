@@ -33,6 +33,7 @@ public sealed partial class MixerViewModel : ObservableObject, IDisposable
     private readonly Stack<MixerState> _redo = new();
     private MixEngine? _engine;
     private MixEngineSampleProvider? _provider;
+    private TrackViewModel? _automationTrack;
     private CancellationTokenSource? _updates;
     private long _playStart;
     private int _nextColor;
@@ -108,6 +109,10 @@ public sealed partial class MixerViewModel : ObservableObject, IDisposable
     [ObservableProperty]
     private bool _showGrid = true;
 
+    /// <summary>Hüllkurven-Modus: Die Maus bearbeitet in der Spuransicht Hüllkurven statt Clips.</summary>
+    [ObservableProperty]
+    private bool _isEnvelopeMode;
+
     /// <summary>Insert-Regler (EQ, Hochpass, Kompressor) in den Kanalzügen anzeigen.</summary>
     [ObservableProperty]
     private bool _showInserts = true;
@@ -133,6 +138,9 @@ public sealed partial class MixerViewModel : ObservableObject, IDisposable
 
         NoGroup = new GroupViewModel("Keine Gruppe", OnMixChanged, isNone: true);
         GroupChoices.Add(NoGroup);
+        NoTrack = new TrackViewModel("Keine", "#9E9E9E", static () => { });
+        DuckChoices.Add(NoTrack);
+        Tracks.CollectionChanged += OnTracksCollectionChanged;
         HallBus = new BusViewModel("Hall-Bus", BusEffect.Reverb, OnMixChanged);
         EchoBus = new BusViewModel("Echo-Bus", BusEffect.Delay, OnMixChanged);
         _playback.PlaybackEnded += OnPlaybackEnded;
@@ -148,6 +156,12 @@ public sealed partial class MixerViewModel : ObservableObject, IDisposable
     public ObservableCollection<TrackViewModel> Tracks { get; } = [];
 
     public ObservableCollection<GroupViewModel> Groups { get; } = [];
+
+    /// <summary>Auswahlliste „Absenken durch“ (enthält „Keine“ und alle Spuren).</summary>
+    public ObservableCollection<TrackViewModel> DuckChoices { get; } = [];
+
+    /// <summary>Platzhalter „Keine“ in <see cref="DuckChoices"/>.</summary>
+    public TrackViewModel NoTrack { get; }
 
     /// <summary>Auswahlliste für die Gruppe einer Spur (enthält „Keine Gruppe“).</summary>
     public ObservableCollection<GroupViewModel> GroupChoices { get; } = [];
@@ -208,7 +222,7 @@ public sealed partial class MixerViewModel : ObservableObject, IDisposable
             SampleRate = audio.SampleRate; // erstes Audio bestimmt die Abtastrate
         }
 
-        var track = new TrackViewModel(name, Palette[_nextColor++ % Palette.Length], OnMixChanged) { Group = NoGroup };
+        var track = CreateTrack(name, Palette[_nextColor++ % Palette.Length]);
         var clip = new ClipViewModel(track, Conform(audio), Math.Max(0, startFrame));
         track.Clips.Add(clip);
         Tracks.Add(track);
@@ -513,7 +527,7 @@ public sealed partial class MixerViewModel : ObservableObject, IDisposable
                 track.Mute = true;
             }
 
-            var bounced = new TrackViewModel("Mischung", Palette[_nextColor++ % Palette.Length], OnMixChanged) { Group = NoGroup };
+            var bounced = CreateTrack("Mischung", Palette[_nextColor++ % Palette.Length]);
             var clip = new ClipViewModel(bounced, mix, 0);
             bounced.Clips.Add(clip);
             Tracks.Add(bounced);
@@ -524,6 +538,117 @@ public sealed partial class MixerViewModel : ObservableObject, IDisposable
         finally
         {
             IsBusy = false;
+        }
+    }
+
+    // ───────────── Hüllkurven ─────────────
+
+    /// <summary>Punkt hinzufügen, verschieben oder löschen (aus der Spuransicht im Hüllkurven-Modus).</summary>
+    [RelayCommand]
+    private void EditAutomation(AutomationEdit? edit)
+    {
+        if (edit is null || !Tracks.Contains(edit.Track))
+        {
+            return;
+        }
+
+        var track = edit.Track;
+        var target = track.ShownAutomation;
+        var lane = track.LaneFor(target);
+        long frame = Math.Max(0, edit.Frame);
+        if (IsSnapEnabled)
+        {
+            frame = (long)Math.Round(Math.Round(frame / BeatFrames) * BeatFrames);
+        }
+
+        switch (edit.Kind)
+        {
+            case AutomationEditKind.Add:
+                RecordUndo();
+                (lane, edit.ResultIndex) = lane.WithPoint(frame, edit.Value);
+                break;
+            case AutomationEditKind.Move:
+                if (edit.DragStarted)
+                {
+                    RecordUndo();
+                }
+
+                lane = lane.WithMovedPoint(edit.Index, frame, edit.Value);
+                edit.ResultIndex = edit.Index;
+                break;
+            default:
+                RecordUndo();
+                lane = lane.WithoutPoint(edit.Index);
+                break;
+        }
+
+        _automationTrack = track;
+        track.SetLane(lane);
+        TimelineVersion++;
+        ClearAutomationCommand.NotifyCanExecuteChanged();
+        StatusText = edit.Kind == AutomationEditKind.Remove
+            ? $"Hüllkurven-Punkt gelöscht ({Automation.RangeOf(target).Name}, „{track.Name}“)."
+            : $"{Automation.RangeOf(target).Name} „{track.Name}“ bei {TimeFormatter.Format(FrameToTime(frame))}: {Automation.Format(target, lane.Points[Math.Clamp(edit.ResultIndex, 0, lane.Points.Count - 1)].Value)}";
+    }
+
+    /// <summary>Löscht die gezeigte Hüllkurve der zuletzt bearbeiteten (bzw. gewählten) Spur.</summary>
+    [RelayCommand]
+    private void ClearAutomation()
+    {
+        var track = _automationTrack is { } last && Tracks.Contains(last) ? last : SelectedClip?.Track;
+        if (track is null)
+        {
+            StatusText = "Erst einen Clip wählen oder einen Hüllkurven-Punkt setzen – dann lässt sich die Kurve dieser Spur löschen.";
+            return;
+        }
+
+        var target = track.ShownAutomation;
+        if (track.LaneFor(target).IsEmpty)
+        {
+            StatusText = $"Die Spur „{track.Name}“ hat keine Hüllkurve „{Automation.RangeOf(target).Name}“.";
+            return;
+        }
+
+        RecordUndo();
+        track.SetLane(new AutomationLane(target, []));
+        TimelineVersion++;
+        StatusText = $"Hüllkurve „{Automation.RangeOf(target).Name}“ von „{track.Name}“ gelöscht – es gilt wieder der Regler.";
+    }
+
+    partial void OnIsEnvelopeModeChanged(bool value)
+    {
+        TimelineVersion++;
+        if (value)
+        {
+            StatusText = "Hüllkurven: Klick setzt einen Punkt, Ziehen verschiebt ihn, Doppelklick oder Rechtsklick löscht ihn. Links in der Spurliste wählst du, welche Kurve gezeigt wird.";
+        }
+    }
+
+    /// <summary>Neue Spur mit Standardeinstellungen.</summary>
+    private TrackViewModel CreateTrack(string name, string color) =>
+        new(name, color, OnMixChanged) { Group = NoGroup, DuckSource = NoTrack, Redraw = () => TimelineVersion++ };
+
+    /// <summary>Index der Spur, die <paramref name="track"/> absenkt (-1 = keine).</summary>
+    private int DuckIndex(TrackViewModel track) =>
+        track.DuckSource is { } source && !ReferenceEquals(source, NoTrack) && !ReferenceEquals(source, track)
+            ? Tracks.IndexOf(source)
+            : -1;
+
+    /// <summary>Hält die Auswahlliste „Absenken durch“ aktuell.</summary>
+    private void OnTracksCollectionChanged(object? sender, System.Collections.Specialized.NotifyCollectionChangedEventArgs e)
+    {
+        foreach (var removed in DuckChoices.Skip(1).Where(t => !Tracks.Contains(t)).ToArray())
+        {
+            DuckChoices.Remove(removed);
+            foreach (var track in Tracks.Where(t => ReferenceEquals(t.DuckSource, removed)))
+            {
+                track.DuckSource = NoTrack;
+            }
+        }
+
+        foreach (var added in Tracks.Where(t => !DuckChoices.Contains(t)))
+        {
+            DuckChoices.Add(added);
         }
     }
 
@@ -845,6 +970,7 @@ public sealed partial class MixerViewModel : ObservableObject, IDisposable
             LoopStart = project.LoopStart;
             LoopEnd = project.LoopEnd;
 
+            var duckSources = new List<(TrackViewModel Track, int Source)>();
             foreach (var g in project.Groups)
             {
                 var group = new GroupViewModel(g.Name, OnMixChanged) { VolumeDb = g.VolumeDb, Mute = g.Mute };
@@ -857,7 +983,8 @@ public sealed partial class MixerViewModel : ObservableObject, IDisposable
 
             foreach (var t in project.Tracks)
             {
-                var track = new TrackViewModel(t.Name, Palette[_nextColor++ % Palette.Length], OnMixChanged)
+                var track = CreateTrack(t.Name, Palette[_nextColor++ % Palette.Length]);
+                track.Apply(new TrackViewModel(t.Name, track.Color, static () => { })
                 {
                     VolumeDb = t.VolumeDb,
                     Pan = t.Pan,
@@ -871,7 +998,18 @@ public sealed partial class MixerViewModel : ObservableObject, IDisposable
                     EqHigh = t.EqHigh,
                     HighPassHz = t.HighPass,
                     Compression = t.Compression,
-                };
+                    DuckAmount = t.DuckAmount,
+                    DuckThreshold = t.DuckThreshold,
+                    ShownAutomation = Enum.TryParse<AutomationTarget>(t.ShownAutomation, out var shown) ? shown : AutomationTarget.Volume,
+                    Automation = t.Automation
+                        .Where(a => Enum.TryParse<AutomationTarget>(a.Target, out _))
+                        .Select(a => new AutomationLane(
+                            Enum.Parse<AutomationTarget>(a.Target),
+                            a.Frames.Zip(a.Values, (f, v) => new AutomationPoint(f, v)).OrderBy(p => p.Frame).ToArray()))
+                        .Where(l => !l.IsEmpty)
+                        .ToArray(),
+                });
+                duckSources.Add((track, t.DuckSource));
 
                 foreach (var c in t.Clips)
                 {
@@ -891,6 +1029,11 @@ public sealed partial class MixerViewModel : ObservableObject, IDisposable
                 }
 
                 Tracks.Add(track);
+            }
+
+            foreach (var (track, source) in duckSources)
+            {
+                track.DuckSource = source >= 0 && source < Tracks.Count ? Tracks[source] : NoTrack;
             }
 
             ProjectPath = path;
@@ -978,7 +1121,7 @@ public sealed partial class MixerViewModel : ObservableObject, IDisposable
     /// <summary>Erzeugt den aktuellen Zustand für die Misch-Engine.</summary>
     public MixSnapshot BuildSnapshot()
     {
-        var tracks = Tracks.Select(t => t.ToMixTrack(t.Group is null || t.Group.IsNone ? -1 : Groups.IndexOf(t.Group))).ToArray();
+        var tracks = Tracks.Select(t => t.ToMixTrack(t.Group is null || t.Group.IsNone ? -1 : Groups.IndexOf(t.Group), DuckIndex(t))).ToArray();
         return new MixSnapshot(
             SampleRate,
             tracks,
@@ -1121,6 +1264,16 @@ public sealed partial class MixerViewModel : ObservableObject, IDisposable
                 EqHigh = track.EqHigh,
                 HighPass = track.HighPassHz,
                 Compression = track.Compression,
+                DuckSource = DuckIndex(track),
+                DuckAmount = track.DuckAmount,
+                DuckThreshold = track.DuckThreshold,
+                ShownAutomation = track.ShownAutomation.ToString(),
+                Automation = track.Automation.Select(l => new ProjectAutomation
+                {
+                    Target = l.Target.ToString(),
+                    Frames = l.Points.Select(p => p.Frame).ToList(),
+                    Values = l.Points.Select(p => p.Value).ToList(),
+                }).ToList(),
             };
 
             for (int c = 0; c < track.Clips.Count; c++)
@@ -1194,7 +1347,8 @@ public sealed partial class MixerViewModel : ObservableObject, IDisposable
 
     private sealed record TrackState(
         string Name, string Color, double VolumeDb, double Pan, bool Mute, bool Solo, double SendHall, double SendEcho,
-        int GroupIndex, double EqLow, double EqMid, double EqHigh, double HighPassHz, double Compression, ClipState[] Clips);
+        int GroupIndex, double EqLow, double EqMid, double EqHigh, double HighPassHz, double Compression, ClipState[] Clips,
+        IReadOnlyList<AutomationLane> Automation, AutomationTarget ShownAutomation, int DuckSource, double DuckAmount, double DuckThreshold);
 
     private sealed record GroupState(string Name, double VolumeDb, bool Mute);
 
@@ -1237,7 +1391,8 @@ public sealed partial class MixerViewModel : ObservableObject, IDisposable
                 t.Name, t.Color, t.VolumeDb, t.Pan, t.Mute, t.Solo, t.SendHall, t.SendEcho,
                 t.Group is null || t.Group.IsNone ? -1 : Groups.IndexOf(t.Group),
                 t.EqLow, t.EqMid, t.EqHigh, t.HighPassHz, t.Compression,
-                t.Clips.Select(c => new ClipState(c.Audio, c.StartFrame, c.SavedFileName, c.SavedAudio, c.SavedProjectPath)).ToArray()))
+                t.Clips.Select(c => new ClipState(c.Audio, c.StartFrame, c.SavedFileName, c.SavedAudio, c.SavedProjectPath)).ToArray(),
+                t.Automation, t.ShownAutomation, DuckIndex(t), t.DuckAmount, t.DuckThreshold))
                 .ToArray(),
             Groups.Select(g => new GroupState(g.Name, g.VolumeDb, g.Mute)).ToArray(),
             selectedTrack,
@@ -1264,7 +1419,8 @@ public sealed partial class MixerViewModel : ObservableObject, IDisposable
 
         foreach (var t in state.Tracks)
         {
-            var track = new TrackViewModel(t.Name, t.Color, OnMixChanged)
+            var track = CreateTrack(t.Name, t.Color);
+            track.Apply(new TrackViewModel(t.Name, t.Color, static () => { })
             {
                 VolumeDb = t.VolumeDb,
                 Pan = t.Pan,
@@ -1278,7 +1434,11 @@ public sealed partial class MixerViewModel : ObservableObject, IDisposable
                 EqHigh = t.EqHigh,
                 HighPassHz = t.HighPassHz,
                 Compression = t.Compression,
-            };
+                Automation = t.Automation,
+                ShownAutomation = t.ShownAutomation,
+                DuckAmount = t.DuckAmount,
+                DuckThreshold = t.DuckThreshold,
+            });
             foreach (var c in t.Clips)
             {
                 track.Clips.Add(new ClipViewModel(track, c.Audio, c.Start)
@@ -1292,6 +1452,13 @@ public sealed partial class MixerViewModel : ObservableObject, IDisposable
             Tracks.Add(track);
         }
 
+        for (int i = 0; i < state.Tracks.Length; i++)
+        {
+            int source = state.Tracks[i].DuckSource;
+            Tracks[i].DuckSource = source >= 0 && source < Tracks.Count ? Tracks[source] : NoTrack;
+        }
+
+        _automationTrack = null;
         _nextColor = state.NextColor;
         if (state.SelectedTrack >= 0 && state.SelectedTrack < Tracks.Count &&
             state.SelectedClip >= 0 && state.SelectedClip < Tracks[state.SelectedTrack].Clips.Count)

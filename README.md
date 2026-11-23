@@ -3,7 +3,7 @@
 **MusicWorker** ist eine Windows-Anwendung zum Bearbeiten von Musik, geschrieben in C# mit WPF und .NET 8.
 
 Langfristig soll MusicWorker **Audio-Editor, Mehrspur-Mixer und Noten-Editor** in einem Programm vereinen.
-Version 0.3 bietet einen vollständigen Audio-Editor mit Live-Effekten **und ein Mehrspur-Mischpult** mit Fadern, Panorama, Sends, Effekt-Bussen, Gruppen und Projekten – seit 0.3.2 auch mit **Schnitt-Werkzeugen, Takt-Raster, Loop-Bereich und Rückgängig**.
+Version 0.3 bietet einen vollständigen Audio-Editor mit Live-Effekten **und ein Mehrspur-Mischpult** mit Fadern, Panorama, Sends, Effekt-Bussen, Gruppen und Projekten – seit 0.3.2 auch mit **Schnitt-Werkzeugen, Takt-Raster, Loop-Bereich und Rückgängig**, seit 0.4 mit **Hüllkurven (Automation) und Auto-Absenkung**.
 
 ## Mischpult (Version 0.3)
 
@@ -14,6 +14,8 @@ Die Registerkarte **„Mischpult“** macht aus MusicWorker eine kleine Mehrspur
 | **Spuren** | Audiodateien als Spuren laden (auch per Drag & Drop, mehrere auf einmal) · Editor-Datei als Spur übernehmen · Clips mit der Maus **verschieben – auch auf andere Spuren** · Positionsgriff, Zoom (Strg+Mausrad), waagerecht scrollen (Umschalt+Mausrad) |
 | **Schnitt** | **Teilen** an der Abspielposition (Trenner, Strg+T) · **Verbinden** (Clip mit dem nächsten zusammenführen) · **Auto-Zuschnitt** (Stille am Anfang/Ende entfernen) · **Überblendung** automatisch, sobald sich Clips überlappen (im Clip als ✕ sichtbar) · **Aneinanderreihen / Mixtape** (Clips lückenlos oder mit Überblendung hintereinander) · **Zusammenmischen** (hörbare Spuren in eine neue Spur mischen) · **Rückgängig/Wiederholen** (Strg+Z / Strg+Y, 50 Schritte) |
 | **Raster & Loop** | **Takt-Raster** mit Tempo (BPM) und Taktart, Taktnummern · **Einrasten** auf die Schläge · **Loop-Bereich** mit Umschalt+Ziehen oder „Loop = Clip“, Loop ein/aus mit Strg+L |
+| **Hüllkurven** | Knopf **„Hüllkurven“**: Lautstärke, Panorama, Hall-/Echo-Send und Hochpass über die Zeit steuern · Klick setzt einen Punkt, Ziehen verschiebt, Doppel- oder Rechtsklick löscht · welche Kurve gezeigt wird, wählst du links in der Spurliste · rastet mit „Einrasten“ auf das Raster ein · „Kurve löschen“ setzt auf den Regler zurück |
+| **Auto-Absenkung** | Im Kanalzug unter **„Absenken durch“** eine andere Spur wählen (z. B. Sprache): Diese Spur wird automatisch leiser, solange die gewählte Spur spielt · Regler für Stärke (dB) und Schwelle |
 | **Kanalzüge** | **Fader** (-∞ … +6 dB) mit **Pegelanzeige** · **Panorama**-Drehregler · **Mute/Solo** · **Insert-Effekte:** 3-Band-EQ (Tiefen/Mitten/Höhen), Hochpass, Kompressor · **Sends** auf Hall- und Echo-Bus · **Gruppen**-Zuordnung |
 | **Effekt-Busse** | **Hall-Bus** (Raumgröße, Dämpfung) und **Echo-Bus** (Zeit L/R, Rückkopplung, Dämpfung, Ping-Pong) mit Rückweg-Fader – ein gemeinsamer Hall für alle Spuren |
 | **Gruppen** | Gruppen-Fader und -Mute wirken auf alle zugeordneten Spuren |
@@ -58,6 +60,7 @@ Die Registerkarte **„Mischpult“** macht aus MusicWorker eine kleine Mehrspur
 | Clip auf andere Spur (Mischpult) | Clip nach oben/unten ziehen |
 | Loop-Bereich festlegen (Mischpult) | Umschalt + Ziehen in der Spuransicht |
 | Rückgängig im Mischpult | Strg+Z / Strg+Y (gilt für die sichtbare Ansicht) |
+| Hüllkurven-Punkt setzen / löschen | Knopf „Hüllkurven“ an, dann Klick / Doppel- oder Rechtsklick |
 | Position verschieben | roten Griff ▼ in der Zeitleiste ziehen oder in die Zeitleiste klicken |
 | 5 Sekunden vor / zurück | Strg+→ / Strg+← |
 | Schleife (Loop) ein/aus | Strg+L oder 🔁 in der Werkzeugleiste |
@@ -136,7 +139,7 @@ MusicWorker.sln
 │  ├─ MusicWorker.Core/          Plattformunabhängiger Kern (ohne UI, voll testbar)
 │  │  ├─ Audio/                  AudioBuffer (unveränderlich), Dezibel-Umrechnung
 │  │  ├─ Editing/                AudioEditor, Auswahl, Rückgängig/Wiederholen (Command-Pattern)
-│  │  ├─ Mixing/                 Misch-Engine: Spuren, Panorama, Fader, Gruppen, Sends, Effekt-Busse, Master, Mixdown
+│  │  ├─ Mixing/                 Misch-Engine: Spuren, Panorama, Fader, Gruppen, Sends, Effekt-Busse, Inserts, Hüllkurven, Auto-Absenkung, Master, Mixdown
 │  │  ├─ Dsp/                    Biquad-Filter, 15-Band-Equalizer, Kompressor, Echo, Hall (Freeverb), FFT & Spektrumanalyse, Zeitstreckung (WSOLA), Resampler
 │  │  ├─ Effects/                Lautstärke, Normalisieren, Fades, Equalizer, Tempo/Tonhöhe, Umkehren
 │  │  └─ Visualization/          Berechnung der Wellenform-Spitzen
@@ -162,10 +165,50 @@ die Oberfläche nur in `MusicWorker.App`. So können Mehrspur- und Noten-Editor 
 - [x] **v0.3 – Mehrspur-Mischpult:** mehrere Spuren, Clips verschieben, Fader, Panning, Mute/Solo pro Spur, Sends & Effekt-Busse, Gruppen, Mixdown, Projekte speichern/laden
 - [x] **v0.3.1 – Effekte & Komfort:** Chorus, Flanger, Verzerrung (Overdrive, Fuzz, Bitcrusher), Hochpass/Tiefpass-Filter, Wiedergabegerät wählen, Loop-Wiedergabe
 - [x] **v0.3.2 – Schnitt im Mischpult:** Trenner hinzufügen / Clip-Trennung, Clip-Zusammenführung, Clip-Mischung, Crossfade zwischen Clips, Auto-Zuschnitt (Stille an Anfang/Ende entfernen), Rasterlinien mit Tempo/Takt und Einrasten, Loop-Bereich, Mixtape (Songs automatisch mit Überblendung aneinanderreihen), Insert- und Master-Effekte, Rückgängig im Mischpult, Clips zwischen Spuren verschieben
-- [ ] **v0.4 – Automation & Dynamik:** Hüllkurven für Lautstärke, Panorama und Effektparameter; Auto-Absenkung (Musik wird leiser, sobald die Stimme einsetzt)
+- [x] **v0.4 – Automation & Dynamik:** Hüllkurven für Lautstärke, Panorama und Effektparameter (Hall-/Echo-Send, Hochpass); Auto-Absenkung (Musik wird leiser, sobald die Stimme einsetzt)
 - [ ] **v0.5 – Noten, MIDI & Instrumente:** Piano-Roll, Bildschirmtastatur, Notenlängen-Anpassung, Quantisieren, Humanisierung, Anschlagstärke-Panel, Transponieren, Stimmaufteilung (Noten auf Stimmen verteilen), frei verfügbare SoundFont-Instrumente
 - [ ] **v0.6 – Aufnahme:** Record, Neuaufnahme (Punch-In), Metronom, Takes mit Comping-Tool (inkl. Clear-Comp)
 - [ ] **v0.7 – Tonhöhe & Spektrum:** Autotune, Tonhöhen-Korrektur, parametrische Tonhöhe, Stimmeffekte, Spektrogramm (Wasserfall-Ansicht der Fourier-Transformation), spektrale Rauschentfernung
+
+## Entscheidungen
+
+Hier halte ich fest, wie ich bei offenen Fragen entschieden habe – und warum. So bleibt nachvollziehbar,
+was bewusst so gebaut ist und was sich später leicht ändern lässt.
+
+### v0.3.2 – Schnitt im Mischpult
+- **Rückgängig im Mischpult speichert den ganzen Mischpult-Zustand (max. 50 Schritte).** Das Audio selbst wird
+  dabei nicht kopiert, nur Verweise darauf (Audio ist unveränderlich) – deshalb ist das speichersparend und
+  zuverlässig, auch für Aktionen wie „Zusammenmischen“, die viele Spuren auf einmal ändern.
+- **Überblendungen entstehen automatisch, sobald sich zwei Clips überlappen** (mit gleicher Leistung, also ohne
+  Lautstärkeloch). Grund: Das ist die intuitivste Bedienung – Clip überlappend ziehen, fertig. Ein eigener
+  Überblend-Dialog wäre nur ein zusätzlicher Schritt.
+- **Zusammenmischen schaltet die Quellspuren stumm statt sie zu löschen.** So geht nichts verloren und man kann
+  jederzeit vergleichen oder mit Strg+Z zurück.
+
+### v0.4 – Automation & Dynamik
+- **Die Lautstärke-Hüllkurve wirkt zusätzlich zum Fader** (0 dB = Fader-Stellung). Grund: Der Fader bleibt
+  nutzbar, um die ganze Spur lauter oder leiser zu machen, ohne die Kurve neu zeichnen zu müssen.
+- **Panorama-, Send- und Hochpass-Hüllkurven ersetzen den jeweiligen Regler**, solange es Punkte gibt.
+  Grund: Ein „zusätzliches“ Panorama ist kaum vorstellbar. Ohne Kurve (oder nach „Kurve löschen“) gilt wieder
+  der Regler; die gestrichelte Linie zeigt dann dessen Stellung.
+- **Hüllkurven gehören zur Spur, nicht zum Clip** – wie in den gängigen Musikprogrammen. Grund: Clips lassen sich
+  teilen, verbinden und austauschen, ohne dass die Automation verloren geht. Folge: Verschiebt man einen Clip,
+  bleibt die Kurve an ihrer Stelle.
+- **Als „Effektparameter“ lassen sich Hall-Send, Echo-Send und die Hochpass-Frequenz automatisieren.**
+  Grund: Das sind die in der Praxis häufigsten Fahrten (Hall nur im Refrain, Filter-Aufblende). Weitere Ziele
+  lassen sich im Kern (`AutomationTarget`) leicht ergänzen.
+- **Die Kurve liegt direkt über der Spurbahn statt in eigenen Automationsbahnen.** Grund: Die Spuransicht bleibt
+  kompakt; welche Kurve sichtbar ist, wählt man pro Spur. Clips werden im Hüllkurven-Modus abgedunkelt, damit
+  keine Verwechslung mit dem Verschieben von Clips entsteht.
+- **Die Hochpass-Kurve verläuft logarithmisch** (gleiche Abstände = gleiche Tonschritte). Grund: So klingt eine
+  Filterfahrt gleichmäßig; linear würde sie unten kaum und oben sehr schnell wirken.
+- **Hüllkurven werden alle 64 Samples (≈ 1,5 ms) ausgewertet und dazwischen übergeblendet.** Grund: knackfrei
+  und trotzdem sparsam für die Live-Wiedergabe.
+- **Auto-Absenkung ist allgemein gehalten („Absenken durch“ eine beliebige Spur)**, nicht nur für Sprache.
+  Grund: Dieselbe Technik dient auch für Musik (z. B. Bass weicht der Bassdrum aus). Einschwing- und
+  Rückkehrzeit sind fest (40 ms / 600 ms), damit nur zwei verständliche Regler nötig sind: Stärke und Schwelle.
+- **Die Absenkung wird aus der Quellspur nach deren Fader berechnet.** Grund: Ist die Quellspur stumm oder
+  heruntergezogen, soll sie auch nichts absenken.
 
 ## Verwendete Bibliotheken
 

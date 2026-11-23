@@ -4,6 +4,7 @@ using System.Windows.Input;
 using System.Windows.Media;
 using MusicWorker.App.Helpers;
 using MusicWorker.App.ViewModels;
+using MusicWorker.Core.Mixing;
 using MusicWorker.Core.Visualization;
 
 namespace MusicWorker.App.Controls;
@@ -13,6 +14,7 @@ namespace MusicWorker.App.Controls;
 /// Abspiellinie mit Positionsgriff, Takt-Raster und Loop-Bereich. Clips lassen sich mit der Maus
 /// verschieben – auch auf eine andere Spur; Doppelklick öffnet einen Clip im Editor.
 /// Umschalt+Ziehen legt einen Loop-Bereich fest. Strg+Mausrad zoomt, Umschalt+Mausrad scrollt waagerecht.
+/// Im Hüllkurven-Modus werden statt der Clips die Hüllkurven-Punkte bearbeitet.
 /// </summary>
 public sealed class TimelineView : FrameworkElement
 {
@@ -56,6 +58,13 @@ public sealed class TimelineView : FrameworkElement
 
     public static readonly DependencyProperty SetLoopCommandProperty = DependencyProperty.Register(
         nameof(SetLoopCommand), typeof(ICommand), typeof(TimelineView), new PropertyMetadata(null));
+
+    public static readonly DependencyProperty EditAutomationCommandProperty = DependencyProperty.Register(
+        nameof(EditAutomationCommand), typeof(ICommand), typeof(TimelineView), new PropertyMetadata(null));
+
+    public static readonly DependencyProperty IsEnvelopeModeProperty = DependencyProperty.Register(
+        nameof(IsEnvelopeMode), typeof(bool), typeof(TimelineView),
+        new FrameworkPropertyMetadata(false, FrameworkPropertyMetadataOptions.AffectsRender));
 
     public static readonly DependencyProperty BpmProperty = DependencyProperty.Register(
         nameof(Bpm), typeof(double), typeof(TimelineView),
@@ -103,6 +112,7 @@ public sealed class TimelineView : FrameworkElement
     private static readonly Brush LoopInactiveBrush = Frozen(new SolidColorBrush(Color.FromArgb(0x50, 0x9E, 0x9E, 0x9E)));
     private static readonly Brush LoopLaneBrush = Frozen(new SolidColorBrush(Color.FromArgb(0x14, 0x4C, 0xAF, 0x50)));
     private static readonly Pen LoopEdgePen = Frozen(new Pen(Frozen(new SolidColorBrush(Color.FromArgb(0xC0, 0x66, 0xBB, 0x6A))), 1));
+    private static readonly Brush EnvelopeLabelBackground = Frozen(new SolidColorBrush(Color.FromArgb(0xD0, 0x15, 0x17, 0x1C)));
     private static readonly Pen CrossfadePen = Frozen(new Pen(Frozen(new SolidColorBrush(Color.FromArgb(0xC8, 0xFF, 0xFF, 0xFF))), 1));
     private static readonly Typeface LabelTypeface = new("Segoe UI");
     private static readonly double[] TickSteps = [0.1, 0.2, 0.5, 1, 2, 5, 10, 15, 30, 60, 120, 300, 600];
@@ -116,6 +126,9 @@ public sealed class TimelineView : FrameworkElement
     private long _dragOffset;
     private bool _dragMoved;
     private bool _isLoopDrag;
+    private TrackViewModel? _envelopeTrack;
+    private int _envelopeIndex = -1;
+    private bool _envelopeMoved;
     private long _loopAnchor;
     private long _loopCurrent;
     private bool _isSeeking;
@@ -192,6 +205,19 @@ public sealed class TimelineView : FrameworkElement
     {
         get => (ICommand?)GetValue(OpenClipCommandProperty);
         set => SetValue(OpenClipCommandProperty, value);
+    }
+
+    /// <summary>Parameter: <see cref="AutomationEdit"/>.</summary>
+    public ICommand? EditAutomationCommand
+    {
+        get => (ICommand?)GetValue(EditAutomationCommandProperty);
+        set => SetValue(EditAutomationCommandProperty, value);
+    }
+
+    public bool IsEnvelopeMode
+    {
+        get => (bool)GetValue(IsEnvelopeModeProperty);
+        set => SetValue(IsEnvelopeModeProperty, value);
     }
 
     /// <summary>Parameter: <see cref="LoopRange"/> (Umschalt+Ziehen).</summary>
@@ -347,6 +373,11 @@ public sealed class TimelineView : FrameworkElement
             var edge = Frozen(new Pen(Frozen(new SolidColorBrush(color)), 1));
             var wavePen = Frozen(new Pen(Frozen(new SolidColorBrush(Color.FromArgb(0xD8, color.R, color.G, color.B))), 1));
 
+            if (IsEnvelopeMode)
+            {
+                dc.PushOpacity(0.45);
+            }
+
             foreach (var clip in tracks[t].Clips)
             {
                 double x0 = FrameToX(clip.StartFrame);
@@ -368,6 +399,12 @@ public sealed class TimelineView : FrameworkElement
             }
 
             DrawCrossfades(dc, tracks[t], top, width);
+            if (IsEnvelopeMode)
+            {
+                dc.Pop();
+            }
+
+            DrawEnvelope(dc, tracks[t], top, width, color, pixelsPerDip);
         }
 
         // Zwischenspeicher für nicht mehr sichtbare oder gelöschte Clips aufräumen
@@ -538,6 +575,144 @@ public sealed class TimelineView : FrameworkElement
         }
     }
 
+    /// <summary>
+    /// Zeichnet die gezeigte Hüllkurve einer Spur. Im Hüllkurven-Modus mit Punkten (ohne Kurve: gestrichelt
+    /// auf Höhe des Reglers), sonst nur dezent, wenn es eine Kurve gibt.
+    /// </summary>
+    private void DrawEnvelope(DrawingContext dc, TrackViewModel track, double top, double width, Color color, double pixelsPerDip)
+    {
+        var lane = track.LaneFor(track.ShownAutomation);
+        if (!IsEnvelopeMode && lane.IsEmpty)
+        {
+            return;
+        }
+
+        var lineColor = Color.FromRgb((byte)((color.R + 255) / 2), (byte)((color.G + 255) / 2), (byte)((color.B + 255) / 2));
+        var pen = new Pen(new SolidColorBrush(Color.FromArgb(IsEnvelopeMode ? (byte)0xFF : (byte)0x90, lineColor.R, lineColor.G, lineColor.B)), IsEnvelopeMode ? 2 : 1.2);
+        if (lane.IsEmpty)
+        {
+            pen.DashStyle = DashStyles.Dash;
+            pen.Freeze();
+            double y = ValueToY(track.ShownAutomation, track.KnobValue(track.ShownAutomation), top);
+            dc.DrawLine(pen, new Point(0, y), new Point(width, y));
+            return;
+        }
+
+        pen.Freeze();
+        var geometry = new StreamGeometry();
+        using (var context = geometry.Open())
+        {
+            var points = lane.Points;
+            context.BeginFigure(new Point(Math.Min(0, FrameToX(points[0].Frame)), ValueToY(lane.Target, points[0].Value, top)), false, false);
+            foreach (var point in points)
+            {
+                context.LineTo(new Point(FrameToX(point.Frame), ValueToY(lane.Target, point.Value, top)), true, false);
+            }
+
+            context.LineTo(new Point(Math.Max(width, FrameToX(points[^1].Frame)), ValueToY(lane.Target, points[^1].Value, top)), true, false);
+        }
+
+        geometry.Freeze();
+        dc.DrawGeometry(null, pen, geometry);
+        if (!IsEnvelopeMode)
+        {
+            return;
+        }
+
+        var fill = Frozen(new SolidColorBrush(lineColor));
+        for (int i = 0; i < lane.Points.Count; i++)
+        {
+            var point = lane.Points[i];
+            double x = FrameToX(point.Frame);
+            if (x < -6 || x > width + 6)
+            {
+                continue;
+            }
+
+            double y = ValueToY(lane.Target, point.Value, top);
+            bool dragged = ReferenceEquals(track, _envelopeTrack) && i == _envelopeIndex;
+            dc.DrawEllipse(dragged ? Brushes.White : fill, Frozen(new Pen(Brushes.Black, 1)), new Point(x, y), dragged ? 5.5 : 4, dragged ? 5.5 : 4);
+            if (dragged)
+            {
+                var label = Text(Automation.Format(lane.Target, point.Value), 11, Brushes.White, pixelsPerDip);
+                double lx = Math.Min(x + 8, width - label.Width - 6);
+                double ly = Math.Clamp(y - label.Height - 6, top + 2, top + LaneHeight - label.Height - 2);
+                dc.DrawRoundedRectangle(EnvelopeLabelBackground, null, new Rect(lx - 3, ly - 1, label.Width + 6, label.Height + 2), 3, 3);
+                dc.DrawText(label, new Point(lx, ly));
+            }
+        }
+    }
+
+    /// <summary>Wert → senkrechte Position in der Spurbahn (oben = Maximum).</summary>
+    private static double ValueToY(AutomationTarget target, double value, double top) =>
+        top + 6 + (1 - Automation.RangeOf(target).Normalize(value)) * (LaneHeight - 12);
+
+    private static double YToValue(AutomationTarget target, double y, double top) =>
+        Automation.RangeOf(target).Denormalize(1 - (y - top - 6) / (LaneHeight - 12));
+
+    /// <summary>Index des Hüllkurven-Punkts unter der Maus (oder -1).</summary>
+    private int HitEnvelopePoint(TrackViewModel track, double top, Point position)
+    {
+        var lane = track.LaneFor(track.ShownAutomation);
+        for (int i = lane.Points.Count - 1; i >= 0; i--)
+        {
+            var point = lane.Points[i];
+            double dx = FrameToX(point.Frame) - position.X;
+            double dy = ValueToY(lane.Target, point.Value, top) - position.Y;
+            if (dx * dx + dy * dy <= 49)
+            {
+                return i;
+            }
+        }
+
+        return -1;
+    }
+
+    /// <summary>Spur und Oberkante der Bahn unter der Maus (nur innerhalb der Spuren).</summary>
+    private (TrackViewModel Track, double Top)? LaneUnder(double y)
+    {
+        var tracks = Tracks;
+        int lane = (int)Math.Floor((y - RulerHeight) / LaneHeight);
+        return tracks is not null && y >= RulerHeight && lane >= 0 && lane < tracks.Count
+            ? (tracks[lane], RulerHeight + lane * LaneHeight)
+            : null;
+    }
+
+    private bool EnvelopeMouseDown(Point position, int clickCount)
+    {
+        if (LaneUnder(position.Y) is not var (track, top))
+        {
+            return false;
+        }
+
+        int hit = HitEnvelopePoint(track, top, position);
+        if (hit >= 0 && clickCount == 2)
+        {
+            Execute(EditAutomationCommand, new AutomationEdit(track, AutomationEditKind.Remove, hit, 0, 0));
+            return true;
+        }
+
+        bool added = false;
+        if (hit < 0)
+        {
+            var edit = new AutomationEdit(track, AutomationEditKind.Add, -1, XToFrame(position.X), YToValue(track.ShownAutomation, position.Y, top));
+            Execute(EditAutomationCommand, edit);
+            hit = edit.ResultIndex;
+            added = true;
+        }
+
+        if (hit >= 0)
+        {
+            _envelopeTrack = track;
+            _envelopeIndex = hit;
+            _envelopeMoved = added; // nach dem Hinzufügen gibt es schon einen Rückgängig-Schritt
+            CaptureMouse();
+            InvalidateVisual();
+        }
+
+        return true;
+    }
+
     private (long Start, long End) CurrentLoop() => _isLoopDrag
         ? (Math.Min(_loopAnchor, _loopCurrent), Math.Max(_loopAnchor, _loopCurrent))
         : (LoopStart, LoopEnd);
@@ -595,6 +770,12 @@ public sealed class TimelineView : FrameworkElement
             return;
         }
 
+        if (IsEnvelopeMode && EnvelopeMouseDown(position, e.ClickCount))
+        {
+            e.Handled = true;
+            return;
+        }
+
         var clip = HitClip(position);
         if (clip is null)
         {
@@ -642,6 +823,24 @@ public sealed class TimelineView : FrameworkElement
             return;
         }
 
+        if (_envelopeTrack is { } envelopeTrack && Tracks is { } list && list.IndexOf(envelopeTrack) is int laneIndex and >= 0)
+        {
+            AutoScroll(position.X);
+            double top = RulerHeight + laneIndex * LaneHeight;
+            double y = Math.Clamp(position.Y, top + 6, top + LaneHeight - 6);
+            var edit = new AutomationEdit(envelopeTrack, AutomationEditKind.Move, _envelopeIndex,
+                XToFrame(Math.Clamp(position.X, 0, ActualWidth)), YToValue(envelopeTrack.ShownAutomation, y, top), dragStarted: !_envelopeMoved);
+            Execute(EditAutomationCommand, edit);
+            _envelopeMoved = true;
+            return;
+        }
+
+        if (IsEnvelopeMode && LaneUnder(position.Y) is var (hoverTrack, hoverTop))
+        {
+            Cursor = HitEnvelopePoint(hoverTrack, hoverTop, position) >= 0 ? Cursors.Hand : Cursors.Cross;
+            return;
+        }
+
         if (_dragClip is { } clip)
         {
             AutoScroll(position.X);
@@ -680,11 +879,25 @@ public sealed class TimelineView : FrameworkElement
         e.Handled = true;
     }
 
+    /// <summary>Rechtsklick auf einen Hüllkurven-Punkt löscht ihn.</summary>
+    protected override void OnMouseRightButtonDown(MouseButtonEventArgs e)
+    {
+        base.OnMouseRightButtonDown(e);
+        var position = e.GetPosition(this);
+        if (IsEnvelopeMode && LaneUnder(position.Y) is var (track, top) && HitEnvelopePoint(track, top, position) is int hit and >= 0)
+        {
+            Execute(EditAutomationCommand, new AutomationEdit(track, AutomationEditKind.Remove, hit, 0, 0));
+            e.Handled = true;
+        }
+    }
+
     protected override void OnLostMouseCapture(MouseEventArgs e)
     {
         base.OnLostMouseCapture(e);
         _isSeeking = false;
         _isLoopDrag = false;
+        _envelopeTrack = null;
+        _envelopeIndex = -1;
         _dragClip = null;
         InvalidateVisual();
     }
@@ -753,6 +966,8 @@ public sealed class TimelineView : FrameworkElement
     {
         _isSeeking = false;
         _isLoopDrag = false;
+        _envelopeTrack = null;
+        _envelopeIndex = -1;
         _dragClip = null;
         if (IsMouseCaptured)
         {
