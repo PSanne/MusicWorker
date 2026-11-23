@@ -13,6 +13,8 @@ Version 0.2 bietet einen vollständigen Audio-Editor mit 15-Band-Equalizer sowie
 | **Schneiden & Trimmen** | Bereich mit der Maus markieren · Ausschneiden, Kopieren, Einfügen, Löschen · Auf Auswahl zuschneiden · **Stille einfügen** · **Rückgängig/Wiederholen** (50 Schritte) |
 | **Live-Equalizer** | **15 Bänder** von 25 Hz bis 16 kHz (2/3-Oktave, ±12 dB) · Vorverstärkung · 13 Voreinstellungen (Bass-Boost, Rock, Stimme, Loudness …) · **wirkt sofort beim Abspielen** · **Pro-Kanal-EQ:** links und rechts getrennt einstellbar · Ein/Aus für Vorher-/Nachher-Vergleich · „In Audio übernehmen“ · beim Export einrechenbar · Schutz vor Übersteuerung · Einstellung wird gespeichert |
 | **Live-Hall** | Freeverb-Hall mit **Drehreglern**: Stärke **pro Kanal** (links/rechts), Raumgröße, Dämpfung · wirkt sofort beim Abspielen · „In Audio übernehmen“ (bei der ganzen Datei mit Ausklingen am Ende) · beim Export einrechenbar |
+| **Live-Kompressor** | Schwelle, Verhältnis, Attack, Release, Aufholverstärkung (Drehregler) · Stärke pro Kanal (Parallel-Kompression) · L/R gekoppelt oder getrennt · Anzeige der Pegelreduktion |
+| **Live-Echo** | Zeit und Stärke pro Kanal (20–2000 ms) · Rückkopplung · Dämpfung (Bandecho-Charakter) · **Ping-Pong** · weiches Gleiten bei Zeitänderungen |
 | **Live-Spektrum** | Frequenzspektrum der Wiedergabe *nach* dem EQ in Echtzeit (60 Bänder, 20 Hz–20 kHz) · bei Stereo links/rechts getrennt · darübergelegte EQ-Kurve · jede Spalte steht genau über ihrem EQ-Regler |
 | **Stereo-Kanäle** | Wellenform in getrennten Spuren (L blau, R rosa) · Effekte wahlweise nur auf links oder rechts · einzelne Kanäle beim Abhören stummschalten · als zwei Mono-Dateien exportieren (`…_L` / `…_R`) · nur einen Kanal behalten (Stereo → Mono) |
 | **Tempo & Tonhöhe** | Time-Stretching 50–200 % ohne Tonhöhenänderung · Pitch-Shifting ±12 Halbtöne ohne Tempoänderung · beides kombinierbar · **pro Kanal verschieden** (wird ein Kanal länger, wird der andere am Ende des Stücks mit Stille aufgefüllt) |
@@ -48,8 +50,9 @@ Version 0.2 bietet einen vollständigen Audio-Editor mit 15-Band-Equalizer sowie
 > wenn du auf *In Audio übernehmen* klickst; beim Exportieren fragt MusicWorker, ob er eingerechnet werden soll.
 > Darüber zeigt das **Live-Spektrum**, was gerade zu hören ist (Stereo: blau = links, rosa = rechts), und in Orange die eingestellte EQ-Kurve.
 >
-> **Hall:** Rechts neben dem EQ stellst du mit vier Drehreglern die Hall-Stärke für links und rechts sowie
-> Raumgröße und Dämpfung ein – ebenfalls sofort hörbar.
+> **Hall, Kompressor, Echo:** Rechts neben dem EQ liegen drei Registerkarten mit Drehreglern – alles sofort hörbar.
+> Ein grüner Punkt zeigt, welcher Effekt gerade wirkt. Reihenfolge der Live-Kette:
+> Equalizer → Kompressor → Echo → Hall.
 >
 > **Pro-Kanal-EQ:** Mit „Links/rechts getrennt“ bekommt jeder Kanal seinen eigenen Equalizer. Über *Einstellen [L] [R]*
 > wählst du, welchen die Regler gerade zeigen; im Spektrum erscheinen beide Kurven (L blau, R rosa).
@@ -102,7 +105,7 @@ MusicWorker.sln
 │  ├─ MusicWorker.Core/          Plattformunabhängiger Kern (ohne UI, voll testbar)
 │  │  ├─ Audio/                  AudioBuffer (unveränderlich), Dezibel-Umrechnung
 │  │  ├─ Editing/                AudioEditor, Auswahl, Rückgängig/Wiederholen (Command-Pattern)
-│  │  ├─ Dsp/                    Biquad-Filter, 15-Band-Equalizer, Hall (Freeverb), FFT & Spektrumanalyse, Zeitstreckung (WSOLA), Resampler
+│  │  ├─ Dsp/                    Biquad-Filter, 15-Band-Equalizer, Kompressor, Echo, Hall (Freeverb), FFT & Spektrumanalyse, Zeitstreckung (WSOLA), Resampler
 │  │  ├─ Effects/                Lautstärke, Normalisieren, Fades, Equalizer, Tempo/Tonhöhe, Umkehren
 │  │  └─ Visualization/          Berechnung der Wellenform-Spitzen
 │  └─ MusicWorker.App/           WPF-Anwendung (MVVM)
@@ -123,10 +126,11 @@ die Oberfläche nur in `MusicWorker.App`. So können Mehrspur- und Noten-Editor 
 ## Fahrplan
 
 - [x] **v0.1 – Audio-Editor:** Öffnen, Abspielen, Schneiden, Effekte, Export
-- [x] **v0.2 – Komfort & Klang:** 15-Band-Live-Equalizer mit Live-Spektrum, Live-Hall pro Kanal, Stereo-Kanäle getrennt anzeigen/bearbeiten/exportieren, Tempo/Tonhöhe, Stille einfügen, Umkehren, Stummschalten, zuletzt geöffnete Dateien
-- [ ] **v0.3 – Mehrspur-Mixer:** mehrere Spuren, Clips verschieben, Lautstärke/Panorama/Mute/Solo pro Spur, Mixdown, **Projekte speichern/laden**
-- [ ] **v0.4 – Noten-/MIDI-Editor:** MIDI importieren/exportieren, Piano-Roll, Noten bearbeiten, Wiedergabe über Software-Synthesizer
-- [ ] **v0.5 – Aufnahme:** Mikrofon-/Line-In-Aufnahme direkt in eine Spur
+- [x] **v0.2 – Komfort & Klang:** 15-Band-Live-Equalizer mit Live-Spektrum, Live-Hall, -Kompressor und -Echo pro Kanal, Stereo-Kanäle getrennt anzeigen/bearbeiten/exportieren, Tempo/Tonhöhe, Stille einfügen, Umkehren, Stummschalten, zuletzt geöffnete Dateien
+- [ ] **v0.3 – Mehrspur-Mischpult:** mehrere Spuren, Clips verschieben, Fader, Panning, Mute/Solo pro Spur, Sends & Effekt-Busse, Gruppen, Mixdown, **Projekte speichern/laden**
+- [ ] **v0.4 – Automation:** Lautstärke, Panning und Effektparameter als Kurven über die Zeit
+- [ ] **v0.5 – Noten-/MIDI-Editor:** MIDI importieren/exportieren, Piano-Roll, Noten bearbeiten, Wiedergabe über Software-Synthesizer
+- [ ] **v0.6 – Aufnahme:** Mikrofon-/Line-In-Aufnahme direkt in eine Spur
 
 ## Verwendete Bibliotheken
 

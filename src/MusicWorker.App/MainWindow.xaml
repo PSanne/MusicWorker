@@ -9,7 +9,7 @@
         mc:Ignorable="d"
         d:DataContext="{d:DesignInstance Type=vm:MainViewModel}"
         Title="{Binding WindowTitle}"
-        Width="1320" Height="880" MinWidth="1240" MinHeight="560"
+        Width="1360" Height="900" MinWidth="1300" MinHeight="580"
         WindowStartupLocation="CenterScreen"
         AllowDrop="True"
         DragOver="OnDragOver"
@@ -46,6 +46,28 @@
                     <Setter Property="Opacity" Value="0.45" />
                 </DataTrigger>
             </Style.Triggers>
+        </Style>
+        <Style x:Key="CompressorDimWhenOff" TargetType="FrameworkElement">
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding IsCompressorEnabled}" Value="False">
+                    <Setter Property="Opacity" Value="0.45" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+        <Style x:Key="DelayDimWhenOff" TargetType="FrameworkElement">
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding IsDelayEnabled}" Value="False">
+                    <Setter Property="Opacity" Value="0.45" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+        <Style x:Key="ActiveDot" TargetType="Ellipse">
+            <Setter Property="Width" Value="7" />
+            <Setter Property="Height" Value="7" />
+            <Setter Property="Margin" Value="6,0,0,0" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="Fill" Value="#2E7D32" />
+            <Setter Property="ToolTip" Value="Dieser Effekt ist gerade hörbar" />
         </Style>
         <Style x:Key="KnobValue" TargetType="TextBlock">
             <Setter Property="HorizontalAlignment" Value="Center" />
@@ -164,6 +186,8 @@
                 <MenuItem Header="_Lautstärke ändern …" Command="{Binding ChangeGainCommand}" />
                 <MenuItem Header="_Normalisieren" Command="{Binding NormalizeCommand}" />
                 <MenuItem Header="_Equalizer in Audio übernehmen" Command="{Binding ApplyEqualizerCommand}" />
+                <MenuItem Header="_Kompressor in Audio übernehmen" Command="{Binding ApplyCompressorCommand}" />
+                <MenuItem Header="E_cho in Audio übernehmen" Command="{Binding ApplyDelayCommand}" />
                 <MenuItem Header="_Hall in Audio übernehmen" Command="{Binding ApplyReverbCommand}" />
                 <MenuItem Header="_Tempo &amp; Tonhöhe …" Command="{Binding TempoPitchCommand}" />
                 <Separator />
@@ -179,7 +203,7 @@
                 <MenuItem Header="_Ganze Datei" Click="OnZoomFitClick" />
                 <MenuItem Header="_Auswahl einpassen" Click="OnZoomSelectionClick" />
                 <Separator />
-                <MenuItem Header="_Live-Effekte anzeigen (EQ &amp; Hall)" IsCheckable="True"
+                <MenuItem Header="_Live-Effekte anzeigen (EQ, Kompressor, Echo, Hall)" IsCheckable="True"
                           IsChecked="{Binding IsEqualizerVisible, Mode=TwoWay}" InputGestureText="Strg+Umschalt+E" />
             </MenuItem>
         </Menu>
@@ -257,10 +281,10 @@
                     <TextBlock Style="{StaticResource Glyph}" Text="&#xE767;" />
                 </Button>
                 <Button Style="{StaticResource ToolButton}" Command="{Binding NormalizeCommand}" Content="Normalisieren" ToolTip="Auf -1 dB normalisieren" />
-                <ToggleButton Focusable="False" Padding="7,4" Content="EQ &amp; Hall"
+                <ToggleButton Focusable="False" Padding="7,4" Content="Effekte"
                               Style="{StaticResource {x:Static ToolBar.ToggleButtonStyleKey}}"
                               IsChecked="{Binding IsEqualizerVisible, Mode=TwoWay}"
-                              ToolTip="Live-Effekte (Equalizer und Hall) ein-/ausblenden (Strg+Umschalt+E)" />
+                              ToolTip="Live-Effekte (Equalizer, Kompressor, Echo, Hall) ein-/ausblenden (Strg+Umschalt+E)" />
                 <Button Style="{StaticResource ToolButton}" Command="{Binding TempoPitchCommand}" Content="Tempo/Tonhöhe" ToolTip="Tempo und Tonhöhe unabhängig voneinander ändern" />
                 <Button Style="{StaticResource ToolButton}" Command="{Binding FadeInCommand}" Content="Fade In" ToolTip="Auswahl einblenden" />
                 <Button Style="{StaticResource ToolButton}" Command="{Binding FadeOutCommand}" Content="Fade Out" ToolTip="Auswahl ausblenden" />
@@ -287,7 +311,7 @@
             </StatusBarItem>
             <StatusBarItem DockPanel.Dock="Right">
                 <TextBlock Text="{Binding EqualizerIndicator}" Margin="8,0" Foreground="#0078D4" FontWeight="SemiBold"
-                           ToolTip="Live-Effekte (Equalizer/Hall) verändern gerade den Klang der Wiedergabe." />
+                           ToolTip="Live-Effekte verändern gerade den Klang der Wiedergabe." />
             </StatusBarItem>
             <Separator DockPanel.Dock="Right" />
             <StatusBarItem DockPanel.Dock="Right">
@@ -428,51 +452,229 @@
                     </Grid>
                 </Grid>
 
-                <!-- Hall: Drehregler wie an einem Mischpult -->
-                <Border DockPanel.Dock="Left" Margin="18,0,0,0" Padding="18,0,0,0"
-                        BorderBrush="#D9D9DE" BorderThickness="1,0,0,0">
-                    <StackPanel Width="200">
-                        <TextBlock FontSize="14" FontWeight="SemiBold" Text="Hall" />
-                        <CheckBox Margin="0,8,0,0" Content="Hall eingeschaltet" IsChecked="{Binding IsReverbEnabled}"
-                                  ToolTip="Ausschalten zum direkten Vorher-/Nachher-Vergleich" />
+                <!-- Hall, Kompressor, Echo: Drehregler wie an einem Mischpult -->
+                <TabControl DockPanel.Dock="Left" Margin="18,0,0,0" Width="330" VerticalAlignment="Top">
+                    <TabItem>
+                    <TabItem.Header>
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="Hall" />
+                            <Ellipse Style="{StaticResource ActiveDot}" Visibility="{Binding IsReverbAudible, Converter={StaticResource BoolToVisibility}}" />
+                        </StackPanel>
+                    </TabItem.Header>
+                        <StackPanel Margin="8">
+                            <CheckBox Content="Hall eingeschaltet" IsChecked="{Binding IsReverbEnabled}"
+                                      ToolTip="Ausschalten zum direkten Vorher-/Nachher-Vergleich" />
+                            <UniformGrid Margin="0,10,0,0" Columns="2" Style="{StaticResource ReverbDimWhenOff}">
+                                <StackPanel Margin="0,0,0,8" ToolTip="Hall-Stärke im linken Kanal (bei Mono: im einzigen Kanal) – Doppelklick für 0">
+                                    <controls:Knob Width="48" Height="48" Minimum="0" Maximum="100" DefaultValue="0"
+                                                   Value="{Binding ReverbLeft}" Accent="#0277BD" />
+                                    <TextBlock Style="{StaticResource KnobValue}" Text="{Binding ReverbLeft, StringFormat={}{0:0} %}" />
+                                    <TextBlock Style="{StaticResource KnobLabel}">
+                                        <TextBlock.Text>
+                                            <Binding Path="IsStereo">
+                                                <Binding.Converter>
+                                                    <local:BoolToTextConverter TrueText="Stärke L" FalseText="Stärke" />
+                                                </Binding.Converter>
+                                            </Binding>
+                                        </TextBlock.Text>
+                                    </TextBlock>
+                                </StackPanel>
+                                <StackPanel Margin="0,0,0,8" IsEnabled="{Binding IsStereo}" ToolTipService.ShowOnDisabled="True" ToolTip="Hall-Stärke im rechten Kanal (nur bei Stereo) – Doppelklick für 0">
+                                    <controls:Knob Width="48" Height="48" Minimum="0" Maximum="100" DefaultValue="0"
+                                                   Value="{Binding ReverbRight}" Accent="#C2185B" />
+                                    <TextBlock Style="{StaticResource KnobValue}" Text="{Binding ReverbRight, StringFormat={}{0:0} %}" />
+                                    <TextBlock Style="{StaticResource KnobLabel}" Text="Stärke R" />
+                                </StackPanel>
+                                <StackPanel Margin="0,0,0,8" ToolTip="Raumgröße: klein = kurzer Nachhall, groß = langer Nachhall – Doppelklick für 50 %">
+                                    <controls:Knob Width="48" Height="48" Minimum="0" Maximum="100" DefaultValue="50"
+                                                   Value="{Binding ReverbRoomSize}" Accent="#6A1B9A" />
+                                    <TextBlock Style="{StaticResource KnobValue}" Text="{Binding ReverbRoomSize, StringFormat={}{0:0} %}" />
+                                    <TextBlock Style="{StaticResource KnobLabel}" Text="Raumgröße" />
+                                </StackPanel>
+                                <StackPanel Margin="0,0,0,8" ToolTip="Dämpfung: wenig = heller Hall, viel = dunkler, weicher Hall – Doppelklick für 50 %">
+                                    <controls:Knob Width="48" Height="48" Minimum="0" Maximum="100" DefaultValue="50"
+                                                   Value="{Binding ReverbDamping}" Accent="#EF6C00" />
+                                    <TextBlock Style="{StaticResource KnobValue}" Text="{Binding ReverbDamping, StringFormat={}{0:0} %}" />
+                                    <TextBlock Style="{StaticResource KnobLabel}" Text="Dämpfung" />
+                                </StackPanel>
+                            </UniformGrid>
+                            <Button Padding="8,3" FontWeight="SemiBold" Content="Hall in Audio übernehmen"
+                                    Command="{Binding ApplyReverbCommand}"
+                                    ToolTip="Rechnet den Hall fest in die Auswahl (oder die ganze Datei – dann mit Ausklingen am Ende) ein, bei Stereo in die unter „Bearbeiten L/R“ gewählten Kanäle. Danach stehen die übernommenen Stärke-Regler wieder auf 0." />
+                        </StackPanel>
+                    </TabItem>
 
-                        <UniformGrid Margin="0,10,0,0" Columns="2" Style="{StaticResource ReverbDimWhenOff}">
-                            <StackPanel Margin="0,0,0,8" ToolTip="Hall-Stärke im linken Kanal (bei Mono: im einzigen Kanal) – ziehen, Mausrad oder Doppelklick für 0">
-                                <controls:Knob Width="56" Height="56" Value="{Binding ReverbLeft}" DefaultValue="0" Accent="#0277BD" />
-                                <TextBlock Style="{StaticResource KnobValue}" Text="{Binding ReverbLeft, StringFormat={}{0:0} %}" />
-                                <TextBlock Style="{StaticResource KnobLabel}">
-                                    <TextBlock.Text>
-                                        <Binding Path="IsStereo">
-                                            <Binding.Converter>
-                                                <local:BoolToTextConverter TrueText="Stärke Links" FalseText="Stärke" />
-                                            </Binding.Converter>
-                                        </Binding>
-                                    </TextBlock.Text>
-                                </TextBlock>
-                            </StackPanel>
-                            <StackPanel Margin="0,0,0,8" IsEnabled="{Binding IsStereo}" ToolTipService.ShowOnDisabled="True"
-                                        ToolTip="Hall-Stärke im rechten Kanal (nur bei Stereo) – ziehen, Mausrad oder Doppelklick für 0">
-                                <controls:Knob Width="56" Height="56" Value="{Binding ReverbRight}" DefaultValue="0" Accent="#C2185B" />
-                                <TextBlock Style="{StaticResource KnobValue}" Text="{Binding ReverbRight, StringFormat={}{0:0} %}" />
-                                <TextBlock Style="{StaticResource KnobLabel}" Text="Stärke Rechts" />
-                            </StackPanel>
-                            <StackPanel ToolTip="Raumgröße: klein = kurzer Nachhall, groß = langer Nachhall – Doppelklick für 50 %">
-                                <controls:Knob Width="56" Height="56" Value="{Binding ReverbRoomSize}" DefaultValue="50" Accent="#6A1B9A" />
-                                <TextBlock Style="{StaticResource KnobValue}" Text="{Binding ReverbRoomSize, StringFormat={}{0:0} %}" />
-                                <TextBlock Style="{StaticResource KnobLabel}" Text="Raumgröße" />
-                            </StackPanel>
-                            <StackPanel ToolTip="Dämpfung: wenig = heller, glänzender Hall; viel = dunkler, weicher Hall – Doppelklick für 50 %">
-                                <controls:Knob Width="56" Height="56" Value="{Binding ReverbDamping}" DefaultValue="50" Accent="#EF6C00" />
-                                <TextBlock Style="{StaticResource KnobValue}" Text="{Binding ReverbDamping, StringFormat={}{0:0} %}" />
-                                <TextBlock Style="{StaticResource KnobLabel}" Text="Dämpfung" />
-                            </StackPanel>
-                        </UniformGrid>
+                    <TabItem>
+                    <TabItem.Header>
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="Kompressor" />
+                            <Ellipse Style="{StaticResource ActiveDot}" Visibility="{Binding IsCompressorAudible, Converter={StaticResource BoolToVisibility}}" />
+                        </StackPanel>
+                    </TabItem.Header>
+                        <StackPanel Margin="8">
+                            <CheckBox Content="Kompressor eingeschaltet" IsChecked="{Binding IsCompressorEnabled}"
+                                      ToolTip="Gleicht laute und leise Stellen aus. Ausschalten zum Vorher-/Nachher-Vergleich." />
+                            <CheckBox Margin="0,4,0,0" Content="L/R gekoppelt (stabiles Stereobild)" IsChecked="{Binding CompressorLinked}"
+                                      IsEnabled="{Binding IsStereo}"
+                                      ToolTip="Gekoppelt werden beide Kanäle gemeinsam geregelt – sonst jeder Kanal für sich." />
 
-                        <Button Margin="0,8,0,0" Padding="8,3" FontWeight="SemiBold" Content="Hall in Audio übernehmen"
-                                Command="{Binding ApplyReverbCommand}"
-                                ToolTip="Rechnet den Hall fest in die Auswahl (oder die ganze Datei – dann mit Ausklingen am Ende) ein, bei Stereo in die unter „Bearbeiten L/R“ gewählten Kanäle. Danach stehen die übernommenen Stärke-Regler wieder auf 0." />
-                    </StackPanel>
-                </Border>
+                            <!-- Anzeige: wie stark gerade leiser geregelt wird -->
+                            <Grid Margin="0,8,0,0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="56" />
+                                </Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+                                <TextBlock Grid.Row="0" Grid.Column="0" Margin="0,0,6,0" FontSize="11" Foreground="#0277BD" FontWeight="Bold" Text="L" />
+                                <ProgressBar Grid.Row="0" Grid.Column="1" Height="8" Maximum="24" Foreground="#EF6C00"
+                                             Value="{Binding CompressorReductionLeft, Mode=OneWay}" ToolTip="Pegelreduktion links" />
+                                <TextBlock Grid.Row="0" Grid.Column="2" Margin="6,0,0,0" FontSize="11" FontFamily="Consolas"
+                                           Text="{Binding CompressorReductionLeft, StringFormat={}-{0:0.0} dB}" />
+                                <TextBlock Grid.Row="1" Grid.Column="0" Margin="0,3,6,0" FontSize="11" Foreground="#C2185B" FontWeight="Bold" Text="R"
+                                           Visibility="{Binding IsStereo, Converter={StaticResource BoolToVisibility}}" />
+                                <ProgressBar Grid.Row="1" Grid.Column="1" Margin="0,3,0,0" Height="8" Maximum="24" Foreground="#EF6C00"
+                                             Value="{Binding CompressorReductionRight, Mode=OneWay}" ToolTip="Pegelreduktion rechts"
+                                             Visibility="{Binding IsStereo, Converter={StaticResource BoolToVisibility}}" />
+                                <TextBlock Grid.Row="1" Grid.Column="2" Margin="6,3,0,0" FontSize="11" FontFamily="Consolas"
+                                           Text="{Binding CompressorReductionRight, StringFormat={}-{0:0.0} dB}"
+                                           Visibility="{Binding IsStereo, Converter={StaticResource BoolToVisibility}}" />
+                            </Grid>
+
+                            <UniformGrid Margin="0,10,0,0" Columns="4" Style="{StaticResource CompressorDimWhenOff}">
+                                <StackPanel Margin="0,0,0,8" ToolTip="Ab diesem Pegel wird leiser geregelt – Doppelklick für -18 dB">
+                                    <controls:Knob Width="48" Height="48" Minimum="-60" Maximum="0" DefaultValue="-18"
+                                                   Value="{Binding CompressorThreshold}" Accent="#2E7D32" />
+                                    <TextBlock Style="{StaticResource KnobValue}" Text="{Binding CompressorThreshold, StringFormat={}{0:0} dB}" />
+                                    <TextBlock Style="{StaticResource KnobLabel}" Text="Schwelle" />
+                                </StackPanel>
+                                <StackPanel Margin="0,0,0,8" ToolTip="Wie stark geregelt wird: 4:1 = 4 dB über der Schwelle werden zu 1 dB – Doppelklick für 4:1">
+                                    <controls:Knob Width="48" Height="48" Minimum="1" Maximum="20" DefaultValue="4"
+                                                   Value="{Binding CompressorRatio}" Accent="#6A1B9A" />
+                                    <TextBlock Style="{StaticResource KnobValue}" Text="{Binding CompressorRatio, StringFormat={}{0:0.#}:1}" />
+                                    <TextBlock Style="{StaticResource KnobLabel}" Text="Verhältnis" />
+                                </StackPanel>
+                                <StackPanel Margin="0,0,0,8" ToolTip="Wie schnell die Regelung einsetzt (kurz = fängt Spitzen ab, lang = lässt Anschläge durch) – Doppelklick für 10 ms">
+                                    <controls:Knob Width="48" Height="48" Minimum="1" Maximum="100" DefaultValue="10"
+                                                   Value="{Binding CompressorAttack}" Accent="#EF6C00" />
+                                    <TextBlock Style="{StaticResource KnobValue}" Text="{Binding CompressorAttack, StringFormat={}{0:0.#} ms}" />
+                                    <TextBlock Style="{StaticResource KnobLabel}" Text="Attack" />
+                                </StackPanel>
+                                <StackPanel Margin="0,0,0,8" ToolTip="Wie schnell die Regelung wieder loslässt – Doppelklick für 150 ms">
+                                    <controls:Knob Width="48" Height="48" Minimum="20" Maximum="1000" DefaultValue="150"
+                                                   Value="{Binding CompressorRelease}" Accent="#EF6C00" />
+                                    <TextBlock Style="{StaticResource KnobValue}" Text="{Binding CompressorRelease, StringFormat={}{0:0} ms}" />
+                                    <TextBlock Style="{StaticResource KnobLabel}" Text="Release" />
+                                </StackPanel>
+                                <StackPanel Margin="0,0,0,8" ToolTip="Aufholverstärkung: macht das komprimierte Signal wieder lauter – Doppelklick für 0 dB">
+                                    <controls:Knob Width="48" Height="48" Minimum="0" Maximum="24" DefaultValue="0"
+                                                   Value="{Binding CompressorMakeup}" Accent="#00838F" />
+                                    <TextBlock Style="{StaticResource KnobValue}" Text="{Binding CompressorMakeup, StringFormat={}+{0:0.#} dB}" />
+                                    <TextBlock Style="{StaticResource KnobLabel}" Text="Aufholen" />
+                                </StackPanel>
+                                <StackPanel Margin="0,0,0,8" ToolTip="Stärke links (Parallel-Kompression: 100 % = voll komprimiert, 0 % = unverändert)">
+                                    <controls:Knob Width="48" Height="48" Minimum="0" Maximum="100" DefaultValue="100"
+                                                   Value="{Binding CompressorMixLeft}" Accent="#0277BD" />
+                                    <TextBlock Style="{StaticResource KnobValue}" Text="{Binding CompressorMixLeft, StringFormat={}{0:0} %}" />
+                                    <TextBlock Style="{StaticResource KnobLabel}">
+                                        <TextBlock.Text>
+                                            <Binding Path="IsStereo">
+                                                <Binding.Converter>
+                                                    <local:BoolToTextConverter TrueText="Stärke L" FalseText="Stärke" />
+                                                </Binding.Converter>
+                                            </Binding>
+                                        </TextBlock.Text>
+                                    </TextBlock>
+                                </StackPanel>
+                                <StackPanel Margin="0,0,0,8" IsEnabled="{Binding IsStereo}" ToolTipService.ShowOnDisabled="True" ToolTip="Stärke rechts (nur bei Stereo)">
+                                    <controls:Knob Width="48" Height="48" Minimum="0" Maximum="100" DefaultValue="100"
+                                                   Value="{Binding CompressorMixRight}" Accent="#C2185B" />
+                                    <TextBlock Style="{StaticResource KnobValue}" Text="{Binding CompressorMixRight, StringFormat={}{0:0} %}" />
+                                    <TextBlock Style="{StaticResource KnobLabel}" Text="Stärke R" />
+                                </StackPanel>
+                            </UniformGrid>
+                            <Button Padding="8,3" FontWeight="SemiBold" Content="Kompressor in Audio übernehmen"
+                                    Command="{Binding ApplyCompressorCommand}"
+                                    ToolTip="Rechnet den Kompressor fest in die Auswahl (oder die ganze Datei) ein, bei Stereo in die unter „Bearbeiten L/R“ gewählten Kanäle. Danach stehen die übernommenen Stärke-Regler auf 0." />
+                        </StackPanel>
+                    </TabItem>
+
+                    <TabItem>
+                    <TabItem.Header>
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="Echo" />
+                            <Ellipse Style="{StaticResource ActiveDot}" Visibility="{Binding IsDelayAudible, Converter={StaticResource BoolToVisibility}}" />
+                        </StackPanel>
+                    </TabItem.Header>
+                        <StackPanel Margin="8">
+                            <CheckBox Content="Echo eingeschaltet" IsChecked="{Binding IsDelayEnabled}"
+                                      ToolTip="Ausschalten zum direkten Vorher-/Nachher-Vergleich" />
+                            <CheckBox Margin="0,4,0,0" Content="Ping-Pong (Echo springt links ↔ rechts)" IsChecked="{Binding DelayPingPong}"
+                                      IsEnabled="{Binding IsStereo}"
+                                      ToolTip="Die Wiederholungen wechseln zwischen linkem und rechtem Kanal (nur bei Stereo)." />
+                            <UniformGrid Margin="0,10,0,0" Columns="3" Style="{StaticResource DelayDimWhenOff}">
+                                <StackPanel Margin="0,0,0,8" ToolTip="Verzögerung links (bei Mono: des einzigen Kanals) – Umschalt+Ziehen für feine Schritte, Doppelklick für 375 ms">
+                                    <controls:Knob Width="48" Height="48" Minimum="20" Maximum="2000" DefaultValue="375"
+                                                   Value="{Binding DelayTimeLeft}" Accent="#0277BD" />
+                                    <TextBlock Style="{StaticResource KnobValue}" Text="{Binding DelayTimeLeft, StringFormat={}{0:0} ms}" />
+                                    <TextBlock Style="{StaticResource KnobLabel}">
+                                        <TextBlock.Text>
+                                            <Binding Path="IsStereo">
+                                                <Binding.Converter>
+                                                    <local:BoolToTextConverter TrueText="Zeit L" FalseText="Zeit" />
+                                                </Binding.Converter>
+                                            </Binding>
+                                        </TextBlock.Text>
+                                    </TextBlock>
+                                </StackPanel>
+                                <StackPanel Margin="0,0,0,8" IsEnabled="{Binding IsStereo}" ToolTipService.ShowOnDisabled="True" ToolTip="Verzögerung rechts (nur bei Stereo) – Doppelklick für 375 ms">
+                                    <controls:Knob Width="48" Height="48" Minimum="20" Maximum="2000" DefaultValue="375"
+                                                   Value="{Binding DelayTimeRight}" Accent="#C2185B" />
+                                    <TextBlock Style="{StaticResource KnobValue}" Text="{Binding DelayTimeRight, StringFormat={}{0:0} ms}" />
+                                    <TextBlock Style="{StaticResource KnobLabel}" Text="Zeit R" />
+                                </StackPanel>
+                                <StackPanel Margin="0,0,0,8" ToolTip="Wie viele Wiederholungen: 0 % = nur ein Echo, 90 % = sehr viele – Doppelklick für 35 %">
+                                    <controls:Knob Width="48" Height="48" Minimum="0" Maximum="90" DefaultValue="35"
+                                                   Value="{Binding DelayFeedback}" Accent="#6A1B9A" />
+                                    <TextBlock Style="{StaticResource KnobValue}" Text="{Binding DelayFeedback, StringFormat={}{0:0} %}" />
+                                    <TextBlock Style="{StaticResource KnobLabel}" Text="Rückkopplung" />
+                                </StackPanel>
+                                <StackPanel Margin="0,0,0,8" ToolTip="Lautstärke des Echos links – Doppelklick für 30 %">
+                                    <controls:Knob Width="48" Height="48" Minimum="0" Maximum="100" DefaultValue="30"
+                                                   Value="{Binding DelayMixLeft}" Accent="#0277BD" />
+                                    <TextBlock Style="{StaticResource KnobValue}" Text="{Binding DelayMixLeft, StringFormat={}{0:0} %}" />
+                                    <TextBlock Style="{StaticResource KnobLabel}">
+                                        <TextBlock.Text>
+                                            <Binding Path="IsStereo">
+                                                <Binding.Converter>
+                                                    <local:BoolToTextConverter TrueText="Stärke L" FalseText="Stärke" />
+                                                </Binding.Converter>
+                                            </Binding>
+                                        </TextBlock.Text>
+                                    </TextBlock>
+                                </StackPanel>
+                                <StackPanel Margin="0,0,0,8" IsEnabled="{Binding IsStereo}" ToolTipService.ShowOnDisabled="True" ToolTip="Lautstärke des Echos rechts (nur bei Stereo) – Doppelklick für 30 %">
+                                    <controls:Knob Width="48" Height="48" Minimum="0" Maximum="100" DefaultValue="30"
+                                                   Value="{Binding DelayMixRight}" Accent="#C2185B" />
+                                    <TextBlock Style="{StaticResource KnobValue}" Text="{Binding DelayMixRight, StringFormat={}{0:0} %}" />
+                                    <TextBlock Style="{StaticResource KnobLabel}" Text="Stärke R" />
+                                </StackPanel>
+                                <StackPanel Margin="0,0,0,8" ToolTip="Jede Wiederholung wird dumpfer, wie bei einem Bandecho – Doppelklick für 30 %">
+                                    <controls:Knob Width="48" Height="48" Minimum="0" Maximum="100" DefaultValue="30"
+                                                   Value="{Binding DelayDamping}" Accent="#EF6C00" />
+                                    <TextBlock Style="{StaticResource KnobValue}" Text="{Binding DelayDamping, StringFormat={}{0:0} %}" />
+                                    <TextBlock Style="{StaticResource KnobLabel}" Text="Dämpfung" />
+                                </StackPanel>
+                            </UniformGrid>
+                            <Button Padding="8,3" FontWeight="SemiBold" Content="Echo in Audio übernehmen"
+                                    Command="{Binding ApplyDelayCommand}"
+                                    ToolTip="Rechnet das Echo fest in die Auswahl (oder die ganze Datei – dann mit Ausklingen am Ende) ein, bei Stereo in die unter „Bearbeiten L/R“ gewählten Kanäle. Danach stehen die übernommenen Stärke-Regler wieder auf 0." />
+                        </StackPanel>
+                    </TabItem>
+                </TabControl>
             </DockPanel>
         </Border>
 

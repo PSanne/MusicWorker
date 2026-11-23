@@ -33,6 +33,40 @@ public sealed class AppSettings
 
     public double ReverbDampingPercent { get; set; } = 50;
 
+    public bool CompressorEnabled { get; set; }
+
+    public double CompressorThresholdDb { get; set; } = -18;
+
+    public double CompressorRatio { get; set; } = 4;
+
+    public double CompressorAttackMs { get; set; } = 10;
+
+    public double CompressorReleaseMs { get; set; } = 150;
+
+    public double CompressorMakeupDb { get; set; }
+
+    public double CompressorMixLeft { get; set; } = 100;
+
+    public double CompressorMixRight { get; set; } = 100;
+
+    public bool CompressorLinked { get; set; } = true;
+
+    public bool DelayEnabled { get; set; }
+
+    public double DelayTimeLeftMs { get; set; } = 375;
+
+    public double DelayTimeRightMs { get; set; } = 375;
+
+    public double DelayMixLeft { get; set; } = 30;
+
+    public double DelayMixRight { get; set; } = 30;
+
+    public double DelayFeedbackPercent { get; set; } = 35;
+
+    public double DelayDampingPercent { get; set; } = 30;
+
+    public bool DelayPingPong { get; set; }
+
     public bool EqualizerVisible { get; set; }
 }
 

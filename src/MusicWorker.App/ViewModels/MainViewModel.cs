@@ -27,6 +27,8 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     private CancellationTokenSource? _playheadUpdates;
     private EqualizerProcessor? _liveEqualizer;
     private ReverbProcessor? _liveReverb;
+    private CompressorProcessor? _liveCompressor;
+    private DelayProcessor? _liveDelay;
     private SpectrumAnalyzer[]? _spectrumAnalyzers;
     private ChannelMonitorSampleProvider? _channelMonitor;
 
@@ -97,6 +99,69 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     [ObservableProperty]
     private double _reverbDamping = 50;
 
+    // ───────────── Kompressor ─────────────
+
+    [ObservableProperty]
+    private bool _isCompressorEnabled;
+
+    [ObservableProperty]
+    private double _compressorThreshold = -18;
+
+    [ObservableProperty]
+    private double _compressorRatio = 4;
+
+    [ObservableProperty]
+    private double _compressorAttack = 10;
+
+    [ObservableProperty]
+    private double _compressorRelease = 150;
+
+    [ObservableProperty]
+    private double _compressorMakeup;
+
+    [ObservableProperty]
+    private double _compressorMixLeft = 100;
+
+    [ObservableProperty]
+    private double _compressorMixRight = 100;
+
+    [ObservableProperty]
+    private bool _compressorLinked = true;
+
+    /// <summary>Aktuelle Pegelreduktion links in dB (für die Anzeige).</summary>
+    [ObservableProperty]
+    private double _compressorReductionLeft;
+
+    /// <summary>Aktuelle Pegelreduktion rechts in dB (für die Anzeige).</summary>
+    [ObservableProperty]
+    private double _compressorReductionRight;
+
+    // ───────────── Echo ─────────────
+
+    [ObservableProperty]
+    private bool _isDelayEnabled;
+
+    [ObservableProperty]
+    private double _delayTimeLeft = 375;
+
+    [ObservableProperty]
+    private double _delayTimeRight = 375;
+
+    [ObservableProperty]
+    private double _delayMixLeft = 30;
+
+    [ObservableProperty]
+    private double _delayMixRight = 30;
+
+    [ObservableProperty]
+    private double _delayFeedback = 35;
+
+    [ObservableProperty]
+    private double _delayDamping = 30;
+
+    [ObservableProperty]
+    private bool _delayPingPong;
+
     /// <summary>
     /// Live-Spektrum der Wiedergabe (nach dem EQ) in dBFS – ein Array pro Kanal (Stereo: links, rechts);
     /// null, wenn nichts spielt.
@@ -156,6 +221,23 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         _reverbRight = saved.ReverbRightPercent;
         _reverbRoomSize = saved.ReverbRoomSizePercent;
         _reverbDamping = saved.ReverbDampingPercent;
+        _isCompressorEnabled = saved.CompressorEnabled;
+        _compressorThreshold = saved.CompressorThresholdDb;
+        _compressorRatio = saved.CompressorRatio;
+        _compressorAttack = saved.CompressorAttackMs;
+        _compressorRelease = saved.CompressorReleaseMs;
+        _compressorMakeup = saved.CompressorMakeupDb;
+        _compressorMixLeft = saved.CompressorMixLeft;
+        _compressorMixRight = saved.CompressorMixRight;
+        _compressorLinked = saved.CompressorLinked;
+        _isDelayEnabled = saved.DelayEnabled;
+        _delayTimeLeft = saved.DelayTimeLeftMs;
+        _delayTimeRight = saved.DelayTimeRightMs;
+        _delayMixLeft = saved.DelayMixLeft;
+        _delayMixRight = saved.DelayMixRight;
+        _delayFeedback = saved.DelayFeedbackPercent;
+        _delayDamping = saved.DelayDampingPercent;
+        _delayPingPong = saved.DelayPingPong;
         UpdateEqualizerCurve();
 
         _editor.Changed += OnEditorChanged;
@@ -212,6 +294,16 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
                 parts.Add(UsesPerChannelEqualizer ? "EQ (L/R)" : "EQ");
             }
 
+            if (IsCompressorActive)
+            {
+                parts.Add("Kompressor");
+            }
+
+            if (IsDelayActive)
+            {
+                parts.Add("Echo");
+            }
+
             if (IsReverbActive)
             {
                 parts.Add("Hall");
@@ -224,8 +316,21 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     /// <summary>True, wenn der Hall eingeschaltet ist und tatsächlich etwas hinzufügt.</summary>
     private bool IsReverbActive => IsReverbEnabled && !EffectiveReverbSettings().IsNeutral;
 
+    /// <summary>True, wenn der Kompressor eingeschaltet ist und tatsächlich wirkt.</summary>
+    private bool IsCompressorActive => IsCompressorEnabled && !EffectiveCompressorSettings().IsNeutral;
+
+    /// <summary>True, wenn das Echo eingeschaltet ist und tatsächlich wirkt.</summary>
+    private bool IsDelayActive => IsDelayEnabled && !EffectiveDelaySettings().IsNeutral;
+
+    /// <summary>Für die grünen Punkte an den Registerkarten.</summary>
+    public bool IsReverbAudible => IsReverbActive;
+
+    public bool IsCompressorAudible => IsCompressorActive;
+
+    public bool IsDelayAudible => IsDelayActive;
+
     /// <summary>Mindestens ein Live-Effekt verändert gerade den Klang.</summary>
-    private bool AreLiveEffectsActive => IsEqualizerActive || IsReverbActive;
+    private bool AreLiveEffectsActive => IsEqualizerActive || IsCompressorActive || IsDelayActive || IsReverbActive;
 
     /// <summary>True, wenn der EQ eingeschaltet ist und den Klang tatsächlich verändert.</summary>
     private bool IsEqualizerActive => IsEqualizerEnabled &&
@@ -394,8 +499,8 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
 
         // Live-Effekte einrechnen? (Sie verändern sonst nur die Wiedergabe, nicht die Datei.)
         var liveEffects = AskIncludeLiveEffects(
-            $"{LiveEffectsName} ist eingeschaltet, aber noch nicht in das Audio übernommen.\n\n" +
-            "Soll das in die exportierte Datei eingerechnet werden?\n\n" +
+            $"Folgende Live-Effekte sind eingeschaltet, aber noch nicht in das Audio übernommen: {LiveEffectsName}.\n\n" +
+            "Sollen sie in die exportierte Datei eingerechnet werden?\n\n" +
             "Ja = mit Effekten exportieren\nNein = ohne Effekte exportieren");
 
         StopPlayback();
@@ -446,7 +551,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         }
 
         var liveEffects = AskIncludeLiveEffects(
-            $"{LiveEffectsName} ist eingeschaltet. Soll das in die exportierten Dateien eingerechnet werden?");
+            $"Folgende Live-Effekte sind eingeschaltet: {LiveEffectsName}. Sollen sie in die exportierten Dateien eingerechnet werden?");
 
         StopPlayback();
         IsBusy = true;
@@ -899,13 +1004,21 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
 
         // Reihenfolge: Puffer → Kanal-Stummschaltung → Equalizer → Spektrum-Abgriff → Soundkarte.
         // Das Spektrum zeigt also genau das, was zu hören ist.
-        var reverb = new ReverbProcessor(source.WaveFormat.SampleRate, source.WaveFormat.Channels, EffectiveReverbSettings());
+        int rate = source.WaveFormat.SampleRate;
+        int channels = source.WaveFormat.Channels;
+        var compressor = new CompressorProcessor(rate, channels, EffectiveCompressorSettings());
+        var delay = new DelayProcessor(rate, channels, EffectiveDelaySettings());
+        var reverb = new ReverbProcessor(rate, channels, EffectiveReverbSettings());
+        _liveCompressor = compressor;
+        _liveDelay = delay;
         _liveReverb = reverb;
 
-        // … → Equalizer → Hall → Spektrum-Abgriff → Soundkarte.
-        return new SpectrumTapSampleProvider(
-            new ReverbSampleProvider(new EqualizerSampleProvider(_channelMonitor, processor), reverb),
-            _spectrumAnalyzers);
+        // … → Equalizer → Kompressor → Echo → Hall → Spektrum-Abgriff → Soundkarte.
+        ISampleProvider chain = new EqualizerSampleProvider(_channelMonitor, processor);
+        chain = new ProcessingSampleProvider(chain, compressor.Process);
+        chain = new ProcessingSampleProvider(chain, delay.Process);
+        chain = new ReverbSampleProvider(chain, reverb);
+        return new SpectrumTapSampleProvider(chain, _spectrumAnalyzers);
     }
 
     private void UpdateSpectrum()
@@ -1029,13 +1142,14 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
                 EqualizerPreventClipping, channelOffset: channel);
     }
 
-    /// <summary>Name der aktiven Live-Effekte für Rückfragen, z. B. „Der Live-Equalizer und der Hall“.</summary>
-    private string LiveEffectsName => (IsEqualizerActive, IsReverbActive) switch
+    /// <summary>Namen der aktiven Live-Effekte für Rückfragen, z. B. „Equalizer, Echo, Hall“.</summary>
+    private string LiveEffectsName => string.Join(", ", new (bool Active, string Name)[]
     {
-        (true, true) => "Der Live-Equalizer und der Hall",
-        (true, false) => "Der Live-Equalizer",
-        _ => "Der Hall",
-    };
+        (IsEqualizerActive, "Equalizer"),
+        (IsCompressorActive, "Kompressor"),
+        (IsDelayActive, "Echo"),
+        (IsReverbActive, "Hall"),
+    }.Where(e => e.Active).Select(e => e.Name));
 
     /// <summary>Fragt nach, ob aktive Live-Effekte beim Export eingerechnet werden sollen.</summary>
     private IAudioEffect[] AskIncludeLiveEffects(string question)
@@ -1049,6 +1163,17 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         if (CreateEqualizerEffectForAllChannels() is { } equalizer)
         {
             effects.Add(equalizer);
+        }
+
+        if (IsCompressorActive)
+        {
+            effects.Add(new CompressorEffect(EffectiveCompressorSettings(), EqualizerPreventClipping));
+        }
+
+        if (IsDelayActive)
+        {
+            var delay = EffectiveDelaySettings();
+            effects.Add(new DelayEffect(delay, delay.TailSeconds, EqualizerPreventClipping));
         }
 
         if (IsReverbActive)
@@ -1074,8 +1199,195 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     {
         _liveReverb?.Update(EffectiveReverbSettings());
         OnPropertyChanged(nameof(EqualizerIndicator));
+        OnPropertyChanged(nameof(IsReverbAudible));
         ApplyReverbCommand.NotifyCanExecuteChanged();
     }
+
+    // ───────────── Kompressor & Echo: Einstellungen, Live-Aktualisierung ─────────────
+
+    /// <summary>Kompressor-Einstellung, wie sie gerade zu hören sein soll (aus = keine Wirkung).</summary>
+    private CompressorSettings EffectiveCompressorSettings()
+    {
+        if (!IsCompressorEnabled)
+        {
+            return CompressorSettings.Off;
+        }
+
+        double[] mix = IsStereo ? [CompressorMixLeft, CompressorMixRight] : [CompressorMixLeft];
+        return new CompressorSettings(mix, CompressorThreshold, CompressorRatio, CompressorAttack,
+            CompressorRelease, CompressorMakeup, CompressorLinked);
+    }
+
+    /// <summary>Echo-Einstellung, wie sie gerade zu hören sein soll (aus = kein Echo).</summary>
+    private DelaySettings EffectiveDelaySettings()
+    {
+        if (!IsDelayEnabled)
+        {
+            return DelaySettings.Off;
+        }
+
+        return IsStereo
+            ? new DelaySettings([DelayTimeLeft, DelayTimeRight], [DelayMixLeft, DelayMixRight], DelayFeedback, DelayDamping, DelayPingPong)
+            : new DelaySettings([DelayTimeLeft], [DelayMixLeft], DelayFeedback, DelayDamping);
+    }
+
+    /// <summary>
+    /// Kompressor für „In Audio übernehmen“ unter Berücksichtigung von „Bearbeiten L/R“; null, wenn
+    /// sich nichts ändern würde.
+    /// </summary>
+    private CompressorEffect? CreateCompressorEffectForTarget()
+    {
+        if (!IsCompressorEnabled || !HasAudio)
+        {
+            return null;
+        }
+
+        if (EditsAllChannels)
+        {
+            var settings = EffectiveCompressorSettings();
+            return settings.IsNeutral ? null : new CompressorEffect(settings, EqualizerPreventClipping);
+        }
+
+        double mix = EditLeft ? CompressorMixLeft : CompressorMixRight;
+        return mix <= 0
+            ? null
+            : new CompressorEffect(new CompressorSettings([mix], CompressorThreshold, CompressorRatio,
+                CompressorAttack, CompressorRelease, CompressorMakeup, CompressorLinked), EqualizerPreventClipping);
+    }
+
+    /// <summary>Echo für „In Audio übernehmen“; bei der ganzen Datei mit Ausklingen am Ende.</summary>
+    private DelayEffect? CreateDelayEffectForTarget()
+    {
+        if (!IsDelayEnabled || !HasAudio)
+        {
+            return null;
+        }
+
+        if (EditsAllChannels)
+        {
+            var settings = EffectiveDelaySettings();
+            if (settings.IsNeutral)
+            {
+                return null;
+            }
+
+            double tail = _editor.HasSelection ? 0 : settings.TailSeconds;
+            return new DelayEffect(settings, tail, EqualizerPreventClipping);
+        }
+
+        // Nur ein Kanal (Länge bleibt, kein Ping-Pong möglich).
+        bool left = EditLeft;
+        double mixOne = left ? DelayMixLeft : DelayMixRight;
+        return mixOne <= 0
+            ? null
+            : new DelayEffect(new DelaySettings([left ? DelayTimeLeft : DelayTimeRight], [mixOne], DelayFeedback, DelayDamping),
+                0, EqualizerPreventClipping);
+    }
+
+    [RelayCommand(CanExecute = nameof(CanApplyCompressor))]
+    private async Task ApplyCompressorAsync()
+    {
+        var effect = CreateCompressorEffectForTarget();
+        if (effect is null || !await ApplyEffectAsync(effect))
+        {
+            return;
+        }
+
+        // Fest eingerechnet → Stärke der übernommenen Kanäle auf 0, damit nichts doppelt wirkt.
+        if (!IsStereo || EditLeft)
+        {
+            CompressorMixLeft = 0;
+        }
+
+        if (IsStereo && EditRight)
+        {
+            CompressorMixRight = 0;
+        }
+
+        StatusText = $"{effect.Name} in das Audio übernommen – der Stärke-Regler steht wieder auf 0.";
+    }
+
+    [RelayCommand(CanExecute = nameof(CanApplyDelay))]
+    private async Task ApplyDelayAsync()
+    {
+        var effect = CreateDelayEffectForTarget();
+        if (effect is null || !await ApplyEffectAsync(effect))
+        {
+            return;
+        }
+
+        bool left = !IsStereo || EditLeft;
+        bool right = IsStereo && EditRight;
+        if (left)
+        {
+            DelayMixLeft = 0;
+        }
+
+        if (right)
+        {
+            DelayMixRight = 0;
+        }
+
+        StatusText = $"{effect.Name} in das Audio übernommen – der Stärke-Regler steht wieder auf 0.";
+    }
+
+    private bool CanApplyCompressor() => HasAudio && !IsBusy && CreateCompressorEffectForTarget() is not null;
+
+    private bool CanApplyDelay() => HasAudio && !IsBusy && CreateDelayEffectForTarget() is not null;
+
+    private void RefreshCompressor()
+    {
+        _liveCompressor?.Update(EffectiveCompressorSettings());
+        OnPropertyChanged(nameof(EqualizerIndicator));
+        OnPropertyChanged(nameof(IsCompressorAudible));
+        ApplyCompressorCommand.NotifyCanExecuteChanged();
+        if (!IsCompressorEnabled)
+        {
+            CompressorReductionLeft = CompressorReductionRight = 0;
+        }
+    }
+
+    private void RefreshDelay()
+    {
+        _liveDelay?.Update(EffectiveDelaySettings());
+        OnPropertyChanged(nameof(EqualizerIndicator));
+        OnPropertyChanged(nameof(IsDelayAudible));
+        ApplyDelayCommand.NotifyCanExecuteChanged();
+    }
+
+    partial void OnIsCompressorEnabledChanged(bool value) => RefreshCompressor();
+
+    partial void OnCompressorThresholdChanged(double value) => RefreshCompressor();
+
+    partial void OnCompressorRatioChanged(double value) => RefreshCompressor();
+
+    partial void OnCompressorAttackChanged(double value) => RefreshCompressor();
+
+    partial void OnCompressorReleaseChanged(double value) => RefreshCompressor();
+
+    partial void OnCompressorMakeupChanged(double value) => RefreshCompressor();
+
+    partial void OnCompressorMixLeftChanged(double value) => RefreshCompressor();
+
+    partial void OnCompressorMixRightChanged(double value) => RefreshCompressor();
+
+    partial void OnCompressorLinkedChanged(bool value) => RefreshCompressor();
+
+    partial void OnIsDelayEnabledChanged(bool value) => RefreshDelay();
+
+    partial void OnDelayTimeLeftChanged(double value) => RefreshDelay();
+
+    partial void OnDelayTimeRightChanged(double value) => RefreshDelay();
+
+    partial void OnDelayMixLeftChanged(double value) => RefreshDelay();
+
+    partial void OnDelayMixRightChanged(double value) => RefreshDelay();
+
+    partial void OnDelayFeedbackChanged(double value) => RefreshDelay();
+
+    partial void OnDelayDampingChanged(double value) => RefreshDelay();
+
+    partial void OnDelayPingPongChanged(bool value) => RefreshDelay();
 
     partial void OnIsReverbEnabledChanged(bool value) => RefreshReverb();
 
@@ -1128,6 +1440,8 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         TempoPitchCommand.NotifyCanExecuteChanged();
         ApplyEqualizerCommand.NotifyCanExecuteChanged();
         ApplyReverbCommand.NotifyCanExecuteChanged();
+        ApplyCompressorCommand.NotifyCanExecuteChanged();
+        ApplyDelayCommand.NotifyCanExecuteChanged();
     }
 
     partial void OnEditRightChanged(bool value)
@@ -1140,6 +1454,8 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         TempoPitchCommand.NotifyCanExecuteChanged();
         ApplyEqualizerCommand.NotifyCanExecuteChanged();
         ApplyReverbCommand.NotifyCanExecuteChanged();
+        ApplyCompressorCommand.NotifyCanExecuteChanged();
+        ApplyDelayCommand.NotifyCanExecuteChanged();
     }
 
     partial void OnHearLeftChanged(bool value)
@@ -1181,6 +1497,23 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         saved.ReverbRightPercent = ReverbRight;
         saved.ReverbRoomSizePercent = ReverbRoomSize;
         saved.ReverbDampingPercent = ReverbDamping;
+        saved.CompressorEnabled = IsCompressorEnabled;
+        saved.CompressorThresholdDb = CompressorThreshold;
+        saved.CompressorRatio = CompressorRatio;
+        saved.CompressorAttackMs = CompressorAttack;
+        saved.CompressorReleaseMs = CompressorRelease;
+        saved.CompressorMakeupDb = CompressorMakeup;
+        saved.CompressorMixLeft = CompressorMixLeft;
+        saved.CompressorMixRight = CompressorMixRight;
+        saved.CompressorLinked = CompressorLinked;
+        saved.DelayEnabled = IsDelayEnabled;
+        saved.DelayTimeLeftMs = DelayTimeLeft;
+        saved.DelayTimeRightMs = DelayTimeRight;
+        saved.DelayMixLeft = DelayMixLeft;
+        saved.DelayMixRight = DelayMixRight;
+        saved.DelayFeedbackPercent = DelayFeedback;
+        saved.DelayDampingPercent = DelayDamping;
+        saved.DelayPingPong = DelayPingPong;
         _settings.Save();
     }
 
@@ -1262,6 +1595,9 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         _playback.Stop();
         _liveEqualizer = null;
         _liveReverb = null;
+        _liveCompressor = null;
+        _liveDelay = null;
+        CompressorReductionLeft = CompressorReductionRight = 0;
         _spectrumAnalyzers = null;
         _channelMonitor = null;
         Spectra = null;
@@ -1289,6 +1625,11 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             {
                 PlayheadFrame = _playback.CurrentFrame;
                 UpdateSpectrum();
+                if (_liveCompressor is { } liveCompressor)
+                {
+                    CompressorReductionLeft = liveCompressor.GetGainReductionDb(0);
+                    CompressorReductionRight = liveCompressor.GetGainReductionDb(IsStereo ? 1 : 0);
+                }
             }
         }
         catch (OperationCanceledException)
@@ -1341,6 +1682,8 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         OnPropertyChanged(nameof(ActiveEqualizerCurve));
         _liveEqualizer?.Update(EffectiveEqualizerSettings());
         _liveReverb?.Update(EffectiveReverbSettings());
+        _liveCompressor?.Update(EffectiveCompressorSettings());
+        _liveDelay?.Update(EffectiveDelaySettings());
         OnPropertyChanged(nameof(ActiveChannels));
         OnPropertyChanged(nameof(MutedChannels));
         OnPropertyChanged(nameof(ChannelTargetText));
@@ -1381,7 +1724,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             SeekCommand, SkipForwardCommand, SkipBackCommand,
             SelectAllCommand, CutCommand, CopyCommand, PasteCommand, DeleteCommand, TrimCommand,
             InsertSilenceCommand, UndoCommand, RedoCommand,
-            ChangeGainCommand, NormalizeCommand, ApplyEqualizerCommand, ApplyReverbCommand, TempoPitchCommand,
+            ChangeGainCommand, NormalizeCommand, ApplyEqualizerCommand, ApplyReverbCommand, ApplyCompressorCommand, ApplyDelayCommand, TempoPitchCommand,
             FadeInCommand, FadeOutCommand, ReverseCommand, MuteCommand,
         ];
         foreach (var command in commands)
