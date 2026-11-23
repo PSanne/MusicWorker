@@ -41,6 +41,12 @@ public sealed class WpfDialogService : IDialogService
         return dialog.ShowDialog() == true ? dialog.Result : null;
     }
 
+    public TakesResult? EditTakes(TakesRequest request)
+    {
+        var dialog = new TakesDialog(request) { Owner = Owner };
+        return dialog.ShowDialog() == true ? dialog.Result : null;
+    }
+
     public bool Confirm(string message, string title)
     {
         var result = Owner is { } owner

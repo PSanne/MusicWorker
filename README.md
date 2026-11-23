@@ -3,7 +3,7 @@
 **MusicWorker** ist eine Windows-Anwendung zum Bearbeiten von Musik, geschrieben in C# mit WPF und .NET 8.
 
 Langfristig soll MusicWorker **Audio-Editor, Mehrspur-Mixer und Noten-Editor** in einem Programm vereinen.
-Version 0.3 bietet einen vollständigen Audio-Editor mit Live-Effekten **und ein Mehrspur-Mischpult** mit Fadern, Panorama, Sends, Effekt-Bussen, Gruppen und Projekten – seit 0.3.2 auch mit **Schnitt-Werkzeugen, Takt-Raster, Loop-Bereich und Rückgängig**, seit 0.4 mit **Hüllkurven (Automation) und Auto-Absenkung**, seit 0.5 mit **Noten-Editor, Instrumenten und MIDI**.
+Version 0.3 bietet einen vollständigen Audio-Editor mit Live-Effekten **und ein Mehrspur-Mischpult** mit Fadern, Panorama, Sends, Effekt-Bussen, Gruppen und Projekten – seit 0.3.2 auch mit **Schnitt-Werkzeugen, Takt-Raster, Loop-Bereich und Rückgängig**, seit 0.4 mit **Hüllkurven (Automation) und Auto-Absenkung**, seit 0.5 mit **Noten-Editor, Instrumenten und MIDI**, seit 0.6 mit **Aufnahme, Metronom, Punch-In und Takes/Comping**.
 
 ## Mischpult (Version 0.3)
 
@@ -16,6 +16,8 @@ Die Registerkarte **„Mischpult“** macht aus MusicWorker eine kleine Mehrspur
 | **Raster & Loop** | **Takt-Raster** mit Tempo (BPM) und Taktart, Taktnummern · **Einrasten** auf die Schläge · **Loop-Bereich** mit Umschalt+Ziehen oder „Loop = Clip“, Loop ein/aus mit Strg+L |
 | **Hüllkurven** | Knopf **„Hüllkurven“**: Lautstärke, Panorama, Hall-/Echo-Send und Hochpass über die Zeit steuern · Klick setzt einen Punkt, Ziehen verschiebt, Doppel- oder Rechtsklick löscht · welche Kurve gezeigt wird, wählst du links in der Spurliste · rastet mit „Einrasten“ auf das Raster ein · „Kurve löschen“ setzt auf den Regler zurück |
 | **Auto-Absenkung** | Im Kanalzug unter **„Absenken durch“** eine andere Spur wählen (z. B. Sprache): Diese Spur wird automatisch leiser, solange die gewählte Spur spielt · Regler für Stärke (dB) und Schwelle |
+| **Aufnahme** | Knopf **● Aufnahme** (Strg+R) nimmt auf die scharfgeschalteten Spuren auf (● im Spurkopf; ohne scharfe Spur entsteht eine neue) · Audiospuren vom gewählten **Eingang** (mit Pegelanzeige), Notenspuren in **Echtzeit** vom MIDI-Keyboard oder der Computertastatur · **Metronom** und **Vorzähler** (1 Takt) · **Punch-In**: nur im Loop-Bereich neu aufnehmen, mit einem Takt Vorlauf · **Loop-Aufnahme**: mit Loop + Punch-In wird jeder Durchgang ein eigener Take · Latenzausgleich im Menü *Wiedergabe* |
+| **Takes & Comping** | Aufnahmen über einen vorhandenen Clip werden zu **Takes** · Doppelklick auf den Clip (oder „Takes …“) öffnet das Comping: über einen Take ziehen = diesen Abschnitt verwenden · **Clear-Comp** (gewählter Take überall) · Take löschen · Anhören · Zusammenfügen |
 | **Kanalzüge** | **Fader** (-∞ … +6 dB) mit **Pegelanzeige** · **Panorama**-Drehregler · **Mute/Solo** · **Insert-Effekte:** 3-Band-EQ (Tiefen/Mitten/Höhen), Hochpass, Kompressor · **Sends** auf Hall- und Echo-Bus · **Gruppen**-Zuordnung |
 | **Effekt-Busse** | **Hall-Bus** (Raumgröße, Dämpfung) und **Echo-Bus** (Zeit L/R, Rückkopplung, Dämpfung, Ping-Pong) mit Rückweg-Fader – ein gemeinsamer Hall für alle Spuren |
 | **Gruppen** | Gruppen-Fader und -Mute wirken auf alle zugeordneten Spuren |
@@ -79,6 +81,7 @@ im Mischpult verhalten sie sich wie Audiospuren (Fader, Effekte, Hüllkurven, Mi
 | Noten spielen (Noten-Reiter) | Computertastatur: Y S X D C V G B H N J M (untere Oktave), Q 2 W 3 E R 5 T 6 Z 7 U (obere) |
 | Noten: Rückgängig, Auswahl, Kopieren | Strg+Z / Strg+Y, Strg+A, Strg+C / Strg+X / Strg+V, Entf |
 | Noten transponieren | Pfeil hoch/runter (mit Umschalt: Oktave) |
+| Aufnahme starten/beenden | Strg+R (oder Leertaste/Esc zum Beenden) |
 | Position verschieben | roten Griff ▼ in der Zeitleiste ziehen oder in die Zeitleiste klicken |
 | 5 Sekunden vor / zurück | Strg+→ / Strg+← |
 | Schleife (Loop) ein/aus | Strg+L oder 🔁 in der Werkzeugleiste |
@@ -157,6 +160,7 @@ MusicWorker.sln
 │  ├─ MusicWorker.Core/          Plattformunabhängiger Kern (ohne UI, voll testbar)
 │  │  ├─ Audio/                  AudioBuffer (unveränderlich), Dezibel-Umrechnung
 │  │  ├─ Editing/                AudioEditor, Auswahl, Rückgängig/Wiederholen (Command-Pattern)
+│  │  ├─ Recording/              Takes & Comping (Zusammenstellen mit Überblendung), Metronom, Zuordnung von Aufnahmen zur Zeitleiste
 │  │  ├─ Notes/                  Noten (Ticks), Quantisieren, Humanisieren, Transponieren, Stimmaufteilung, MIDI-Dateien lesen/schreiben
 │  │  ├─ Synthesis/              Eingebauter Synthesizer (10 Instrumente), SoundFont-Wiedergabe, Noten → Audio
 │  │  ├─ Mixing/                 Misch-Engine: Spuren, Panorama, Fader, Gruppen, Sends, Effekt-Busse, Inserts, Hüllkurven, Auto-Absenkung, Master, Mixdown
@@ -187,7 +191,7 @@ die Oberfläche nur in `MusicWorker.App`. So können Mehrspur- und Noten-Editor 
 - [x] **v0.3.2 – Schnitt im Mischpult:** Trenner hinzufügen / Clip-Trennung, Clip-Zusammenführung, Clip-Mischung, Crossfade zwischen Clips, Auto-Zuschnitt (Stille an Anfang/Ende entfernen), Rasterlinien mit Tempo/Takt und Einrasten, Loop-Bereich, Mixtape (Songs automatisch mit Überblendung aneinanderreihen), Insert- und Master-Effekte, Rückgängig im Mischpult, Clips zwischen Spuren verschieben
 - [x] **v0.4 – Automation & Dynamik:** Hüllkurven für Lautstärke, Panorama und Effektparameter (Hall-/Echo-Send, Hochpass); Auto-Absenkung (Musik wird leiser, sobald die Stimme einsetzt)
 - [x] **v0.5 – Noten, MIDI & Instrumente:** Piano-Roll, Bildschirmtastatur, Notenlängen-Anpassung, Quantisieren, Humanisierung, Anschlagstärke-Panel, Transponieren, Stimmaufteilung (Noten auf Stimmen verteilen), frei verfügbare SoundFont-Instrumente
-- [ ] **v0.6 – Aufnahme:** Record, Neuaufnahme (Punch-In), Metronom, Takes mit Comping-Tool (inkl. Clear-Comp)
+- [x] **v0.6 – Aufnahme:** Record, Neuaufnahme (Punch-In), Metronom, Takes mit Comping-Tool (inkl. Clear-Comp)
 - [ ] **v0.7 – Tonhöhe & Spektrum:** Autotune, Tonhöhen-Korrektur, parametrische Tonhöhe, Stimmeffekte, Spektrogramm (Wasserfall-Ansicht der Fourier-Transformation), spektrale Rauschentfernung
 
 ## Entscheidungen
@@ -261,6 +265,37 @@ was bewusst so gebaut ist und was sich später leicht ändern lässt.
   passenden eingebauten Instrument zugeordnet. Tempowechsel innerhalb der Datei werden (noch) nicht übernommen –
   es gilt das erste Tempo.
 - **„Neues Projekt“ setzt Tempo und Taktart auf 120 BPM, 4/4 zurück** (bisher blieben die alten Werte stehen).
+
+### v0.6 – Aufnahme
+- **Aufgenommen wird über die Windows-Standardschnittstelle** (16 Bit, in der Abtastrate des Projekts). Grund: Das
+  funktioniert mit jedem Mikrofon, Headset und Audio-Interface ohne zusätzliche Treiber. ASIO (für sehr kurze
+  Verzögerungen und viele Eingänge gleichzeitig) wäre eine mögliche spätere Erweiterung.
+- **Latenzausgleich als einstellbarer Wert** (Standard 60 ms, Menü *Wiedergabe*) statt automatischer Messung.
+  Grund: Die tatsächliche Verzögerung von Aus- und Eingang hängt von Gerät und Treiber ab und lässt sich nicht
+  zuverlässig auslesen. Der Dialog erklärt, wie man den Wert mit dem Metronom prüft.
+- **Kein Mithören des Eingangs über das Programm.** Grund: Über die Standardschnittstelle käme das eigene Signal
+  hörbar verzögert zurück – das stört beim Singen und Spielen. Besser direkt am Interface/Headset mithören.
+  Die Pegelanzeige zeigt den Eingang, sobald eine Audiospur scharfgeschaltet ist.
+- **Aufnahmen werden über die gemerkten Sprünge der Wiedergabe der Zeitleiste zugeordnet.** Grund: So landen sie
+  auch mit Vorzähler, nach einem Sprung mit dem roten Griff und bei Loop-Durchgängen exakt an der richtigen Stelle.
+- **Eine Audiospur und eine Notenspur können gleichzeitig aufnehmen** (jeweils die erste scharfgeschaltete).
+  Grund: Ein Eingangsgerät liefert ein Signal; mehrere Eingänge gleichzeitig wären ein ASIO-Thema.
+- **Wer über einen vorhandenen Clip aufnimmt, bekommt Takes** – nichts wird überschrieben. Der neue Take klingt
+  dort, wo er aufgenommen wurde; im Comping lässt sich jede Stelle aus jedem Take wählen.
+- **Punch-In nutzt den Loop-Bereich** (ein Bereich weniger zu verwalten) und spielt einen Takt Vorlauf. Ist Loop
+  zusätzlich eingeschaltet, wird jeder Durchgang ein eigener Take („Loop-Aufnahme“) – ideal, um eine schwierige
+  Stelle mehrmals hintereinander einzuspielen.
+- **Comping in einem eigenen Fenster mit „Swipe-Comping“** (über einen Take ziehen). Grund: Die Spuransicht bleibt
+  übersichtlich, und im Fenster haben alle Takes genug Platz. An den Schnittstellen wird 10 ms übergeblendet –
+  kurz genug für präzise Schnitte, lang genug gegen Knackser. **Clear-Comp** setzt die Zusammenstellung auf den
+  gewählten Take zurück.
+- **Teilen, Verbinden, Zuschneiden und Bearbeiten im Editor fügen die Takes vorher zusammen** (mit Strg+Z
+  umkehrbar). Grund: Takes über geschnittene Clips hinweg zu verwalten wäre fehleranfällig und kaum zu durchschauen.
+- **Echtzeit-Aufnahme von Noten mischt in einen vorhandenen Notenclip hinein** (Overdub) statt ihn zu ersetzen.
+  Grund: Schicht für Schicht einspielen (z. B. erst Bassdrum, dann Hi-Hat) ist der häufigste Fall; Unerwünschtes
+  löscht man danach im Noten-Editor.
+- **Das Metronom klingt nur bei der Wiedergabe, nie im Mixdown**; der Vorzähler klickt immer (auch ohne Metronom).
+- **Strg+R im Editor-Reiter wechselt ins Mischpult** und startet dort die Aufnahme – aufgenommen wird immer ins Projekt.
 
 ## Verwendete Bibliotheken
 

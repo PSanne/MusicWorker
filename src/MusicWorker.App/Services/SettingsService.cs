@@ -110,6 +110,12 @@ public sealed class AppSettings
     /// <summary>Name des gewählten Wiedergabegeräts (null = Windows-Standard).</summary>
     public string? OutputDeviceName { get; set; }
 
+    /// <summary>Gewähltes Aufnahmegerät.</summary>
+    public string? InputDeviceName { get; set; }
+
+    /// <summary>Latenzausgleich für Aufnahmen in Millisekunden.</summary>
+    public double RecordingLatencyMs { get; set; } = 60;
+
     /// <summary>Zuletzt geladene SoundFont-Datei (.sf2).</summary>
     public string? LastSoundFont { get; set; }
 

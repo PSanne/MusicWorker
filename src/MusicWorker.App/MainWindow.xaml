@@ -227,6 +227,7 @@
         <KeyBinding Key="T" Modifiers="Ctrl" Command="{Binding TrimCommand}" />
         <KeyBinding Key="E" Modifiers="Ctrl+Shift" Command="{Binding ToggleEqualizerCommand}" />
         <KeyBinding Key="L" Modifiers="Ctrl" Command="{Binding ToggleLoopCommand}" />
+        <KeyBinding Key="R" Modifiers="Ctrl" Command="{Binding RecordKeyCommand}" />
         <KeyBinding Key="Delete" Command="{Binding DeleteKeyCommand}" />
         <KeyBinding Key="Escape" Command="{Binding TransportStopCommand}" />
         <KeyBinding Key="Right" Modifiers="Ctrl" Command="{Binding TransportSkipForwardCommand}" />
@@ -293,6 +294,10 @@
                 <MenuItem Header="5 Sekunden _vor" Command="{Binding TransportSkipForwardCommand}" InputGestureText="Strg+→" />
                 <MenuItem Header="5 Sekunden _zurück" Command="{Binding TransportSkipBackCommand}" InputGestureText="Strg+←" />
                 <MenuItem Header="Sch_leife (Loop)" IsCheckable="True" IsChecked="{Binding IsLooping, Mode=TwoWay}" InputGestureText="Strg+L" />
+                <Separator />
+                <MenuItem Header="_Aufnahme starten/beenden (Mischpult)" Command="{Binding RecordKeyCommand}" InputGestureText="Strg+R" />
+                <MenuItem Header="_Metronom" IsCheckable="True" IsChecked="{Binding Mixer.IsMetronomeEnabled, Mode=TwoWay}" />
+                <MenuItem Header="_Latenzausgleich für Aufnahmen …" Command="{Binding SetRecordingLatencyCommand}" />
                 <Separator />
                 <MenuItem Header="Wiedergabe_gerät" ItemsSource="{Binding OutputDevices}">
                     <MenuItem.ItemContainerStyle>
@@ -1017,7 +1022,39 @@
                             <Button Style="{StaticResource ToolButton}" Command="{Binding TransportSkipForwardCommand}" ToolTip="5 Sekunden vor (Strg+→)">
                                 <TextBlock Style="{StaticResource Glyph}" Text="&#xEB9D;" />
                             </Button>
+                            <ToggleButton Style="{StaticResource ChannelToggle}" Margin="4,0,0,0" IsChecked="{Binding Mixer.IsRecording, Mode=OneWay}"
+                                          Command="{Binding Mixer.ToggleRecordCommand}"
+                                          ToolTip="Aufnahme starten/beenden (Strg+R) – auf die scharfgeschalteten Spuren (●), sonst auf eine neue Spur">
+                                <StackPanel Orientation="Horizontal">
+                                    <Ellipse Width="11" Height="11" Fill="#E53935" />
+                                    <TextBlock Margin="4,0,0,0" Text="Aufnahme" />
+                                </StackPanel>
+                            </ToggleButton>
                             <TextBlock Margin="8,0" VerticalAlignment="Center" FontFamily="Consolas" Text="{Binding Mixer.PositionText}" />
+                        </ToolBar>
+                        <ToolBar Band="1">
+                            <ToggleButton Style="{StaticResource ChannelToggle}" IsChecked="{Binding Mixer.IsMetronomeEnabled}" ToolTip="Metronom beim Abspielen und Aufnehmen (nicht im Mixdown)">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Style="{StaticResource Glyph}" Text="&#xE916;" />
+                                    <TextBlock Margin="4,0,0,0" Text="Metronom" />
+                                </StackPanel>
+                            </ToggleButton>
+                            <ToggleButton Style="{StaticResource ChannelToggle}" Margin="4,0,0,0" Content="Vorzähler" IsChecked="{Binding Mixer.IsCountInEnabled}"
+                                          ToolTip="Vor der Aufnahme einen Takt einzählen" />
+                            <ToggleButton Style="{StaticResource ChannelToggle}" Margin="4,0,0,0" Content="Punch-In" IsChecked="{Binding Mixer.IsPunchEnabled}"
+                                          ToolTip="Neuaufnahme nur im Loop-Bereich (Umschalt+Ziehen): davor läuft ein Takt Vorlauf, außerhalb bleibt alles unverändert. Mit eingeschaltetem Loop entsteht bei jedem Durchgang ein neuer Take." />
+                            <Separator />
+                            <TextBlock Margin="4,0" VerticalAlignment="Center" Text="Eingang" />
+                            <ComboBox Width="170" VerticalAlignment="Center" ItemsSource="{Binding Mixer.InputDevices}" SelectedItem="{Binding Mixer.SelectedInputDevice}"
+                                      ToolTip="Aufnahmegerät (Mikrofon, Line-In, Audio-Interface)" />
+                            <Button Style="{StaticResource ToolButton}" Command="{Binding Mixer.RefreshInputDevicesCommand}" ToolTip="Liste der Aufnahmegeräte aktualisieren">
+                                <TextBlock Style="{StaticResource Glyph}" Text="&#xE72C;" />
+                            </Button>
+                            <ProgressBar Width="70" Height="8" Margin="4,0" VerticalAlignment="Center" Minimum="0" Maximum="1" Value="{Binding Mixer.InputLevel, Mode=OneWay}"
+                                         Foreground="#66BB6A" Background="#15171C" ToolTip="Eingangspegel (sichtbar, sobald eine Audiospur scharfgeschaltet ist)" />
+                            <Separator />
+                            <Button Style="{StaticResource ToolButton}" Command="{Binding Mixer.EditTakesCommand}" Content="Takes …"
+                                    ToolTip="Takes &amp; Comping des gewählten Clips (oder Doppelklick auf einen Clip mit Takes)" />
                         </ToolBar>
                         <ToolBar>
                             <Button Style="{StaticResource ToolButton}" Command="{Binding Mixer.NewProjectCommand}" Content="Neu" ToolTip="Neues, leeres Projekt" />
@@ -1350,8 +1387,14 @@
                                                     <DockPanel>
                                                         <Rectangle DockPanel.Dock="Left" Width="4" Fill="{Binding Color}" RadiusX="2" RadiusY="2" />
                                                         <StackPanel Margin="8,0,0,0">
-                                                            <TextBlock Foreground="White" FontWeight="SemiBold" Text="{Binding Name}" TextTrimming="CharacterEllipsis"
-                                                                       ToolTip="{Binding InstrumentName}" />
+                                                            <DockPanel>
+                                                                <ToggleButton DockPanel.Dock="Right" Width="22" Height="18" Padding="0" Focusable="False" IsChecked="{Binding IsArmed}"
+                                                                              ToolTip="Für die Aufnahme scharfschalten (Audiospur: Eingang, Notenspur: MIDI-Keyboard/Tastatur)">
+                                                                    <Ellipse Width="9" Height="9" Fill="#E53935" />
+                                                                </ToggleButton>
+                                                                <TextBlock Foreground="White" FontWeight="SemiBold" Text="{Binding Name}" TextTrimming="CharacterEllipsis"
+                                                                           ToolTip="{Binding InstrumentName}" />
+                                                            </DockPanel>
                                                             <StackPanel Margin="0,6,0,0" Orientation="Horizontal">
                                                                 <ToggleButton Style="{StaticResource StripToggle}" Content="M" IsChecked="{Binding Mute}" ToolTip="Stumm (Mute)" />
                                                                 <ToggleButton Style="{StaticResource StripToggle}" Margin="4,0,0,0" Content="S" IsChecked="{Binding Solo}" ToolTip="Solo" />
@@ -1391,7 +1434,8 @@
                                                        LoopEnd="{Binding Mixer.LoopEnd}"
                                                        IsEnvelopeMode="{Binding Mixer.IsEnvelopeMode}"
                                                        EditAutomationCommand="{Binding Mixer.EditAutomationCommand}"
-                                                       CreateClipCommand="{Binding Mixer.CreateClipAtCommand}" />
+                                                       CreateClipCommand="{Binding Mixer.CreateClipAtCommand}"
+                                                       RecordingStartFrame="{Binding Mixer.RecordingStartFrame}" />
                             </Grid>
                         </ScrollViewer>
 
@@ -1417,6 +1461,14 @@
                             <Button Style="{StaticResource ToolButton}" Command="{Binding Mixer.StopCommand}" ToolTip="Stopp (Esc)">
                                 <TextBlock Style="{StaticResource Glyph}" Text="&#xE71A;" />
                             </Button>
+                            <ToggleButton Style="{StaticResource ChannelToggle}" Margin="4,0,0,0" IsChecked="{Binding Mixer.IsRecording, Mode=OneWay}"
+                                          Command="{Binding Mixer.ToggleRecordCommand}"
+                                          ToolTip="Echtzeit-Aufnahme (Strg+R): Notenspur im Mischpult scharfschalten (●) und auf der Tastatur bzw. dem MIDI-Keyboard spielen">
+                                <Ellipse Width="11" Height="11" Fill="#E53935" />
+                            </ToggleButton>
+                            <ToggleButton Style="{StaticResource ChannelToggle}" Margin="4,0,0,0" IsChecked="{Binding Mixer.IsMetronomeEnabled}" ToolTip="Metronom">
+                                <TextBlock Style="{StaticResource Glyph}" Text="&#xE916;" />
+                            </ToggleButton>
                             <TextBlock Margin="8,0" VerticalAlignment="Center" FontWeight="SemiBold" Text="{Binding Notes.Title}" />
                         </ToolBar>
                         <ToolBar>

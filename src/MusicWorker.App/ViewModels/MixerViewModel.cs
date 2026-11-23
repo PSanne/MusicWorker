@@ -1,3 +1,4 @@
+using MusicWorker.Core.Recording;
 using MusicWorker.Core.Notes;
 using MusicWorker.Core.Synthesis;
 using System.Collections.ObjectModel;
@@ -36,6 +37,9 @@ public sealed partial class MixerViewModel : ObservableObject, IDisposable
     private MixEngine? _engine;
     private MixEngineSampleProvider? _provider;
     private TrackViewModel? _automationTrack;
+    private readonly RecordingService _recorder = new();
+    private RecordingSession? _session;
+    private CancellationTokenSource? _levelLoop;
     private CancellationTokenSource? _updates;
     private long _playStart;
     private int _nextColor;
@@ -111,6 +115,35 @@ public sealed partial class MixerViewModel : ObservableObject, IDisposable
     [ObservableProperty]
     private bool _showGrid = true;
 
+    // Aufnahme
+    [ObservableProperty]
+    private bool _isRecording;
+
+    [ObservableProperty]
+    private bool _isMetronomeEnabled;
+
+    /// <summary>Vor der Aufnahme einen Takt einzählen.</summary>
+    [ObservableProperty]
+    private bool _isCountInEnabled = true;
+
+    /// <summary>Punch-In: nur im Loop-Bereich aufnehmen (der Rest bleibt unangetastet).</summary>
+    [ObservableProperty]
+    private bool _isPunchEnabled;
+
+    /// <summary>Eingangspegel 0 … 1 (-60 … 0 dBFS).</summary>
+    [ObservableProperty]
+    private double _inputLevel;
+
+    [ObservableProperty]
+    private IReadOnlyList<InputDevice> _inputDevices = [];
+
+    [ObservableProperty]
+    private InputDevice? _selectedInputDevice;
+
+    /// <summary>Beginn der laufenden Aufnahme (für die rote Markierung in der Spuransicht), -1 = keine.</summary>
+    [ObservableProperty]
+    private long _recordingStartFrame = -1;
+
     /// <summary>Hüllkurven-Modus: Die Maus bearbeitet in der Spuransicht Hüllkurven statt Clips.</summary>
     [ObservableProperty]
     private bool _isEnvelopeMode;
@@ -143,6 +176,8 @@ public sealed partial class MixerViewModel : ObservableObject, IDisposable
         NoTrack = new TrackViewModel("Keine", "#9E9E9E", static () => { });
         DuckChoices.Add(NoTrack);
         Tracks.CollectionChanged += OnTracksCollectionChanged;
+        _recorder.Failed += (_, message) => StatusText = $"Aufnahme-Fehler: {message}";
+        RefreshInputDevices();
         HallBus = new BusViewModel("Hall-Bus", BusEffect.Reverb, OnMixChanged);
         EchoBus = new BusViewModel("Echo-Bus", BusEffect.Delay, OnMixChanged);
         _playback.PlaybackEnded += OnPlaybackEnded;
@@ -202,6 +237,9 @@ public sealed partial class MixerViewModel : ObservableObject, IDisposable
             OnPropertyChanged();
         }
     }
+
+    /// <summary>Latenzausgleich für Aufnahmen in Millisekunden (Verzögerung von Aus- und Eingang).</summary>
+    public double RecordingLatencyMs { get; set; } = 60;
 
     /// <summary>Länge eines Schlags in Frames (für Raster und Einrasten).</summary>
     public double BeatFrames => 60.0 / Math.Max(1, Bpm) * SampleRate;
@@ -333,6 +371,13 @@ public sealed partial class MixerViewModel : ObservableObject, IDisposable
             return;
         }
 
+        if (clip.HasTakes)
+        {
+            SelectedClip = clip;
+            EditTakes();
+            return;
+        }
+
         StopPlayback();
         OpenClipInEditorRequested?.Invoke(this, clip);
     }
@@ -382,6 +427,8 @@ public sealed partial class MixerViewModel : ObservableObject, IDisposable
 
         StopPlayback();
         RecordUndo();
+        clip.Takes = null; // im Editor bearbeitet: die Takes werden zur bearbeiteten Fassung
+        clip.Comp = null;
         clip.Audio = Conform(audio);
         OnStructureChanged();
         StatusText = $"Clip in „{clip.Track.Name}“ aktualisiert.";
@@ -406,6 +453,7 @@ public sealed partial class MixerViewModel : ObservableObject, IDisposable
 
         StopPlayback();
         RecordUndo();
+        Flatten(clip);
         ClipViewModel right;
         if (clip.Notes is { } notes)
         {
@@ -454,6 +502,8 @@ public sealed partial class MixerViewModel : ObservableObject, IDisposable
 
         StopPlayback();
         RecordUndo();
+        Flatten(clip);
+        Flatten(next);
         if (clip.Notes is { } notes && next.Notes is { } nextNotes)
         {
             long offset = FramesToTicks(next.StartFrame - clip.StartFrame);
@@ -501,6 +551,7 @@ public sealed partial class MixerViewModel : ObservableObject, IDisposable
 
         StopPlayback();
         RecordUndo();
+        Flatten(clip);
         long removed = clip.Audio.FrameCount - content.Length;
         clip.Audio = clip.Audio.Slice(content.Start, content.Length);
         clip.StartFrame += content.Start; // der hörbare Teil bleibt an seiner Stelle
@@ -590,6 +641,354 @@ public sealed partial class MixerViewModel : ObservableObject, IDisposable
         {
             IsBusy = false;
         }
+    }
+
+    // ───────────── Aufnahme ─────────────
+
+    /// <summary>Aufnahme starten bzw. beenden (Knopf ● oder Strg+R).</summary>
+    [RelayCommand(CanExecute = nameof(CanEdit))]
+    public void ToggleRecord()
+    {
+        if (IsRecording)
+        {
+            FinishRecording();
+        }
+        else
+        {
+            StartRecording();
+        }
+    }
+
+    [RelayCommand]
+    private void RefreshInputDevices()
+    {
+        string? current = SelectedInputDevice?.Name;
+        InputDevices = RecordingService.Devices();
+        SelectedInputDevice = InputDevices.FirstOrDefault(d => d.Name == current) ?? InputDevices.FirstOrDefault();
+    }
+
+    /// <summary>Wählt den gespeicherten Eingang (falls vorhanden).</summary>
+    public void SelectInputByName(string? name)
+    {
+        if (name is not null && InputDevices.FirstOrDefault(d => d.Name == name) is { } device)
+        {
+            SelectedInputDevice = device;
+        }
+    }
+
+    /// <summary>Takes &amp; Comping für den gewählten Clip (auch per Doppelklick auf einen Clip mit Takes).</summary>
+    [RelayCommand]
+    private void EditTakes()
+    {
+        if (SelectedClip is not { Takes: { Count: > 0 } takes, Comp: { } comp } clip)
+        {
+            StatusText = "Der gewählte Clip hat keine Takes. Takes entstehen, wenn man über einen vorhandenen Clip noch einmal aufnimmt.";
+            return;
+        }
+
+        StopPlayback();
+        if (_dialogs.EditTakes(new TakesRequest(clip.Track.Name, takes, comp, _playback.DeviceNumber)) is not { } result)
+        {
+            return;
+        }
+
+        RecordUndo();
+        if (result.Flatten || result.Takes.Count < 2)
+        {
+            clip.Audio = TakeTools.Compose(result.Takes, result.Comp);
+            clip.Takes = null;
+            clip.Comp = null;
+            StatusText = "Takes zu einem Clip zusammengefügt.";
+        }
+        else
+        {
+            SetTakes(clip, result.Takes, result.Comp);
+            StatusText = $"Zusammenstellung übernommen ({result.Comp.Count} Abschnitte aus {result.Takes.Count} Takes).";
+        }
+
+        OnStructureChanged();
+    }
+
+    /// <summary>Vom Noten-Editor: Taste gedrückt (während einer Aufnahme auf einer Notenspur).</summary>
+    public void RecordNoteOn(int pitch, int velocity)
+    {
+        if (_session is { NoteTrack: not null } session && _provider is { } provider)
+        {
+            session.Open[pitch] = (provider.MapPlayedToTimeline(_playback.PlayedFrames), velocity);
+        }
+    }
+
+    public void RecordNoteOff(int pitch)
+    {
+        if (_session is { NoteTrack: not null } session && _provider is { } provider && session.Open.Remove(pitch, out var on))
+        {
+            session.Notes.Add((pitch, on.Frame, provider.MapPlayedToTimeline(_playback.PlayedFrames), on.Velocity));
+        }
+    }
+
+    /// <summary>Nimmt gerade eine Notenspur auf (dann gehören gespielte Töne in die Aufnahme statt in die Schritt-Eingabe).</summary>
+    public bool IsRecordingNotes => _session?.NoteTrack is not null;
+
+    private void StartRecording()
+    {
+        var armed = Tracks.Where(t => t.IsArmed).ToArray();
+        var audioTrack = armed.FirstOrDefault(t => !t.IsNoteTrack);
+        var noteTrack = armed.FirstOrDefault(t => t.IsNoteTrack);
+        bool created = false;
+        StopPlayback();
+        RecordUndo(); // die ganze Aufnahme ist ein Rückgängig-Schritt
+        if (audioTrack is null && noteTrack is null)
+        {
+            audioTrack = CreateTrack($"Aufnahme {Tracks.Count(t => t.Name.StartsWith("Aufnahme", StringComparison.Ordinal)) + 1}", Palette[_nextColor++ % Palette.Length]);
+            Tracks.Add(audioTrack);
+            audioTrack.IsArmed = true;
+            created = true;
+            OnStructureChanged();
+        }
+
+        if (audioTrack is not null)
+        {
+            string? problem = SelectedInputDevice is null
+                ? "Es wurde kein Aufnahmegerät (Mikrofon oder Eingang) gefunden."
+                : null;
+            if (SelectedInputDevice is { } device)
+            {
+                _recorder.DeviceNumber = device.Number;
+                if (_recorder.Open(SampleRate, device.Channels) is { } error)
+                {
+                    problem = $"Der Eingang „{device.Name}“ konnte nicht geöffnet werden.\n\n{error}";
+                }
+            }
+
+            if (problem is not null)
+            {
+                if (created)
+                {
+                    Tracks.Remove(audioTrack);
+                    OnStructureChanged();
+                }
+
+                _dialogs.ShowError(problem);
+                return;
+            }
+        }
+
+        bool punch = IsPunchEnabled && LoopEnd > LoopStart;
+        long recordFrom = punch ? LoopStart : PlayheadFrame;
+        long playFrom = punch ? Math.Max(0, LoopStart - TicksToFrames(MusicalTime.TicksPerBar(BeatsPerBar))) : PlayheadFrame; // ein Takt Vorlauf
+        long countIn = IsCountInEnabled ? TicksToFrames(MusicalTime.TicksPerBar(BeatsPerBar)) : 0;
+        _session = new RecordingSession(recordFrom, punch ? LoopEnd : long.MaxValue, audioTrack, noteTrack, created);
+        IsRecording = true;
+        RecordingStartFrame = recordFrom;
+        if (!StartPlayback(playFrom, countIn, audioTrack is null ? null : _recorder.StartCapture))
+        {
+            _session = null;
+            IsRecording = false;
+            RecordingStartFrame = -1;
+            return;
+        }
+
+        StartLevelLoop();
+        StatusText = punch
+            ? $"Punch-In-Aufnahme: aufgenommen wird nur von {TimeFormatter.Format(FrameToTime(LoopStart))} bis {TimeFormatter.Format(FrameToTime(LoopEnd))}. Stopp mit Leertaste oder Esc."
+            : "Aufnahme läuft … Stopp mit Leertaste oder Esc.";
+    }
+
+    private void FinishRecording()
+    {
+        if (_session is not { } session)
+        {
+            return;
+        }
+
+        _session = null;
+        var provider = _provider;
+        var recorded = session.AudioTrack is not null && _recorder.IsCapturing ? _recorder.StopCapture() : null;
+        long stop = provider is null ? PlayheadFrame : provider.MapPlayedToTimeline(_playback.PlayedFrames);
+        IsRecording = false;
+        RecordingStartFrame = -1;
+        StopPlayback();
+        UpdateInputMonitoring();
+
+        int takes = 0;
+        if (recorded is not null && provider is not null && session.AudioTrack is { } audioTrack)
+        {
+            long latency = (long)(RecordingLatencyMs / 1000 * SampleRate);
+            var runs = RecordingMapper.Limit(RecordingMapper.Map(recorded.FrameCount, provider.Jumps, latency), session.From, session.To)
+                .Where(r => r.Length >= SampleRate / 10) // Schnipsel unter 0,1 s ignorieren
+                .ToArray();
+            foreach (var run in runs)
+            {
+                AddRecording(audioTrack, Conform(recorded.Slice((int)run.SourceStart, (int)run.Length)), run.TimelineStart);
+                takes++;
+            }
+
+            if (takes == 0 && session.CreatedTrack)
+            {
+                Tracks.Remove(audioTrack);
+            }
+        }
+
+        int notes = 0;
+        if (session.NoteTrack is { } noteTrack)
+        {
+            foreach (var (pitch, on) in session.Open)
+            {
+                session.Notes.Add((pitch, on.Frame, stop, on.Velocity));
+            }
+
+            notes = AddNoteRecording(noteTrack, session.Notes.Where(n => n.Start >= session.From && n.Start < session.To).ToArray());
+        }
+
+        OnStructureChanged();
+        PlayheadFrame = session.From;
+        StatusText = (takes, notes) switch
+        {
+            (0, 0) => "Aufnahme beendet – es wurde nichts aufgenommen.",
+            (_, 0) => takes == 1 ? $"Aufnahme in „{session.AudioTrack!.Name}“ übernommen." : $"{takes} Durchgänge als Takes in „{session.AudioTrack!.Name}“ übernommen (Doppelklick auf den Clip öffnet das Comping).",
+            (0, _) => $"{notes} Noten in „{session.NoteTrack!.Name}“ aufgenommen.",
+            _ => $"Aufnahme übernommen: {takes} Audio-Durchgang/-Durchgänge und {notes} Noten.",
+        };
+    }
+
+    /// <summary>Legt eine Aufnahme auf die Spur: über einem vorhandenen Clip als neuer Take, sonst als neuer Clip.</summary>
+    private void AddRecording(TrackViewModel track, AudioBuffer audio, long start)
+    {
+        long end = start + audio.FrameCount;
+        var target = track.Clips
+            .Where(c => !c.IsNoteClip && c.StartFrame < end && c.EndFrame > start)
+            .OrderByDescending(c => Math.Min(c.EndFrame, end) - Math.Max(c.StartFrame, start))
+            .FirstOrDefault();
+        if (target is null)
+        {
+            var clip = new ClipViewModel(track, audio, start);
+            track.Clips.Add(clip);
+            SelectedClip = clip;
+            return;
+        }
+
+        var takes = target.Takes ?? [target.Audio];
+        var comp = target.Comp ?? TakeTools.ClearComp(target.Audio.FrameCount, 0);
+        var (newTakes, newStart, newComp) = TakeTools.AddTake(takes, target.StartFrame, comp, audio, start);
+        target.StartFrame = newStart;
+        SetTakes(target, newTakes, newComp);
+        SelectedClip = target;
+    }
+
+    /// <summary>Aufgenommene Noten (Frames) in einen Notenclip übernehmen – in einen vorhandenen (dazu gemischt) oder einen neuen.</summary>
+    private int AddNoteRecording(TrackViewModel track, IReadOnlyList<(int Pitch, long Start, long End, int Velocity)> notes)
+    {
+        if (notes.Count == 0)
+        {
+            return 0;
+        }
+
+        long first = notes.Min(n => n.Start);
+        var clip = track.Clips.FirstOrDefault(c => c.IsNoteClip && c.StartFrame <= first && c.EndFrame > first);
+        long clipStart = clip?.StartFrame ?? BarStart(first);
+        var converted = notes.Select(n => new Note(
+            n.Pitch,
+            Math.Max(0, FramesToTicks(n.Start - clipStart)),
+            Math.Max(MusicalTime.TicksPerQuarter / 16, FramesToTicks(n.End - n.Start)),
+            n.Velocity)).ToArray();
+        long bar = MusicalTime.TicksPerBar(BeatsPerBar);
+        long end = (NoteTools.EndOf(converted) + bar - 1) / bar * bar;
+        if (clip is null)
+        {
+            track.Clips.Add(CreateNoteClip(track, NoteTools.Sorted(converted), Math.Max(bar, end), clipStart));
+        }
+        else
+        {
+            UpdateNoteClip(clip, NoteTools.Sorted(clip.Notes!.Concat(converted)), Math.Max(clip.LengthTicks, end));
+        }
+
+        return notes.Count;
+    }
+
+    private void SetTakes(ClipViewModel clip, IReadOnlyList<AudioBuffer> takes, IReadOnlyList<CompSegment> comp)
+    {
+        clip.Takes = takes;
+        clip.Comp = comp;
+        clip.Audio = TakeTools.Compose(takes, comp);
+    }
+
+    /// <summary>Takes zur aktuellen Zusammenstellung zusammenfügen (vor Teilen, Verbinden und Zuschneiden).</summary>
+    private static void Flatten(ClipViewModel clip)
+    {
+        clip.Takes = null;
+        clip.Comp = null;
+    }
+
+    /// <summary>Eingang offen halten, solange eine Audiospur scharfgeschaltet ist (für die Pegelanzeige).</summary>
+    private void UpdateInputMonitoring()
+    {
+        if (IsRecording)
+        {
+            return;
+        }
+
+        if (Tracks.Any(t => t.IsArmed && !t.IsNoteTrack) && SelectedInputDevice is { } device)
+        {
+            _recorder.DeviceNumber = device.Number;
+            if (_recorder.Open(SampleRate, device.Channels) is { } error)
+            {
+                StatusText = $"Eingang „{device.Name}“ lässt sich nicht öffnen: {error}";
+                return;
+            }
+
+            StartLevelLoop();
+        }
+        else
+        {
+            _levelLoop?.Cancel();
+            _recorder.Close();
+            InputLevel = 0;
+        }
+    }
+
+    private async void StartLevelLoop()
+    {
+        _levelLoop?.Cancel();
+        using var cts = new CancellationTokenSource();
+        _levelLoop = cts;
+        using var timer = new PeriodicTimer(TimeSpan.FromMilliseconds(50));
+        try
+        {
+            while (await timer.WaitForNextTickAsync(cts.Token) && _recorder.IsOpen)
+            {
+                float peak = _recorder.TakePeak();
+                double level = peak <= 0 ? 0 : Math.Clamp((20 * Math.Log10(peak) + 60) / 60, 0, 1);
+                InputLevel = Math.Max(level, InputLevel * 0.85);
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // beendet
+        }
+    }
+
+    partial void OnSelectedInputDeviceChanged(InputDevice? value)
+    {
+        _recorder.Close();
+        UpdateInputMonitoring();
+    }
+
+    /// <summary>Eine laufende Aufnahme.</summary>
+    private sealed class RecordingSession(long from, long to, TrackViewModel? audioTrack, TrackViewModel? noteTrack, bool createdTrack)
+    {
+        public long From { get; } = from;
+
+        public long To { get; } = to;
+
+        public TrackViewModel? AudioTrack { get; } = audioTrack;
+
+        public TrackViewModel? NoteTrack { get; } = noteTrack;
+
+        public bool CreatedTrack { get; } = createdTrack;
+
+        public Dictionary<int, (long Frame, int Velocity)> Open { get; } = [];
+
+        public List<(int Pitch, long Start, long End, int Velocity)> Notes { get; } = [];
     }
 
     // ───────────── Notenspuren ─────────────
@@ -986,6 +1385,11 @@ public sealed partial class MixerViewModel : ObservableObject, IDisposable
             Group = NoGroup,
             DuckSource = NoTrack,
             Redraw = () => TimelineVersion++,
+            ArmedChanged = _ =>
+            {
+                TimelineVersion++;
+                UpdateInputMonitoring();
+            },
             InstrumentChanged = track =>
             {
                 IsModified = true;
@@ -1143,20 +1547,32 @@ public sealed partial class MixerViewModel : ObservableObject, IDisposable
             return;
         }
 
-        PlaybackStarting?.Invoke(this, EventArgs.Empty);
         long start = PlayheadFrame >= ProjectLength ? 0 : PlayheadFrame;
         if (IsLooping && LoopEnd > LoopStart && (start < LoopStart || start >= LoopEnd))
         {
             start = LoopStart; // Loop aktiv: im Loop-Bereich beginnen
         }
 
+        StartPlayback(start, 0);
+    }
+
+    /// <summary>Startet die Wiedergabe ab <paramref name="start"/> (optional mit Vorzähler).</summary>
+    private bool StartPlayback(long start, long countInFrames, Action? started = null)
+    {
+        PlaybackStarting?.Invoke(this, EventArgs.Empty);
         _playStart = start;
         _engine = new MixEngine(BuildSnapshot());
         _engine.Seek(start);
-        _provider = new MixEngineSampleProvider(_engine, () => ProjectLength + TailFrames(), () => (IsLooping, LoopStart, LoopEnd));
+        _provider = new MixEngineSampleProvider(
+            _engine,
+            () => ProjectLength + TailFrames(),
+            () => (IsLooping, LoopStart, LoopEnd),
+            () => (IsMetronomeEnabled, Bpm, BeatsPerBar),
+            countInFrames);
 
         try
         {
+            started?.Invoke(); // z. B. Mitschnitt starten – direkt vor der Ausgabe, damit beides gleichzeitig beginnt
             _playback.PlayStream(_provider, (int)start);
         }
         catch (Exception ex)
@@ -1164,16 +1580,23 @@ public sealed partial class MixerViewModel : ObservableObject, IDisposable
             _engine = null;
             _provider = null;
             _dialogs.ShowError($"Die Wiedergabe konnte nicht gestartet werden.\n\n{ex.Message}");
-            return;
+            return false;
         }
 
         IsPlaying = true;
         StartUpdates();
+        return true;
     }
 
     [RelayCommand]
     public void Pause()
     {
+        if (IsRecording)
+        {
+            FinishRecording();
+            return;
+        }
+
         if (IsPlaying)
         {
             _playback.Pause();
@@ -1185,6 +1608,13 @@ public sealed partial class MixerViewModel : ObservableObject, IDisposable
     [RelayCommand]
     public void Stop()
     {
+        if (IsRecording)
+        {
+            FinishRecording();
+            PlayheadFrame = _playStart;
+            return;
+        }
+
         bool wasActive = _playback.State != PlaybackState.Stopped;
         StopPlayback();
         if (wasActive)
@@ -1391,6 +1821,37 @@ public sealed partial class MixerViewModel : ObservableObject, IDisposable
                         continue;
                     }
 
+                    if (c.Takes is { Count: > 0 } takeFiles)
+                    {
+                        var present = takeFiles.Where(f => _projects.ClipExists(path, f)).ToArray();
+                        if (present.Length == 0)
+                        {
+                            missing.Add($"{t.Name}: {string.Join(", ", takeFiles)}");
+                            continue;
+                        }
+
+                        var takeAudio = new List<AudioBuffer>();
+                        foreach (var file in present)
+                        {
+                            takeAudio.Add(Conform(await Task.Run(() => _projects.LoadClip(path, file))));
+                        }
+
+                        long takeLength = TakeTools.LengthOf(takeAudio);
+                        var takeComp = TakeTools.Normalize(
+                            (c.Comp ?? []).Where(x => x.Length >= 3).Select(x => new CompSegment(x[0], x[1], (int)Math.Clamp(x[2], 0, takeAudio.Count - 1))),
+                            takeLength);
+                        var takeClip = new ClipViewModel(track, TakeTools.Compose(takeAudio, takeComp), c.Start)
+                        {
+                            Takes = takeAudio,
+                            Comp = takeComp,
+                            SavedTakeFiles = present.Length == takeFiles.Count ? takeFiles.ToArray() : null,
+                            SavedTakes = present.Length == takeFiles.Count ? takeAudio.ToArray() : null,
+                            SavedTakesProjectPath = path,
+                        };
+                        track.Clips.Add(takeClip);
+                        continue;
+                    }
+
                     if (!_projects.ClipExists(path, c.File))
                     {
                         missing.Add($"{t.Name}: {c.File}");
@@ -1468,6 +1929,8 @@ public sealed partial class MixerViewModel : ObservableObject, IDisposable
 
     public void Dispose()
     {
+        _levelLoop?.Cancel();
+        _recorder.Dispose();
         StopPlayback();
         _playback.PlaybackEnded -= OnPlaybackEnded;
         _playback.Dispose();
@@ -1632,6 +2095,7 @@ public sealed partial class MixerViewModel : ObservableObject, IDisposable
 
         // Nur neues oder verändertes Audio wird geschrieben; Unverändertes behält seine Datei.
         var toWrite = new List<(ClipViewModel Clip, string File)>();
+        var takesToWrite = new List<(ClipViewModel Clip, int Index, string File, AudioBuffer Audio)>();
         var used = new List<string>();
         for (int t = 0; t < Tracks.Count; t++)
         {
@@ -1682,6 +2146,35 @@ public sealed partial class MixerViewModel : ObservableObject, IDisposable
                     continue;
                 }
 
+                if (clip.Takes is { } takes && clip.Comp is { } comp)
+                {
+                    var files = new List<string>();
+                    for (int k = 0; k < takes.Count; k++)
+                    {
+                        string? saved = clip.SavedTakeFiles is { } names && k < names.Length ? names[k] : null;
+                        bool same = saved is not null && clip.SavedTakes is { } audios && k < audios.Length &&
+                            ReferenceEquals(audios[k], takes[k]) &&
+                            string.Equals(clip.SavedTakesProjectPath, path, StringComparison.OrdinalIgnoreCase) &&
+                            _projects.ClipExists(path, saved);
+                        string takeFile = same ? saved! : $"Spur{t + 1:00}-Clip{c + 1:00}-Take{k + 1}-{Guid.NewGuid().ToString("N")[..8]}.wav";
+                        if (!same)
+                        {
+                            takesToWrite.Add((clip, k, takeFile, takes[k]));
+                        }
+
+                        files.Add(takeFile);
+                        used.Add(takeFile);
+                    }
+
+                    data.Clips.Add(new ProjectClip
+                    {
+                        Start = clip.StartFrame,
+                        Takes = files,
+                        Comp = comp.Select(x => new long[] { x.Start, x.End, x.Take }).ToList(),
+                    });
+                    continue;
+                }
+
                 bool unchanged = clip.SavedFileName is not null &&
                     ReferenceEquals(clip.SavedAudio, clip.Audio) &&
                     string.Equals(clip.SavedProjectPath, path, StringComparison.OrdinalIgnoreCase) &&
@@ -1710,6 +2203,11 @@ public sealed partial class MixerViewModel : ObservableObject, IDisposable
                     _projects.SaveClip(path, file, clip.Audio);
                 }
 
+                foreach (var (_, _, file, audio) in takesToWrite)
+                {
+                    _projects.SaveClip(path, file, audio);
+                }
+
                 _projects.Write(path, project);
                 _projects.RemoveUnusedAudio(path, used);
             });
@@ -1726,6 +2224,19 @@ public sealed partial class MixerViewModel : ObservableObject, IDisposable
 
                     clip.SavedAudio = clip.Audio;
                     clip.SavedProjectPath = path;
+                    if (clip.Takes is { } takes)
+                    {
+                        var names = new string?[takes.Count];
+                        for (int k = 0; k < takes.Count; k++)
+                        {
+                            names[k] = takesToWrite.FirstOrDefault(w => w.Clip == clip && w.Index == k).File
+                                ?? (clip.SavedTakeFiles is { } old && k < old.Length ? old[k] : null);
+                        }
+
+                        clip.SavedTakeFiles = names;
+                        clip.SavedTakes = takes.ToArray();
+                        clip.SavedTakesProjectPath = path;
+                    }
                 }
             }
 
@@ -1746,7 +2257,10 @@ public sealed partial class MixerViewModel : ObservableObject, IDisposable
 
     // ───────────── Rückgängig: Zustand sichern und wiederherstellen ─────────────
 
-    private sealed record ClipState(AudioBuffer Audio, long Start, string? SavedFile, AudioBuffer? SavedAudio, string? SavedPath, IReadOnlyList<Note>? Notes = null, long LengthTicks = 0);
+    private sealed record ClipState(
+        AudioBuffer Audio, long Start, string? SavedFile, AudioBuffer? SavedAudio, string? SavedPath,
+        IReadOnlyList<Note>? Notes = null, long LengthTicks = 0,
+        IReadOnlyList<AudioBuffer>? Takes = null, IReadOnlyList<CompSegment>? Comp = null);
 
     private sealed record TrackState(
         string Name, string Color, double VolumeDb, double Pan, bool Mute, bool Solo, double SendHall, double SendEcho,
@@ -1795,7 +2309,7 @@ public sealed partial class MixerViewModel : ObservableObject, IDisposable
                 t.Name, t.Color, t.VolumeDb, t.Pan, t.Mute, t.Solo, t.SendHall, t.SendEcho,
                 t.Group is null || t.Group.IsNone ? -1 : Groups.IndexOf(t.Group),
                 t.EqLow, t.EqMid, t.EqHigh, t.HighPassHz, t.Compression,
-                t.Clips.Select(c => new ClipState(c.Audio, c.StartFrame, c.SavedFileName, c.SavedAudio, c.SavedProjectPath, c.Notes, c.LengthTicks)).ToArray(),
+                t.Clips.Select(c => new ClipState(c.Audio, c.StartFrame, c.SavedFileName, c.SavedAudio, c.SavedProjectPath, c.Notes, c.LengthTicks, c.Takes, c.Comp)).ToArray(),
                 t.Automation, t.ShownAutomation, DuckIndex(t), t.DuckAmount, t.DuckThreshold, t.Instrument))
                 .ToArray(),
             Groups.Select(g => new GroupState(g.Name, g.VolumeDb, g.Mute)).ToArray(),
@@ -1859,6 +2373,8 @@ public sealed partial class MixerViewModel : ObservableObject, IDisposable
                     SavedFileName = c.SavedFile,
                     SavedAudio = c.SavedAudio,
                     SavedProjectPath = c.SavedPath,
+                    Takes = c.Takes,
+                    Comp = c.Comp,
                 });
             }
 
@@ -1930,7 +2446,7 @@ public sealed partial class MixerViewModel : ObservableObject, IDisposable
             {
                 if (_provider is { } provider)
                 {
-                    PlayheadFrame = provider.MapPlayedToTimeline(_playback.PlayedFrames);
+                    PlayheadFrame = Math.Max(0, provider.MapPlayedToTimeline(_playback.PlayedFrames)); // im Vorzähler nicht negativ
                 }
 
                 UpdateMeters();
@@ -1987,6 +2503,11 @@ public sealed partial class MixerViewModel : ObservableObject, IDisposable
 
     private void OnPlaybackEnded(object? sender, StoppedEventArgs e)
     {
+        if (IsRecording)
+        {
+            FinishRecording();
+        }
+
         IsPlaying = false;
         _engine = null;
         _provider = null;
@@ -2022,7 +2543,7 @@ public sealed partial class MixerViewModel : ObservableObject, IDisposable
         [
             AddTrackFromFileCommand, DeleteSelectedClipCommand, OpenSelectedClipInEditorCommand,
             SplitClipCommand, MergeWithNextClipCommand, AutoTrimClipCommand, ArrangeClipsCommand, BounceCommand,
-            AddNoteTrackCommand, ImportMidiCommand, ExportMidiCommand,
+            AddNoteTrackCommand, ImportMidiCommand, ExportMidiCommand, ToggleRecordCommand,
             LoopSelectedClipCommand,
             PlayCommand, TogglePlayPauseCommand, ExportMixdownCommand, NewProjectCommand,
             OpenProjectCommand, SaveProjectCommand, SaveProjectAsCommand,

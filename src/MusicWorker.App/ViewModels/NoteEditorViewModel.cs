@@ -651,8 +651,14 @@ public sealed partial class NoteEditorViewModel : ObservableObject, IDisposable
         }
 
         PressedKeys = PressedKeys.Add(pitch);
-        _ = _live.SetInstrumentAsync(CurrentInstrument());
+        _ = _live.SetInstrumentAsync(_mixer.IsRecordingNotes ? RecordingInstrument() : CurrentInstrument());
         _live.NoteOn(pitch, velocity);
+        if (_mixer.IsRecordingNotes)
+        {
+            _mixer.RecordNoteOn(pitch, velocity); // Echtzeit-Aufnahme im Mischpult
+            return;
+        }
+
         if (IsStepRecording && Clip is not null)
         {
             var note = new Note(pitch, StepCursorTick, Math.Max(1, GridTicks), velocity);
@@ -675,6 +681,12 @@ public sealed partial class NoteEditorViewModel : ObservableObject, IDisposable
 
         PressedKeys = PressedKeys.Remove(pitch);
         _live.NoteOff(pitch);
+        if (_mixer.IsRecordingNotes)
+        {
+            _mixer.RecordNoteOff(pitch);
+            return;
+        }
+
         if (IsStepRecording && _held.Count == 0 && Clip is not null)
         {
             StepCursorTick += Math.Max(1, GridTicks); // Akkord fertig → einen Schritt weiter
@@ -908,6 +920,10 @@ public sealed partial class NoteEditorViewModel : ObservableObject, IDisposable
     private long SnapDown(long tick) => (long)Math.Floor(tick / (double)GridTicks) * GridTicks;
 
     private InstrumentSpec CurrentInstrument() => Track?.Instrument ?? new InstrumentSpec(SelectedBuiltIn);
+
+    /// <summary>Beim Aufnehmen klingt das Instrument der scharfgeschalteten Notenspur.</summary>
+    private InstrumentSpec RecordingInstrument() =>
+        _mixer.Tracks.FirstOrDefault(t => t.IsArmed && t.IsNoteTrack)?.Instrument ?? CurrentInstrument();
 
     private void Preview(int pitch)
     {

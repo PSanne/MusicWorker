@@ -1,0 +1,32 @@
+<Window x:Class="MusicWorker.App.Views.TakesDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:controls="clr-namespace:MusicWorker.App.Controls"
+        Title="Takes &amp; Comping"
+        Width="980" Height="520" MinWidth="640" MinHeight="320"
+        ShowInTaskbar="False"
+        WindowStartupLocation="CenterOwner"
+        Closed="OnClosed">
+    <DockPanel Margin="12">
+        <TextBlock x:Name="IntroText" DockPanel.Dock="Top" TextWrapping="Wrap" Margin="0,0,0,8" />
+        <DockPanel DockPanel.Dock="Bottom" Margin="0,10,0,0">
+            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                <Button Width="96" Content="Übernehmen" IsDefault="True" Click="OnOkClick" />
+                <Button Width="96" Margin="8,0,0,0" Content="Abbrechen" IsCancel="True" />
+            </StackPanel>
+            <StackPanel Orientation="Horizontal">
+                <Button x:Name="PlayButton" Padding="10,3" Content="▶ Anhören" Click="OnPlayClick"
+                        ToolTip="Die Zusammenstellung ab der roten Linie anhören (Klick in eine Bahn setzt die Linie)" />
+                <Button Margin="8,0,0,0" Padding="10,3" Content="Clear-Comp" Click="OnClearCompClick"
+                        ToolTip="Zusammenstellung zurücksetzen: überall nur den gewählten Take verwenden" />
+                <Button Margin="8,0,0,0" Padding="10,3" Content="Take löschen" Click="OnDeleteTakeClick"
+                        ToolTip="Den gewählten Take entfernen" />
+                <Button Margin="8,0,0,0" Padding="10,3" Content="Zusammenfügen" Click="OnFlattenClick"
+                        ToolTip="Die Zusammenstellung als normalen Clip übernehmen (die Takes werden aufgelöst)" />
+            </StackPanel>
+        </DockPanel>
+        <Border BorderBrush="#3A3E48" BorderThickness="1">
+            <controls:TakeLanesView x:Name="Lanes" />
+        </Border>
+    </DockPanel>
+</Window>

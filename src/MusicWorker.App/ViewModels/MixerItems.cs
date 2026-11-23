@@ -5,6 +5,7 @@ using MusicWorker.Core.Audio;
 using MusicWorker.Core.Dsp;
 using MusicWorker.Core.Mixing;
 using MusicWorker.Core.Notes;
+using MusicWorker.Core.Recording;
 using MusicWorker.Core.Synthesis;
 
 namespace MusicWorker.App.ViewModels;
@@ -29,6 +30,15 @@ public sealed partial class ClipViewModel : ObservableObject
     [ObservableProperty]
     private long _lengthTicks;
 
+    /// <summary>Takes (mehrere Aufnahmen derselben Stelle, alle gleich lang) – null bei normalen Clips.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasTakes))]
+    private IReadOnlyList<AudioBuffer>? _takes;
+
+    /// <summary>Zusammenstellung: welcher Take wo klingt.</summary>
+    [ObservableProperty]
+    private IReadOnlyList<CompSegment>? _comp;
+
     public ClipViewModel(TrackViewModel track, AudioBuffer audio, long startFrame)
     {
         Track = track;
@@ -48,6 +58,16 @@ public sealed partial class ClipViewModel : ObservableObject
     public TrackViewModel Track { get; set; }
 
     public bool IsNoteClip => Notes is not null;
+
+    /// <summary>Clip mit mindestens zwei Takes (Comping möglich).</summary>
+    public bool HasTakes => Takes is { Count: > 1 };
+
+    // Für schnelles Speichern der Takes
+    internal string?[]? SavedTakeFiles { get; set; }
+
+    internal AudioBuffer?[]? SavedTakes { get; set; }
+
+    internal string? SavedTakesProjectPath { get; set; }
 
     /// <summary>Länge auf der Zeitleiste: bei Notenclips die musikalische Länge (ohne Ausklang).</summary>
     public long LengthFrames => IsNoteClip ? NoteLengthFrames : Audio.FrameCount;
@@ -182,6 +202,10 @@ public sealed partial class TrackViewModel : ObservableObject
     [ObservableProperty]
     private double _compression;
 
+    /// <summary>Für die Aufnahme scharfgeschaltet.</summary>
+    [ObservableProperty]
+    private bool _isArmed;
+
     /// <summary>Instrument einer Notenspur (null = Audiospur).</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsNoteTrack), nameof(InstrumentName))]
@@ -241,6 +265,9 @@ public sealed partial class TrackViewModel : ObservableObject
 
     /// <summary>Wird aufgerufen, wenn das Instrument wechselt (Notenclips neu berechnen).</summary>
     internal Action<TrackViewModel>? InstrumentChanged { get; set; }
+
+    /// <summary>Wird aufgerufen, wenn die Spur scharf- bzw. ausgeschaltet wird.</summary>
+    internal Action<TrackViewModel>? ArmedChanged { get; set; }
 
     public string DuckAmountText => string.Format(CultureInfo.CurrentCulture, "-{0:0} dB", DuckAmount);
 
@@ -339,6 +366,8 @@ public sealed partial class TrackViewModel : ObservableObject
     partial void OnAutomationChanged(IReadOnlyList<AutomationLane> value) => _changed();
 
     partial void OnInstrumentChanged(InstrumentSpec? value) => InstrumentChanged?.Invoke(this);
+
+    partial void OnIsArmedChanged(bool value) => ArmedChanged?.Invoke(this);
 
     partial void OnShownAutomationChanged(AutomationTarget value) => Redraw?.Invoke();
 

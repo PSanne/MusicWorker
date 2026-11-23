@@ -370,6 +370,16 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         _flangerMixLeft = saved.FlangerMixLeft;
         _flangerMixRight = saved.FlangerMixRight;
         RefreshOutputDevices(saved.OutputDeviceName);
+        Mixer.RecordingLatencyMs = saved.RecordingLatencyMs;
+        Mixer.SelectInputByName(saved.InputDeviceName);
+        Mixer.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(MixerViewModel.SelectedInputDevice) && Mixer.SelectedInputDevice is { } input)
+            {
+                _settings.Settings.InputDeviceName = input.Name;
+                _settings.Save();
+            }
+        };
         UpdateEqualizerCurve();
 
         _editor.Changed += OnEditorChanged;
@@ -951,6 +961,38 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         else if (CanUseAudio())
         {
             SkipBack();
+        }
+    }
+
+    /// <summary>Strg+R: Aufnahme im Mischpult starten/beenden (im Editor-Reiter wird zuerst ins Mischpult gewechselt).</summary>
+    [RelayCommand]
+    private void RecordKey()
+    {
+        if (!UsesMixerTransport && !Mixer.IsRecording)
+        {
+            SelectedMainTab = 1;
+        }
+
+        if (Mixer.ToggleRecordCommand.CanExecute(null))
+        {
+            Mixer.ToggleRecordCommand.Execute(null);
+        }
+    }
+
+    /// <summary>Latenzausgleich: um wie viel Aufnahmen nach vorne geschoben werden.</summary>
+    [RelayCommand]
+    private void SetRecordingLatency()
+    {
+        var request = new ValueRequest("Latenzausgleich", "Um wie viele Millisekunden sollen Aufnahmen nach vorne geschoben werden?",
+            "Aus- und Eingang der Soundkarte verzögern etwas. Liegen Aufnahmen hörbar zu spät, den Wert erhöhen; liegen sie zu früh, verringern. " +
+            "Typisch sind 30 – 120 ms. Tipp: Metronom einschalten, im Takt klatschen und am Raster prüfen.",
+            Minimum: 0, Maximum: 500, Value: Mixer.RecordingLatencyMs, SmallChange: 5, Unit: "ms");
+        if (_dialogs.AskValue(request) is { } value)
+        {
+            Mixer.RecordingLatencyMs = value;
+            _settings.Settings.RecordingLatencyMs = value;
+            _settings.Save();
+            StatusText = $"Latenzausgleich: {value:0} ms";
         }
     }
 

@@ -59,6 +59,10 @@ public sealed class TimelineView : FrameworkElement
     public static readonly DependencyProperty SetLoopCommandProperty = DependencyProperty.Register(
         nameof(SetLoopCommand), typeof(ICommand), typeof(TimelineView), new PropertyMetadata(null));
 
+    public static readonly DependencyProperty RecordingStartFrameProperty = DependencyProperty.Register(
+        nameof(RecordingStartFrame), typeof(long), typeof(TimelineView),
+        new FrameworkPropertyMetadata(-1L, FrameworkPropertyMetadataOptions.AffectsRender));
+
     public static readonly DependencyProperty CreateClipCommandProperty = DependencyProperty.Register(
         nameof(CreateClipCommand), typeof(ICommand), typeof(TimelineView), new PropertyMetadata(null));
 
@@ -115,6 +119,8 @@ public sealed class TimelineView : FrameworkElement
     private static readonly Brush LoopInactiveBrush = Frozen(new SolidColorBrush(Color.FromArgb(0x50, 0x9E, 0x9E, 0x9E)));
     private static readonly Brush LoopLaneBrush = Frozen(new SolidColorBrush(Color.FromArgb(0x14, 0x4C, 0xAF, 0x50)));
     private static readonly Pen LoopEdgePen = Frozen(new Pen(Frozen(new SolidColorBrush(Color.FromArgb(0xC0, 0x66, 0xBB, 0x6A))), 1));
+    private static readonly Brush RecordingBrush = Frozen(new SolidColorBrush(Color.FromArgb(0x55, 0xE5, 0x39, 0x35)));
+    private static readonly Brush ArmedLaneBrush = Frozen(new SolidColorBrush(Color.FromArgb(0x18, 0xE5, 0x39, 0x35)));
     private static readonly Brush EnvelopeLabelBackground = Frozen(new SolidColorBrush(Color.FromArgb(0xD0, 0x15, 0x17, 0x1C)));
     private static readonly Pen CrossfadePen = Frozen(new Pen(Frozen(new SolidColorBrush(Color.FromArgb(0xC8, 0xFF, 0xFF, 0xFF))), 1));
     private static readonly Typeface LabelTypeface = new("Segoe UI");
@@ -208,6 +214,13 @@ public sealed class TimelineView : FrameworkElement
     {
         get => (ICommand?)GetValue(OpenClipCommandProperty);
         set => SetValue(OpenClipCommandProperty, value);
+    }
+
+    /// <summary>Beginn der laufenden Aufnahme (-1 = keine).</summary>
+    public long RecordingStartFrame
+    {
+        get => (long)GetValue(RecordingStartFrameProperty);
+        set => SetValue(RecordingStartFrameProperty, value);
     }
 
     /// <summary>Parameter: <see cref="LanePosition"/> (Doppelklick auf eine freie Stelle einer Notenspur).</summary>
@@ -367,6 +380,11 @@ public sealed class TimelineView : FrameworkElement
         {
             double top = RulerHeight + t * LaneHeight;
             dc.DrawRectangle(LaneBrushes[t % 2], null, new Rect(0, top, width, LaneHeight));
+            if (tracks[t].IsArmed)
+            {
+                dc.DrawRectangle(ArmedLaneBrush, null, new Rect(0, top, width, LaneHeight));
+            }
+
             dc.DrawLine(LaneLinePen, new Point(0, top + LaneHeight - 0.5), new Point(width, top + LaneHeight - 0.5));
         }
 
@@ -411,7 +429,7 @@ public sealed class TimelineView : FrameworkElement
                     dc.DrawGeometry(null, wavePen, GetWaveform(clip, rect, width));
                 }
 
-                var label = Text(tracks[t].Name, 11, ClipTextBrush, pixelsPerDip);
+                var label = Text(clip.HasTakes ? $"{tracks[t].Name}  ·  {clip.Takes!.Count} Takes" : tracks[t].Name, 11, ClipTextBrush, pixelsPerDip);
                 dc.DrawText(label, new Point(Math.Max(rect.Left, 0) + 6, rect.Top + 3));
                 dc.Pop();
             }
@@ -423,6 +441,17 @@ public sealed class TimelineView : FrameworkElement
             }
 
             DrawEnvelope(dc, tracks[t], top, width, color, pixelsPerDip);
+
+            // Laufende Aufnahme: rot wachsender Bereich auf scharfgeschalteten Spuren
+            if (RecordingStartFrame >= 0 && tracks[t].IsArmed && PlayheadFrame > RecordingStartFrame)
+            {
+                double x0 = Math.Max(0, FrameToX(RecordingStartFrame));
+                double x1 = Math.Min(width, FrameToX(PlayheadFrame));
+                if (x1 > x0)
+                {
+                    dc.DrawRectangle(RecordingBrush, null, new Rect(x0, top + 4, x1 - x0, LaneHeight - 8));
+                }
+            }
         }
 
         // Zwischenspeicher für nicht mehr sichtbare oder gelöschte Clips aufräumen

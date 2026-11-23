@@ -1,34 +1,49 @@
 using MusicWorker.Core.Mixing;
+using MusicWorker.Core.Recording;
 using NAudio.Wave;
 
 namespace MusicWorker.App.Audio;
 
 /// <summary>
-/// Liefert das live gemischte Stereo-Signal des Mischpults an die Soundkarte – mit Sprüngen und
-/// Loop-Bereich. Merkt sich jeden Sprung, damit die Abspielposition auch nach Sprüngen und
-/// Schleifen-Durchläufen exakt angezeigt werden kann (<see cref="MapPlayedToTimeline"/>).
+/// Liefert das live gemischte Stereo-Signal des Mischpults an die Soundkarte – mit Sprüngen, Loop-Bereich,
+/// Vorzähler und Metronom. Merkt sich jeden Sprung (wie viele Frames ausgegeben waren → welche Stelle der
+/// Zeitleiste danach kam), damit Abspielposition und Aufnahmen auch nach Sprüngen und Schleifen-Durchläufen
+/// exakt der Zeitleiste zugeordnet werden können (<see cref="MapPlayedToTimeline"/>).
 /// </summary>
 internal sealed class MixEngineSampleProvider : ISampleProvider
 {
-    private const int MaxJumps = 2000;
+    private const int MaxJumps = 4000;
 
     private readonly MixEngine _engine;
     private readonly Func<long> _endFrame;
     private readonly Func<(bool Active, long Start, long End)> _loop;
+    private readonly Func<(bool Enabled, double Bpm, int BeatsPerBar)> _metronome;
+    private readonly Metronome _click;
     private readonly object _lock = new();
     private readonly List<(long Delivered, long Timeline)> _jumps = [];
     private long _delivered;
     private long _pendingSeek = -1;
+    private long _countIn;
 
     /// <param name="engine">Die Misch-Engine (steht schon an der Startposition).</param>
     /// <param name="endFrame">Aktuelles Ende (Projektlänge + Ausklingen).</param>
     /// <param name="loop">Aktueller Loop-Bereich (wird bei jedem Block abgefragt, also live umschaltbar).</param>
-    public MixEngineSampleProvider(MixEngine engine, Func<long> endFrame, Func<(bool Active, long Start, long End)> loop)
+    /// <param name="metronome">Metronom an/aus, Tempo und Taktart (live abgefragt).</param>
+    /// <param name="countInFrames">Vorzähler vor dem Start (nur Metronom, die Zeitleiste steht so lange vor dem Start).</param>
+    public MixEngineSampleProvider(
+        MixEngine engine,
+        Func<long> endFrame,
+        Func<(bool Active, long Start, long End)> loop,
+        Func<(bool Enabled, double Bpm, int BeatsPerBar)>? metronome = null,
+        long countInFrames = 0)
     {
         _engine = engine;
         _endFrame = endFrame;
         _loop = loop;
-        _jumps.Add((0, engine.Position));
+        _metronome = metronome ?? (() => (false, 120, 4));
+        _click = new Metronome(engine.SampleRate);
+        _countIn = Math.Max(0, countInFrames);
+        _jumps.Add((0, engine.Position - _countIn));
         WaveFormat = WaveFormat.CreateIeeeFloatWaveFormat(engine.SampleRate, 2);
     }
 
@@ -37,7 +52,7 @@ internal sealed class MixEngineSampleProvider : ISampleProvider
     /// <summary>Springt an <paramref name="frame"/> (wird beim nächsten Block ausgeführt, thread-sicher).</summary>
     public void Seek(long frame) => Interlocked.Exchange(ref _pendingSeek, Math.Max(0, frame));
 
-    /// <summary>Rechnet „so viele Frames sind zu hören gewesen“ in eine Position auf der Zeitleiste um.</summary>
+    /// <summary>Rechnet „so viele Frames sind zu hören gewesen“ in eine Position auf der Zeitleiste um (im Vorzähler negativ bzw. vor dem Start).</summary>
     public long MapPlayedToTimeline(long played)
     {
         lock (_lock)
@@ -54,17 +69,43 @@ internal sealed class MixEngineSampleProvider : ISampleProvider
         }
     }
 
+    /// <summary>Alle Sprünge bisher (für die Zuordnung von Aufnahmen).</summary>
+    public IReadOnlyList<(long Delivered, long Timeline)> Jumps
+    {
+        get
+        {
+            lock (_lock)
+            {
+                return _jumps.ToArray();
+            }
+        }
+    }
+
     public int Read(float[] buffer, int offset, int count)
     {
         long pending = Interlocked.Exchange(ref _pendingSeek, -1);
         if (pending >= 0)
         {
+            _countIn = 0;
             _engine.Seek(pending);
             AddJump(_delivered, pending);
         }
 
+        var (clickOn, bpm, beatsPerBar) = _metronome();
         int wanted = count / 2;
         int written = 0;
+
+        // Vorzähler: nur Klicks, die Engine wartet an der Startposition
+        if (_countIn > 0)
+        {
+            int frames = (int)Math.Min(wanted, _countIn);
+            var span = buffer.AsSpan(offset, frames * 2);
+            span.Clear();
+            _click.Render(span, _engine.Position - _countIn, bpm, beatsPerBar);
+            _countIn -= frames;
+            written += frames;
+        }
+
         while (written < wanted)
         {
             var (loopActive, loopStart, loopEnd) = _loop();
@@ -85,7 +126,13 @@ internal sealed class MixEngineSampleProvider : ISampleProvider
             }
 
             int frames = (int)Math.Min(wanted - written, end - position);
-            _engine.Render(buffer.AsSpan(offset + written * 2, frames * 2));
+            var span = buffer.AsSpan(offset + written * 2, frames * 2);
+            _engine.Render(span);
+            if (clickOn)
+            {
+                _click.Render(span, position, bpm, beatsPerBar);
+            }
+
             written += frames;
         }
 

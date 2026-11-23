@@ -115,6 +115,12 @@ public sealed class ProjectClip
     public List<long[]>? Notes { get; set; }
 
     public long LengthTicks { get; set; }
+
+    /// <summary>Dateinamen der Takes (null = keine Takes); die Zusammenstellung steht in <see cref="Comp"/>.</summary>
+    public List<string>? Takes { get; set; }
+
+    /// <summary>Zusammenstellung: je Abschnitt [Anfang, Ende, Take].</summary>
+    public List<long[]>? Comp { get; set; }
 }
 
 public sealed class ProjectGroup

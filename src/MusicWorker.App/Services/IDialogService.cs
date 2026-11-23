@@ -26,6 +26,22 @@ public sealed record TempoPitchRequest(
 /// Abstraktion für Dialoge, damit das ViewModel nichts von WPF-Fenstern wissen muss
 /// (und sich so später auch automatisiert testen lässt).
 /// </summary>
+/// <summary>Takes eines Clips zum Bearbeiten im Comping-Fenster.</summary>
+public sealed record TakesRequest(
+    string TrackName,
+    IReadOnlyList<MusicWorker.Core.Audio.AudioBuffer> Takes,
+    IReadOnlyList<MusicWorker.Core.Recording.CompSegment> Comp,
+    int OutputDevice);
+
+/// <summary>Ergebnis des Comping-Fensters.</summary>
+/// <param name="Takes">Verbleibende Takes.</param>
+/// <param name="Comp">Neue Zusammenstellung.</param>
+/// <param name="Flatten">Takes zu einem normalen Clip zusammenfügen.</param>
+public sealed record TakesResult(
+    IReadOnlyList<MusicWorker.Core.Audio.AudioBuffer> Takes,
+    IReadOnlyList<MusicWorker.Core.Recording.CompSegment> Comp,
+    bool Flatten);
+
 public interface IDialogService
 {
     string? ShowOpenFileDialog(string filter);
@@ -37,6 +53,9 @@ public interface IDialogService
 
     /// <summary>Fragt Tempo (in %) und Tonhöhe (in Halbtönen) ab – auf Wunsch pro Kanal; null = abgebrochen.</summary>
     TempoPitchRequest? AskTempoAndPitch(TempoPitchOptions options);
+
+    /// <summary>Takes &amp; Comping bearbeiten; null = abgebrochen.</summary>
+    TakesResult? EditTakes(TakesRequest request);
 
     bool Confirm(string message, string title);
 
