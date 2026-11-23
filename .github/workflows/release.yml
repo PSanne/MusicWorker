@@ -1,14 +1,24 @@
 name: Release
 
-# Wird ausgelöst, sobald eine Versionsmarke wie "v0.1.0" gepusht wird.
-# Baut und testet die App und veröffentlicht sie als GitHub-Release mit ZIP-Download.
+# Veröffentlicht ein GitHub-Release mit ZIP-Download. Zwei Wege:
+#  1. Actions → „Release“ → „Run workflow“ → Versionsnummer eingeben (legt die Marke selbst an)
+#  2. Eine Versionsmarke wie "v0.2.0" pushen
 on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Versionsnummer ohne „v“, z. B. 0.2.0"
+        required: true
+        default: "0.1.0"
   push:
     tags:
       - "v*"
 
 permissions:
   contents: write
+
+env:
+  TAG: ${{ github.event_name == 'workflow_dispatch' && format('v{0}', inputs.version) || github.ref_name }}
 
 jobs:
   release:
@@ -27,20 +37,22 @@ jobs:
       - name: Publish
         shell: pwsh
         run: |
-          $version = "${{ github.ref_name }}".TrimStart("v")
+          $version = $env:TAG.TrimStart("v")
           dotnet publish src/MusicWorker.App/MusicWorker.App.csproj `
             --configuration Release --runtime win-x64 --self-contained true `
             -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true `
             -p:Version=$version --output publish
-          Compress-Archive -Path publish/* -DestinationPath "MusicWorker-${{ github.ref_name }}-win-x64.zip"
+          Compress-Archive -Path publish/* -DestinationPath "MusicWorker-$($env:TAG)-win-x64.zip"
 
       - uses: softprops/action-gh-release@v2
         with:
-          name: MusicWorker ${{ github.ref_name }}
-          files: MusicWorker-${{ github.ref_name }}-win-x64.zip
+          tag_name: ${{ env.TAG }}
+          target_commitish: ${{ github.sha }}
+          name: MusicWorker ${{ env.TAG }}
+          files: MusicWorker-${{ env.TAG }}-win-x64.zip
           body: |
             ## Installation
-            1. Unten bei **Assets** die Datei `MusicWorker-${{ github.ref_name }}-win-x64.zip` herunterladen.
+            1. Unten bei **Assets** die Datei `MusicWorker-${{ env.TAG }}-win-x64.zip` herunterladen.
             2. ZIP-Datei entpacken (Rechtsklick → „Alle extrahieren …“).
             3. `MusicWorker.exe` starten – es muss kein .NET installiert sein.
 

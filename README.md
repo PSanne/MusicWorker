@@ -45,14 +45,11 @@ Zwischenstände aus jedem Push findest du außerdem unter
 **Actions → „Build & Test“ → Lauf auswählen → Artifacts** (nur angemeldet sichtbar, 90 Tage aufbewahrt).
 
 ### Neue Version veröffentlichen
-Version in `Directory.Build.props` anpassen, committen und eine passende Versionsmarke pushen:
+1. Version in `Directory.Build.props` anpassen und committen.
+2. Auf GitHub **Actions → „Release“ → „Run workflow“** öffnen, Versionsnummer (z. B. `0.2.0`) eingeben und starten.
 
-```powershell
-git tag v0.2.0
-git push origin v0.2.0
-```
-
-GitHub baut und testet dann automatisch und legt das Release mit ZIP-Download an.
+GitHub baut und testet dann automatisch, legt die Versionsmarke `v0.2.0` an und veröffentlicht das Release
+mit ZIP-Download. Alternativ startet das Release auch, wenn eine Marke wie `v0.2.0` per `git push` hochgeladen wird.
 
 ### Selbst bauen
 Voraussetzungen: Windows 10/11 und das [.NET 8 SDK](https://dotnet.microsoft.com/download/dotnet/8.0)
