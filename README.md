@@ -147,12 +147,13 @@ die Oberfläche nur in `MusicWorker.App`. So können Mehrspur- und Noten-Editor 
 - [x] **v0.1 – Audio-Editor:** Öffnen, Abspielen, Schneiden, Effekte, Export
 - [x] **v0.2 – Komfort & Klang:** 15-Band-Live-Equalizer mit Live-Spektrum, Live-Hall, -Kompressor und -Echo pro Kanal, Stereo-Kanäle getrennt anzeigen/bearbeiten/exportieren, Tempo/Tonhöhe, Stille einfügen, Umkehren, Stummschalten, zuletzt geöffnete Dateien
 - [x] **v0.3 – Mehrspur-Mischpult:** mehrere Spuren, Clips verschieben, Fader, Panning, Mute/Solo pro Spur, Sends & Effekt-Busse, Gruppen, Mixdown, Projekte speichern/laden
-- [ ] **v0.3.1 – Modulation & Verzerrung:** Chorus, Flanger, Verzerrung (Overdrive, Fuzz, Bitcrusher) – live, mit Drehreglern, pro Kanal
-- [ ] **v0.3.2 – Schnitt im Mischpult:** Clips am Positionsgriff teilen (Trenner), Clips nahtlos aneinanderreihen, Überblendungen zwischen Clips, Clips zwischen Spuren verschieben, Rückgängig im Mischpult, Insert-Effekte pro Spur
-- [ ] **v0.4 – Automation:** Lautstärke, Panning und Effektparameter als Kurven über die Zeit
-- [ ] **v0.5 – Noten, MIDI & Instrumente:** MIDI importieren/exportieren, Piano-Roll, Noten bearbeiten und **transponieren**, Wiedergabe mit **frei verfügbaren SoundFont-Instrumenten**
-- [ ] **v0.6 – Aufnahme:** Mikrofon-/Line-In-Aufnahme direkt in eine Spur
-- [ ] **v0.7 – Tonhöhe & Spektrum:** **Autotune** (Tonhöhenerkennung und -korrektur auf eine Tonleiter, für einstimmige Aufnahmen), Spektrogramm (Wasserfall-Ansicht der Fourier-Transformation), spektrale Rauschentfernung
+- [ ] **v0.3.1 – Effekte & Komfort:** Chorus, Flanger, Verzerrung (Overdrive, Fuzz, Bitcrusher), Hochpass/Tiefpass-Filter, Wiedergabegerät wählen, Loop-Wiedergabe
+- [ ] **v0.3.2 – Schnitt im Mischpult:** Trenner hinzufügen / Clip-Trennung, Clip-Zusammenführung, Clip-Mischung, Crossfade zwischen Clips, Auto-Zuschnitt (Stille an Anfang/Ende entfernen), Rasterlinien mit Tempo/Takt und Einrasten, Loop-Bereich, Mixtape (Songs automatisch mit Überblendung aneinanderreihen), Insert- und Master-Effekte, Rückgängig im Mischpult
+- [ ] **v0.4 – Automation & Dynamik:** Hüllkurven für Lautstärke, Panorama und Effektparameter; Auto-Absenkung (Musik wird leiser, sobald die Stimme einsetzt)
+- [ ] **v0.5 – Noten, MIDI & Instrumente:** Piano-Roll, Bildschirmtastatur, Notenlängen-Anpassung, Quantisieren, Humanisierung, Anschlagstärke-Panel, Transponieren, Stimmaufteilung (Noten auf Stimmen verteilen), frei verfügbare SoundFont-Instrumente
+- [ ] **v0.6 – Aufnahme:** Record, Neuaufnahme (Punch-In), Metronom, Takes mit Comping-Tool (inkl. Clear-Comp)
+- [ ] **v0.7 – Tonhöhe & Spektrum:** Autotune, Tonhöhen-Korrektur, parametrische Tonhöhe, Stimmeffekte, Spektrogramm (Wasserfall-Ansicht der Fourier-Transformation), spektrale Rauschentfernung
+- [ ] **Langfristig / offen:** VST-Plugins (Hosting sehr aufwendig), SoundCloud-Upload (abhängig vom API-Zugang)
 
 ## Verwendete Bibliotheken
 
