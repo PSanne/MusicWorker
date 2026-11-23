@@ -10,8 +10,9 @@ namespace MusicWorker.App.Controls;
 
 /// <summary>
 /// Spuransicht des Mischpults: Zeitleiste, eine Bahn pro Spur mit ihren Clips (als Mini-Wellenform),
-/// Abspiellinie mit Positionsgriff. Clips lassen sich mit der Maus verschieben; Doppelklick öffnet
-/// einen Clip im Editor. Strg+Mausrad zoomt, Umschalt+Mausrad scrollt waagerecht.
+/// Abspiellinie mit Positionsgriff, Takt-Raster und Loop-Bereich. Clips lassen sich mit der Maus
+/// verschieben – auch auf eine andere Spur; Doppelklick öffnet einen Clip im Editor.
+/// Umschalt+Ziehen legt einen Loop-Bereich fest. Strg+Mausrad zoomt, Umschalt+Mausrad scrollt waagerecht.
 /// </summary>
 public sealed class TimelineView : FrameworkElement
 {
@@ -53,6 +54,33 @@ public sealed class TimelineView : FrameworkElement
     public static readonly DependencyProperty OpenClipCommandProperty = DependencyProperty.Register(
         nameof(OpenClipCommand), typeof(ICommand), typeof(TimelineView), new PropertyMetadata(null));
 
+    public static readonly DependencyProperty SetLoopCommandProperty = DependencyProperty.Register(
+        nameof(SetLoopCommand), typeof(ICommand), typeof(TimelineView), new PropertyMetadata(null));
+
+    public static readonly DependencyProperty BpmProperty = DependencyProperty.Register(
+        nameof(Bpm), typeof(double), typeof(TimelineView),
+        new FrameworkPropertyMetadata(120.0, FrameworkPropertyMetadataOptions.AffectsRender));
+
+    public static readonly DependencyProperty BeatsPerBarProperty = DependencyProperty.Register(
+        nameof(BeatsPerBar), typeof(int), typeof(TimelineView),
+        new FrameworkPropertyMetadata(4, FrameworkPropertyMetadataOptions.AffectsRender));
+
+    public static readonly DependencyProperty ShowGridProperty = DependencyProperty.Register(
+        nameof(ShowGrid), typeof(bool), typeof(TimelineView),
+        new FrameworkPropertyMetadata(true, FrameworkPropertyMetadataOptions.AffectsRender));
+
+    public static readonly DependencyProperty IsLoopingProperty = DependencyProperty.Register(
+        nameof(IsLooping), typeof(bool), typeof(TimelineView),
+        new FrameworkPropertyMetadata(false, FrameworkPropertyMetadataOptions.AffectsRender));
+
+    public static readonly DependencyProperty LoopStartProperty = DependencyProperty.Register(
+        nameof(LoopStart), typeof(long), typeof(TimelineView),
+        new FrameworkPropertyMetadata(0L, FrameworkPropertyMetadataOptions.AffectsRender));
+
+    public static readonly DependencyProperty LoopEndProperty = DependencyProperty.Register(
+        nameof(LoopEnd), typeof(long), typeof(TimelineView),
+        new FrameworkPropertyMetadata(0L, FrameworkPropertyMetadataOptions.AffectsRender));
+
     private static readonly Brush BackgroundBrush = Frozen(new SolidColorBrush(Color.FromRgb(0x1B, 0x1D, 0x23)));
     private static readonly Brush[] LaneBrushes =
     [
@@ -68,6 +96,14 @@ public sealed class TimelineView : FrameworkElement
     private static readonly Brush PlayheadBrush = Frozen(new SolidColorBrush(Color.FromRgb(0xFF, 0x52, 0x52)));
     private static readonly Pen PlayheadPen = Frozen(new Pen(PlayheadBrush, 1.5));
     private static readonly Pen HandleEdgePen = Frozen(new Pen(Frozen(new SolidColorBrush(Color.FromRgb(0x8E, 0x1B, 0x1B))), 1));
+    private static readonly Pen BeatPen = Frozen(new Pen(Frozen(new SolidColorBrush(Color.FromArgb(0x1C, 0xFF, 0xFF, 0xFF))), 1));
+    private static readonly Pen BarPen = Frozen(new Pen(Frozen(new SolidColorBrush(Color.FromArgb(0x40, 0xFF, 0xFF, 0xFF))), 1));
+    private static readonly Brush BarTextBrush = Frozen(new SolidColorBrush(Color.FromArgb(0x90, 0xFF, 0xFF, 0xFF)));
+    private static readonly Brush LoopActiveBrush = Frozen(new SolidColorBrush(Color.FromArgb(0x90, 0x4C, 0xAF, 0x50)));
+    private static readonly Brush LoopInactiveBrush = Frozen(new SolidColorBrush(Color.FromArgb(0x50, 0x9E, 0x9E, 0x9E)));
+    private static readonly Brush LoopLaneBrush = Frozen(new SolidColorBrush(Color.FromArgb(0x14, 0x4C, 0xAF, 0x50)));
+    private static readonly Pen LoopEdgePen = Frozen(new Pen(Frozen(new SolidColorBrush(Color.FromArgb(0xC0, 0x66, 0xBB, 0x6A))), 1));
+    private static readonly Pen CrossfadePen = Frozen(new Pen(Frozen(new SolidColorBrush(Color.FromArgb(0xC8, 0xFF, 0xFF, 0xFF))), 1));
     private static readonly Typeface LabelTypeface = new("Segoe UI");
     private static readonly double[] TickSteps = [0.1, 0.2, 0.5, 1, 2, 5, 10, 15, 30, 60, 120, 300, 600];
     private static readonly TimeSpan SeekThrottle = TimeSpan.FromMilliseconds(90);
@@ -78,6 +114,10 @@ public sealed class TimelineView : FrameworkElement
     private double _viewLength;
     private ClipViewModel? _dragClip;
     private long _dragOffset;
+    private bool _dragMoved;
+    private bool _isLoopDrag;
+    private long _loopAnchor;
+    private long _loopCurrent;
     private bool _isSeeking;
     private long _seekFrame;
     private DateTime _lastSeek;
@@ -152,6 +192,49 @@ public sealed class TimelineView : FrameworkElement
     {
         get => (ICommand?)GetValue(OpenClipCommandProperty);
         set => SetValue(OpenClipCommandProperty, value);
+    }
+
+    /// <summary>Parameter: <see cref="LoopRange"/> (Umschalt+Ziehen).</summary>
+    public ICommand? SetLoopCommand
+    {
+        get => (ICommand?)GetValue(SetLoopCommandProperty);
+        set => SetValue(SetLoopCommandProperty, value);
+    }
+
+    public double Bpm
+    {
+        get => (double)GetValue(BpmProperty);
+        set => SetValue(BpmProperty, value);
+    }
+
+    public int BeatsPerBar
+    {
+        get => (int)GetValue(BeatsPerBarProperty);
+        set => SetValue(BeatsPerBarProperty, value);
+    }
+
+    public bool ShowGrid
+    {
+        get => (bool)GetValue(ShowGridProperty);
+        set => SetValue(ShowGridProperty, value);
+    }
+
+    public bool IsLooping
+    {
+        get => (bool)GetValue(IsLoopingProperty);
+        set => SetValue(IsLoopingProperty, value);
+    }
+
+    public long LoopStart
+    {
+        get => (long)GetValue(LoopStartProperty);
+        set => SetValue(LoopStartProperty, value);
+    }
+
+    public long LoopEnd
+    {
+        get => (long)GetValue(LoopEndProperty);
+        set => SetValue(LoopEndProperty, value);
     }
 
     private int TrackCount => Tracks?.Count ?? 0;
@@ -244,12 +327,20 @@ public sealed class TimelineView : FrameworkElement
             return;
         }
 
-        var visibleClips = new HashSet<ClipViewModel>();
         for (int t = 0; t < tracks.Count; t++)
         {
             double top = RulerHeight + t * LaneHeight;
             dc.DrawRectangle(LaneBrushes[t % 2], null, new Rect(0, top, width, LaneHeight));
             dc.DrawLine(LaneLinePen, new Point(0, top + LaneHeight - 0.5), new Point(width, top + LaneHeight - 0.5));
+        }
+
+        DrawGrid(dc, width, height, pixelsPerDip);
+        DrawLoopLanes(dc, height);
+
+        var visibleClips = new HashSet<ClipViewModel>();
+        for (int t = 0; t < tracks.Count; t++)
+        {
+            double top = RulerHeight + t * LaneHeight;
 
             var color = ParseColor(tracks[t].Color);
             var fill = Frozen(new SolidColorBrush(Color.FromArgb(0x48, color.R, color.G, color.B)));
@@ -275,6 +366,8 @@ public sealed class TimelineView : FrameworkElement
                 dc.DrawText(label, new Point(Math.Max(rect.Left, 0) + 6, rect.Top + 3));
                 dc.Pop();
             }
+
+            DrawCrossfades(dc, tracks[t], top, width);
         }
 
         // Zwischenspeicher für nicht mehr sichtbare oder gelöschte Clips aufräumen
@@ -332,6 +425,17 @@ public sealed class TimelineView : FrameworkElement
     private void DrawRuler(DrawingContext dc, double width, double pixelsPerDip)
     {
         dc.DrawRectangle(RulerBrush, null, new Rect(0, 0, width, RulerHeight));
+        var (loopStart, loopEnd) = CurrentLoop();
+        if (loopEnd > loopStart)
+        {
+            double x0 = Math.Max(-1, FrameToX(loopStart));
+            double x1 = Math.Min(width + 1, FrameToX(loopEnd));
+            if (x1 > x0)
+            {
+                dc.DrawRectangle(IsLooping || _isLoopDrag ? LoopActiveBrush : LoopInactiveBrush, null, new Rect(x0, 0, x1 - x0, RulerHeight));
+            }
+        }
+
         double rate = Math.Max(1, SampleRate);
         double secondsPerPixel = _viewLength / rate / width;
         double step = TickSteps.FirstOrDefault(s => s / secondsPerPixel >= 90, TickSteps[^1]);
@@ -347,6 +451,96 @@ public sealed class TimelineView : FrameworkElement
                 new Point(x + 3, 3));
         }
     }
+
+    /// <summary>Takt-Raster: feine Linien pro Schlag, kräftigere pro Takt (mit Taktnummer).</summary>
+    private void DrawGrid(DrawingContext dc, double width, double height, double pixelsPerDip)
+    {
+        if (!ShowGrid || Bpm <= 0 || SampleRate <= 0)
+        {
+            return;
+        }
+
+        double beatFrames = 60.0 / Bpm * SampleRate;
+        double beatPixels = beatFrames / _viewLength * width;
+        int beatsPerBar = Math.Max(1, BeatsPerBar);
+        double barPixels = beatPixels * beatsPerBar;
+        if (barPixels < 4)
+        {
+            return; // zu weit herausgezoomt
+        }
+
+        bool drawBeats = beatPixels >= 7;
+        int barLabelEvery = barPixels >= 28 ? 1 : (int)Math.Ceiling(28 / barPixels);
+        long first = (long)Math.Floor(_viewStart / beatFrames);
+        long last = (long)Math.Ceiling((_viewStart + _viewLength) / beatFrames);
+        for (long beat = Math.Max(0, first); beat <= last; beat++)
+        {
+            bool isBar = beat % beatsPerBar == 0;
+            if (!isBar && !drawBeats)
+            {
+                continue;
+            }
+
+            double x = Math.Round(FrameToX(beat * beatFrames)) + 0.5;
+            dc.DrawLine(isBar ? BarPen : BeatPen, new Point(x, RulerHeight), new Point(x, height));
+            long bar = beat / beatsPerBar;
+            if (isBar && bar % barLabelEvery == 0)
+            {
+                dc.DrawText(Text((bar + 1).ToString(CultureInfo.CurrentCulture), 9, BarTextBrush, pixelsPerDip), new Point(x + 2, RulerHeight + 1));
+            }
+        }
+    }
+
+    private void DrawLoopLanes(DrawingContext dc, double height)
+    {
+        var (loopStart, loopEnd) = CurrentLoop();
+        if (!(IsLooping || _isLoopDrag) || loopEnd <= loopStart)
+        {
+            return;
+        }
+
+        double x0 = FrameToX(loopStart);
+        double x1 = FrameToX(loopEnd);
+        dc.DrawRectangle(LoopLaneBrush, null, new Rect(new Point(Math.Max(-1, x0), RulerHeight), new Point(Math.Min(ActualWidth + 1, x1), height)));
+        dc.DrawLine(LoopEdgePen, new Point(x0, 0), new Point(x0, height));
+        dc.DrawLine(LoopEdgePen, new Point(x1, 0), new Point(x1, height));
+    }
+
+    /// <summary>Überlappende Clips werden übergeblendet – das zeigt ein „X“ im Überlappungsbereich.</summary>
+    private void DrawCrossfades(DrawingContext dc, TrackViewModel track, double top, double width)
+    {
+        if (track.Clips.Count < 2)
+        {
+            return;
+        }
+
+        var ordered = track.Clips.OrderBy(c => c.StartFrame).ToArray();
+        for (int i = 0; i + 1 < ordered.Length; i++)
+        {
+            long overlapStart = ordered[i + 1].StartFrame;
+            long overlapEnd = Math.Min(ordered[i].EndFrame, ordered[i + 1].EndFrame);
+            if (overlapEnd <= overlapStart)
+            {
+                continue;
+            }
+
+            double x0 = FrameToX(overlapStart);
+            double x1 = FrameToX(overlapEnd);
+            if (x1 < 0 || x0 > width || x1 - x0 < 3)
+            {
+                continue;
+            }
+
+            double y0 = top + 6;
+            double y1 = top + LaneHeight - 6;
+            dc.DrawLine(CrossfadePen, new Point(x0, y1), new Point(x1, y0)); // Einblenden
+            dc.DrawLine(CrossfadePen, new Point(x0, y0), new Point(x1, y1)); // Ausblenden
+        }
+    }
+
+    private (long Start, long End) CurrentLoop() => _isLoopDrag
+        ? (Math.Min(_loopAnchor, _loopCurrent), Math.Max(_loopAnchor, _loopCurrent))
+        : (LoopStart, LoopEnd);
 
     private void DrawPlayhead(DrawingContext dc, double width, double height)
     {
@@ -381,6 +575,16 @@ public sealed class TimelineView : FrameworkElement
         var position = e.GetPosition(this);
         long frame = XToFrame(position.X);
 
+        if ((Keyboard.Modifiers & ModifierKeys.Shift) != 0)
+        {
+            // Umschalt+Ziehen: Loop-Bereich aufziehen
+            _isLoopDrag = CaptureMouse();
+            _loopAnchor = _loopCurrent = frame;
+            InvalidateVisual();
+            e.Handled = true;
+            return;
+        }
+
         if (position.Y < RulerHeight)
         {
             _isSeeking = CaptureMouse();
@@ -411,6 +615,7 @@ public sealed class TimelineView : FrameworkElement
         Execute(SelectClipCommand, clip);
         _dragClip = clip;
         _dragOffset = frame - clip.StartFrame;
+        _dragMoved = false;
         CaptureMouse();
         e.Handled = true;
     }
@@ -429,19 +634,32 @@ public sealed class TimelineView : FrameworkElement
             return;
         }
 
+        if (_isLoopDrag)
+        {
+            AutoScroll(position.X);
+            _loopCurrent = XToFrame(Math.Clamp(position.X, 0, ActualWidth));
+            InvalidateVisual();
+            return;
+        }
+
         if (_dragClip is { } clip)
         {
             AutoScroll(position.X);
             long newStart = Math.Max(0, XToFrame(Math.Clamp(position.X, 0, ActualWidth)) - _dragOffset);
-            if (newStart != clip.StartFrame)
+            var target = LaneAt(position.Y);
+            bool changeTrack = target is not null && !ReferenceEquals(target, clip.Track);
+            if (newStart != clip.StartFrame || changeTrack)
             {
-                Execute(MoveClipCommand, new ClipMove(clip, newStart));
+                Execute(MoveClipCommand, new ClipMove(clip, newStart, changeTrack ? target : null, DragStarted: !_dragMoved));
+                _dragMoved = true;
             }
 
             return;
         }
 
-        Cursor = position.Y < RulerHeight ? Cursors.Hand : HitClip(position) is not null ? Cursors.SizeWE : Cursors.Arrow;
+        Cursor = (Keyboard.Modifiers & ModifierKeys.Shift) != 0 ? Cursors.IBeam
+            : position.Y < RulerHeight ? Cursors.Hand
+            : HitClip(position) is not null ? Cursors.SizeAll : Cursors.Arrow;
     }
 
     protected override void OnMouseLeftButtonUp(MouseButtonEventArgs e)
@@ -452,6 +670,12 @@ public sealed class TimelineView : FrameworkElement
             SendSeek(force: true);
         }
 
+        if (_isLoopDrag)
+        {
+            var (start, end) = CurrentLoop();
+            Execute(SetLoopCommand, new LoopRange(start, end));
+        }
+
         EndDrag();
         e.Handled = true;
     }
@@ -460,6 +684,7 @@ public sealed class TimelineView : FrameworkElement
     {
         base.OnLostMouseCapture(e);
         _isSeeking = false;
+        _isLoopDrag = false;
         _dragClip = null;
         InvalidateVisual();
     }
@@ -499,6 +724,19 @@ public sealed class TimelineView : FrameworkElement
         return tracks[lane].Clips.LastOrDefault(c => frame >= c.StartFrame && frame < c.EndFrame);
     }
 
+    /// <summary>Die Spur unter der Mausposition (oberhalb/unterhalb wird auf die erste/letzte begrenzt).</summary>
+    private TrackViewModel? LaneAt(double y)
+    {
+        var tracks = Tracks;
+        if (tracks is null || tracks.Count == 0)
+        {
+            return null;
+        }
+
+        int lane = (int)Math.Floor((y - RulerHeight) / LaneHeight);
+        return tracks[Math.Clamp(lane, 0, tracks.Count - 1)];
+    }
+
     private void AutoScroll(double x)
     {
         if (x < 0)
@@ -514,6 +752,7 @@ public sealed class TimelineView : FrameworkElement
     private void EndDrag()
     {
         _isSeeking = false;
+        _isLoopDrag = false;
         _dragClip = null;
         if (IsMouseCaptured)
         {

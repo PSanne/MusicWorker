@@ -35,8 +35,15 @@ public sealed partial class ClipViewModel : ObservableObject
     internal string? SavedProjectPath { get; set; }
 }
 
-/// <summary>Verschiebung eines Clips auf der Zeitleiste.</summary>
-public sealed record ClipMove(ClipViewModel Clip, long NewStart);
+/// <summary>Verschiebung eines Clips auf der Zeitleiste (optional auf eine andere Spur).</summary>
+/// <param name="Clip">Der verschobene Clip.</param>
+/// <param name="NewStart">Neue Startposition in Frames.</param>
+/// <param name="TargetTrack">Zielspur (null = bleibt auf seiner Spur).</param>
+/// <param name="DragStarted">True beim ersten Schritt eines Ziehvorgangs (für „Rückgängig“).</param>
+public sealed record ClipMove(ClipViewModel Clip, long NewStart, TrackViewModel? TargetTrack = null, bool DragStarted = false);
+
+/// <summary>Ein Loop-Bereich auf der Zeitleiste.</summary>
+public sealed record LoopRange(long Start, long End);
 
 /// <summary>Eine Spur mit Kanalzug: Fader, Panorama, Mute/Solo, Sends und Gruppe.</summary>
 public sealed partial class TrackViewModel : ObservableObject
@@ -76,6 +83,29 @@ public sealed partial class TrackViewModel : ObservableObject
     [ObservableProperty]
     private double _meter;
 
+    // Insert-Effekte im Kanalzug
+
+    /// <summary>Tiefen ±12 dB (Kuhschwanz bei 120 Hz).</summary>
+    [ObservableProperty]
+    private double _eqLow;
+
+    /// <summary>Mitten ±12 dB (Glocke bei 1 kHz).</summary>
+    [ObservableProperty]
+    private double _eqMid;
+
+    /// <summary>Höhen ±12 dB (Kuhschwanz bei 8 kHz).</summary>
+    [ObservableProperty]
+    private double _eqHigh;
+
+    /// <summary>Hochpass 20 … 500 Hz (20 = aus).</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HighPassText))]
+    private double _highPassHz = 20;
+
+    /// <summary>Kompression 0 … 100 %.</summary>
+    [ObservableProperty]
+    private double _compression;
+
     public TrackViewModel(string name, string color, Action changed)
     {
         _name = name;
@@ -96,14 +126,20 @@ public sealed partial class TrackViewModel : ObservableObject
             ? string.Format(CultureInfo.CurrentCulture, "L {0:0}", -Pan)
             : string.Format(CultureInfo.CurrentCulture, "R {0:0}", Pan);
 
+    public string HighPassText => HighPassHz <= 20.5 ? "aus" : string.Format(CultureInfo.CurrentCulture, "{0:0} Hz", HighPassHz);
+
+    public TrackInserts Inserts => new(EqLow, EqMid, EqHigh, HighPassHz, Compression);
+
+    /// <summary>Für die Misch-Engine – überlappende Clips bekommen automatisch eine Überblendung.</summary>
     public MixTrack ToMixTrack(int groupIndex) => new(
-        Clips.Select(c => new MixClip(c.Audio, c.StartFrame)).ToArray(),
+        ClipTools.WithCrossfades(Clips.Select(c => new MixClip(c.Audio, c.StartFrame))),
         VolumeDb,
         Pan / 100,
         Mute,
         Solo,
         [SendHall / 100, SendEcho / 100],
-        groupIndex);
+        groupIndex,
+        Inserts.IsNeutral ? null : Inserts);
 
     internal static string FormatDb(double db) => db <= MixMath.SilenceDb
         ? "-∞ dB"
@@ -124,6 +160,16 @@ public sealed partial class TrackViewModel : ObservableObject
     partial void OnSendEchoChanged(double value) => _changed();
 
     partial void OnGroupChanged(GroupViewModel? value) => _changed();
+
+    partial void OnEqLowChanged(double value) => _changed();
+
+    partial void OnEqMidChanged(double value) => _changed();
+
+    partial void OnEqHighChanged(double value) => _changed();
+
+    partial void OnHighPassHzChanged(double value) => _changed();
+
+    partial void OnCompressionChanged(double value) => _changed();
 }
 
 /// <summary>Eine Gruppe: Fader und Mute wirken auf alle zugeordneten Spuren.</summary>

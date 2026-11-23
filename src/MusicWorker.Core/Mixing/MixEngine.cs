@@ -24,6 +24,9 @@ public sealed class MixEngine
 
     private float[] _trackBuffer = [];
     private float[][] _busBuffers = [];
+    private InsertChain?[] _trackInserts = [];
+    private InsertChain? _masterInserts;
+    private MasterLimiter? _limiter;
 
     public MixEngine(MixSnapshot snapshot)
     {
@@ -93,7 +96,20 @@ public sealed class MixEngine
                 hasAudio |= AddClip(clip, position, frames, buffer, track.Pan);
             }
 
-            if (!hasAudio)
+            if (!hasAudio && track.Inserts is null)
+            {
+                Volatile.Write(ref peaks[t], 0f);
+                continue;
+            }
+
+            // Insert-Effekte (vor dem Fader). Auch ohne Clip im Block weiterrechnen, damit Filter sauber ausklingen.
+            if (track.Inserts is { } inserts && !inserts.IsNeutral)
+            {
+                var chain = _trackInserts[t] ??= new InsertChain(_sampleRate, inserts);
+                chain.Update(inserts);
+                chain.Process(buffer);
+            }
+            else if (!hasAudio)
             {
                 Volatile.Write(ref peaks[t], 0f);
                 continue;
@@ -145,7 +161,14 @@ public sealed class MixEngine
             }
         }
 
-        // Master
+        // Master: Insert-Effekte → Fader → Begrenzer
+        if (snapshot.MasterInserts is { IsNeutral: false } masterInserts)
+        {
+            _masterInserts ??= new InsertChain(_sampleRate, masterInserts);
+            _masterInserts.Update(masterInserts);
+            _masterInserts.Process(stereo);
+        }
+
         float master = (float)MixMath.DbToGain(snapshot.MasterDb);
         float peakLeft = 0, peakRight = 0;
         for (int i = 0; i < stereo.Length; i += 2)
@@ -154,6 +177,14 @@ public sealed class MixEngine
             stereo[i + 1] *= master;
             peakLeft = Math.Max(peakLeft, Math.Abs(stereo[i]));
             peakRight = Math.Max(peakRight, Math.Abs(stereo[i + 1]));
+        }
+
+        if (snapshot.MasterLimiter)
+        {
+            _limiter ??= new MasterLimiter(_sampleRate);
+            _limiter.Process(stereo);
+            peakLeft = Math.Min(peakLeft, 0.995f);
+            peakRight = Math.Min(peakRight, 0.995f);
         }
 
         Volatile.Write(ref _masterPeakLeft, peakLeft);
@@ -194,21 +225,24 @@ public sealed class MixEngine
         var samples = audio.Samples;
         int channels = audio.Channels;
         var (left, right) = MixMath.PanGains(pan, Math.Min(channels, 2));
+        bool fades = clip.FadeInFrames > 0 || clip.FadeOutFrames > 0;
 
         for (long frame = from; frame < to; frame++)
         {
-            int source = (int)(frame - clip.StartFrame) * channels;
+            long inClip = frame - clip.StartFrame;
+            int source = (int)inClip * channels;
             int target = (int)(frame - position) * 2;
+            float fade = fades ? ClipTools.FadeGain(clip, inClip) : 1f;
             if (channels == 1)
             {
-                float v = samples[source];
+                float v = samples[source] * fade;
                 buffer[target] += v * left;
                 buffer[target + 1] += v * right;
             }
             else
             {
-                buffer[target] += samples[source] * left;
-                buffer[target + 1] += samples[source + 1] * right;
+                buffer[target] += samples[source] * left * fade;
+                buffer[target + 1] += samples[source + 1] * right * fade;
             }
         }
 
@@ -226,6 +260,7 @@ public sealed class MixEngine
         if (_trackPeaks.Length != snapshot.Tracks.Count)
         {
             Volatile.Write(ref _trackPeaks, new float[snapshot.Tracks.Count]);
+            _trackInserts = new InsertChain?[snapshot.Tracks.Count];
         }
 
         bool busLayoutChanged = _busProcessors.Length != snapshot.Buses.Count ||

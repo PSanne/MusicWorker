@@ -2010,7 +2010,16 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
 
     /// <summary>Strg+L bzw. Knopf: Schleife ein/aus (wirkt sofort, auch während der Wiedergabe).</summary>
     [RelayCommand]
-    private void ToggleLoop() => IsLooping = !IsLooping;
+    private void ToggleLoop()
+    {
+        if (IsMixerTab)
+        {
+            Mixer.ToggleLoop();
+            return;
+        }
+
+        IsLooping = !IsLooping;
+    }
 
     partial void OnIsLoopingChanged(bool value)
     {

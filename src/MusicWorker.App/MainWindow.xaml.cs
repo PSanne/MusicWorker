@@ -38,18 +38,44 @@ public partial class MainWindow : Window
 
     /// <summary>
     /// Leertaste = Abspielen/Pause – aber nicht, während in ein Textfeld (z. B. Spurname) getippt wird.
-    /// Im Mischpult werden außerdem die Editor-Tastenkürzel (Strg+Z, Strg+X …) nicht an den
-    /// unsichtbaren Editor weitergegeben.
+    /// Im Mischpult gelten eigene Kürzel (Strg+Z/Y = Rückgängig/Wiederholen, Strg+T = Clip teilen);
+    /// die übrigen Editor-Kürzel werden nicht an den unsichtbaren Editor weitergegeben.
     /// </summary>
     protected override void OnPreviewKeyDown(KeyEventArgs e)
     {
         base.OnPreviewKeyDown(e);
         bool typing = Keyboard.FocusedElement is TextBoxBase;
-
-        if (_viewModel.IsMixerTab && !typing && Keyboard.Modifiers == ModifierKeys.Control &&
-            e.Key is Key.Z or Key.Y or Key.X or Key.C or Key.V or Key.A or Key.T or Key.E)
+        if (!_viewModel.IsMixerTab || typing || Keyboard.Modifiers != ModifierKeys.Control)
         {
-            e.Handled = true;
+            return;
+        }
+
+        var mixer = _viewModel.Mixer;
+        switch (e.Key)
+        {
+            case Key.Z:
+                Run(mixer.UndoCommand);
+                e.Handled = true;
+                break;
+            case Key.Y:
+                Run(mixer.RedoCommand);
+                e.Handled = true;
+                break;
+            case Key.T:
+                Run(mixer.SplitClipCommand);
+                e.Handled = true;
+                break;
+            case Key.X or Key.C or Key.V or Key.A or Key.E:
+                e.Handled = true;
+                break;
+        }
+
+        static void Run(ICommand command)
+        {
+            if (command.CanExecute(null))
+            {
+                command.Execute(null);
+            }
         }
     }
 
@@ -100,6 +126,17 @@ public partial class MainWindow : Window
         {
             // SetCurrentValue behält die Datenbindung bei.
             slider.SetCurrentValue(RangeBase.ValueProperty, 0.0);
+            e.Handled = true;
+        }
+    }
+
+    /// <summary>Eingabe in einem Textfeld (z. B. Tempo) mit der Eingabetaste übernehmen.</summary>
+    private void OnCommitTextBoxKeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.Enter && sender is TextBox textBox)
+        {
+            textBox.GetBindingExpression(TextBox.TextProperty)?.UpdateSource();
+            textBox.SelectAll();
             e.Handled = true;
         }
     }

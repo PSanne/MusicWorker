@@ -14,6 +14,26 @@ public sealed class ProjectFile
 
     public double MasterDb { get; set; }
 
+    public double MasterEqLow { get; set; }
+
+    public double MasterEqMid { get; set; }
+
+    public double MasterEqHigh { get; set; }
+
+    public double MasterCompression { get; set; }
+
+    public bool MasterLimiter { get; set; } = true;
+
+    public double Bpm { get; set; } = 120;
+
+    public int BeatsPerBar { get; set; } = 4;
+
+    public bool Snap { get; set; }
+
+    public long LoopStart { get; set; }
+
+    public long LoopEnd { get; set; }
+
     public List<ProjectTrack> Tracks { get; set; } = [];
 
     public List<ProjectGroup> Groups { get; set; } = [];
@@ -38,6 +58,16 @@ public sealed class ProjectTrack
     public double SendEcho { get; set; }
 
     public int GroupIndex { get; set; } = -1;
+
+    public double EqLow { get; set; }
+
+    public double EqMid { get; set; }
+
+    public double EqHigh { get; set; }
+
+    public double HighPass { get; set; } = 20;
+
+    public double Compression { get; set; }
 
     public List<ProjectClip> Clips { get; set; } = [];
 }

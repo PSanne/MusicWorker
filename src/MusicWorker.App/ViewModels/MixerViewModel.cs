@@ -29,7 +29,10 @@ public sealed partial class MixerViewModel : ObservableObject, IDisposable
     private readonly ProjectService _projects;
     private readonly AudioFileService _files;
     private readonly PlaybackService _playback = new();
+    private readonly List<MixerState> _undo = [];
+    private readonly Stack<MixerState> _redo = new();
     private MixEngine? _engine;
+    private MixEngineSampleProvider? _provider;
     private CancellationTokenSource? _updates;
     private long _playStart;
     private int _nextColor;
@@ -73,6 +76,52 @@ public sealed partial class MixerViewModel : ObservableObject, IDisposable
     [ObservableProperty]
     private bool _isBusy;
 
+    // Master-Effekte
+    [ObservableProperty]
+    private double _masterEqLow;
+
+    [ObservableProperty]
+    private double _masterEqMid;
+
+    [ObservableProperty]
+    private double _masterEqHigh;
+
+    [ObservableProperty]
+    private double _masterCompression;
+
+    /// <summary>Begrenzer auf der Summe (verhindert Übersteuerung).</summary>
+    [ObservableProperty]
+    private bool _masterLimiter = true;
+
+    // Raster
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(BpmText))]
+    private double _bpm = 120;
+
+    /// <summary>Schläge pro Takt (Taktart x/4).</summary>
+    [ObservableProperty]
+    private int _beatsPerBar = 4;
+
+    [ObservableProperty]
+    private bool _isSnapEnabled;
+
+    [ObservableProperty]
+    private bool _showGrid = true;
+
+    /// <summary>Insert-Regler (EQ, Hochpass, Kompressor) in den Kanalzügen anzeigen.</summary>
+    [ObservableProperty]
+    private bool _showInserts = true;
+
+    // Loop-Bereich
+    [ObservableProperty]
+    private bool _isLooping;
+
+    [ObservableProperty]
+    private long _loopStart;
+
+    [ObservableProperty]
+    private long _loopEnd;
+
     [ObservableProperty]
     private string _statusText = "Füge Spuren hinzu: Audiodateien hierher ziehen oder „Spur aus Datei …“.";
 
@@ -114,6 +163,30 @@ public sealed partial class MixerViewModel : ObservableObject, IDisposable
 
     public bool HasSelectedClip => SelectedClip is not null;
 
+    public bool CanUndo => _undo.Count > 0;
+
+    public bool CanRedo => _redo.Count > 0;
+
+    /// <summary>Auswahl für die Taktart.</summary>
+    public IReadOnlyList<int> BeatsPerBarChoices { get; } = [2, 3, 4, 5, 6, 7];
+
+    public string BpmText
+    {
+        get => Bpm.ToString("0.#", System.Globalization.CultureInfo.CurrentCulture);
+        set
+        {
+            if (double.TryParse(value, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.CurrentCulture, out double bpm))
+            {
+                Bpm = Math.Clamp(bpm, 20, 300);
+            }
+
+            OnPropertyChanged();
+        }
+    }
+
+    /// <summary>Länge eines Schlags in Frames (für Raster und Einrasten).</summary>
+    public double BeatFrames => 60.0 / Math.Max(1, Bpm) * SampleRate;
+
     public long ProjectLength => Tracks.SelectMany(t => t.Clips).Select(c => c.EndFrame).DefaultIfEmpty(0).Max();
 
     public string MasterVolumeText => TrackViewModel.FormatDb(MasterDb);
@@ -129,6 +202,7 @@ public sealed partial class MixerViewModel : ObservableObject, IDisposable
     /// <summary>Fügt eine neue Spur mit einem Clip hinzu (Audio wird bei Bedarf an das Projekt angepasst).</summary>
     public TrackViewModel AddTrack(AudioBuffer audio, string name, long startFrame = 0)
     {
+        RecordUndo();
         if (Tracks.Count == 0 && !Tracks.SelectMany(t => t.Clips).Any())
         {
             SampleRate = audio.SampleRate; // erstes Audio bestimmt die Abtastrate
@@ -189,6 +263,7 @@ public sealed partial class MixerViewModel : ObservableObject, IDisposable
         }
 
         StopPlayback();
+        RecordUndo();
         if (SelectedClip?.Track == track)
         {
             SelectedClip = null;
@@ -208,6 +283,7 @@ public sealed partial class MixerViewModel : ObservableObject, IDisposable
         }
 
         StopPlayback();
+        RecordUndo();
         clip.Track.Clips.Remove(clip);
         SelectedClip = null;
         OnStructureChanged();
@@ -244,7 +320,26 @@ public sealed partial class MixerViewModel : ObservableObject, IDisposable
             return;
         }
 
-        move.Clip.StartFrame = Math.Max(0, move.NewStart);
+        if (move.DragStarted)
+        {
+            RecordUndo(); // ein Rückgängig-Schritt pro Ziehvorgang
+        }
+
+        long start = Math.Max(0, move.NewStart);
+        if (IsSnapEnabled)
+        {
+            start = (long)Math.Round(Math.Round(start / BeatFrames) * BeatFrames); // auf den nächsten Schlag einrasten
+        }
+
+        var clip = move.Clip;
+        clip.StartFrame = start;
+        if (move.TargetTrack is { } target && !ReferenceEquals(target, clip.Track) && Tracks.Contains(target))
+        {
+            clip.Track.Clips.Remove(clip);
+            clip.Track = target;
+            target.Clips.Add(clip);
+        }
+
         OnStructureChanged();
     }
 
@@ -257,10 +352,259 @@ public sealed partial class MixerViewModel : ObservableObject, IDisposable
         }
 
         StopPlayback();
+        RecordUndo();
         clip.Audio = Conform(audio);
         OnStructureChanged();
         StatusText = $"Clip in „{clip.Track.Name}“ aktualisiert.";
         return true;
+    }
+
+    // ───────────── Schnitt ─────────────
+
+    /// <summary>Trenner: teilt den Clip unter der Abspielposition (bevorzugt den gewählten) in zwei Clips.</summary>
+    [RelayCommand(CanExecute = nameof(CanEditWithTracks))]
+    private void SplitClip()
+    {
+        long at = PlayheadFrame;
+        var clip = SelectedClip is { } selected && at > selected.StartFrame && at < selected.EndFrame
+            ? selected
+            : Tracks.SelectMany(t => t.Clips).FirstOrDefault(c => at > c.StartFrame && at < c.EndFrame);
+        if (clip is null)
+        {
+            StatusText = "Zum Teilen die Abspielposition (roter Griff) mitten in einen Clip setzen.";
+            return;
+        }
+
+        StopPlayback();
+        RecordUndo();
+        int cut = (int)(at - clip.StartFrame);
+        var right = new ClipViewModel(clip.Track, clip.Audio.Slice(cut, clip.Audio.FrameCount - cut), at);
+        clip.Audio = clip.Audio.Slice(0, cut);
+        clip.Track.Clips.Insert(clip.Track.Clips.IndexOf(clip) + 1, right);
+        SelectedClip = right;
+        OnStructureChanged();
+        StatusText = $"Clip in „{clip.Track.Name}“ bei {TimeFormatter.Format(FrameToTime(at))} geteilt.";
+    }
+
+    /// <summary>Clip-Zusammenführung: verbindet den gewählten Clip mit dem nächsten auf derselben Spur.</summary>
+    [RelayCommand(CanExecute = nameof(HasSelectedClip))]
+    private void MergeWithNextClip()
+    {
+        if (SelectedClip is not { } clip)
+        {
+            return;
+        }
+
+        var next = clip.Track.Clips
+            .Where(c => !ReferenceEquals(c, clip) && c.StartFrame >= clip.StartFrame)
+            .OrderBy(c => c.StartFrame)
+            .FirstOrDefault();
+        if (next is null)
+        {
+            StatusText = "Rechts vom gewählten Clip gibt es auf dieser Spur keinen weiteren Clip.";
+            return;
+        }
+
+        StopPlayback();
+        RecordUndo();
+        var (audio, start) = ClipTools.Merge([new MixClip(clip.Audio, clip.StartFrame), new MixClip(next.Audio, next.StartFrame)]);
+        clip.Audio = Conform(audio);
+        clip.StartFrame = start;
+        clip.Track.Clips.Remove(next);
+        OnStructureChanged();
+        StatusText = "Clips zu einem Clip verbunden (Lücken als Stille, Überlappungen überblendet).";
+    }
+
+    /// <summary>Auto-Zuschnitt: entfernt Stille am Anfang und Ende des gewählten Clips.</summary>
+    [RelayCommand(CanExecute = nameof(HasSelectedClip))]
+    private void AutoTrimClip()
+    {
+        if (SelectedClip is not { } clip)
+        {
+            return;
+        }
+
+        var content = ClipTools.FindContent(clip.Audio);
+        if (content.IsEmpty)
+        {
+            StatusText = "Der Clip ist komplett still – nichts zum Zuschneiden.";
+            return;
+        }
+
+        if (content.Start == 0 && content.End == clip.Audio.FrameCount)
+        {
+            StatusText = "Der Clip hat am Anfang und Ende keine Stille.";
+            return;
+        }
+
+        StopPlayback();
+        RecordUndo();
+        long removed = clip.Audio.FrameCount - content.Length;
+        clip.Audio = clip.Audio.Slice(content.Start, content.Length);
+        clip.StartFrame += content.Start; // der hörbare Teil bleibt an seiner Stelle
+        OnStructureChanged();
+        StatusText = $"Auto-Zuschnitt: {TimeFormatter.Format(FrameToTime(removed))} Stille entfernt.";
+    }
+
+    /// <summary>
+    /// Aneinanderreihen / Mixtape: legt alle Clips der Spur direkt hintereinander – auf Wunsch mit
+    /// Überblendung (die Clips überlappen dann und werden automatisch übergeblendet).
+    /// </summary>
+    [RelayCommand(CanExecute = nameof(CanEditWithTracks))]
+    private void ArrangeClips()
+    {
+        var track = SelectedClip?.Track ?? Tracks.FirstOrDefault();
+        if (track is null || track.Clips.Count < 2)
+        {
+            StatusText = "Zum Aneinanderreihen braucht die (gewählte) Spur mindestens zwei Clips – Clips lassen sich per Maus auf eine Spur ziehen.";
+            return;
+        }
+
+        var request = new ValueRequest(
+            "Clips aneinanderreihen", $"Überblendung zwischen den Clips der Spur „{track.Name}“:",
+            "0 = nahtlos aneinander (Trenner-Schnitt). Ab etwa 2 Sekunden entsteht ein Mixtape mit weichen Übergängen.",
+            Minimum: 0, Maximum: 10, Value: 0, SmallChange: 0.5, Unit: "Sekunden");
+        if (_dialogs.AskValue(request) is not { } seconds)
+        {
+            return;
+        }
+
+        StopPlayback();
+        RecordUndo();
+        long overlap = (long)(seconds * SampleRate);
+        var ordered = track.Clips.OrderBy(c => c.StartFrame).ToArray();
+        long position = ordered[0].StartFrame;
+        for (int i = 0; i < ordered.Length; i++)
+        {
+            var clip = ordered[i];
+            clip.StartFrame = position;
+            long next = i + 1 < ordered.Length ? ordered[i + 1].Audio.FrameCount : long.MaxValue;
+            long fade = Math.Min(overlap, Math.Min(clip.Audio.FrameCount, next) / 2); // höchstens die halbe Clip-Länge
+            position = Math.Max(position + 1, clip.EndFrame - fade);
+        }
+
+        OnStructureChanged();
+        StatusText = seconds > 0
+            ? $"Mixtape: {ordered.Length} Clips mit je {seconds:0.#} s Überblendung aneinandergereiht."
+            : $"{ordered.Length} Clips nahtlos aneinandergereiht.";
+    }
+
+    /// <summary>Clip-Mischung: mischt alle hörbaren Spuren zu einer neuen Spur und schaltet die Quellen stumm.</summary>
+    [RelayCommand(CanExecute = nameof(CanEditWithTracks))]
+    private async Task BounceAsync()
+    {
+        StopPlayback();
+        var sources = Tracks.Where(t => !t.Mute && t.Clips.Count > 0).ToArray();
+        if (sources.Length == 0)
+        {
+            StatusText = "Keine hörbare Spur zum Mischen.";
+            return;
+        }
+
+        IsBusy = true;
+        StatusText = "Spuren werden zusammengemischt …";
+        try
+        {
+            var snapshot = BuildSnapshot() with { MasterDb = 0, MasterInserts = null, MasterLimiter = false };
+            var mix = await Task.Run(() => MixEngine.Mixdown(snapshot, TailFrames() / (double)SampleRate));
+            RecordUndo();
+            foreach (var track in sources)
+            {
+                track.Mute = true;
+            }
+
+            var bounced = new TrackViewModel("Mischung", Palette[_nextColor++ % Palette.Length], OnMixChanged) { Group = NoGroup };
+            var clip = new ClipViewModel(bounced, mix, 0);
+            bounced.Clips.Add(clip);
+            Tracks.Add(bounced);
+            SelectedClip = clip;
+            OnStructureChanged();
+            StatusText = $"{sources.Length} Spuren in die neue Spur „Mischung“ gemischt – die Quellen sind stummgeschaltet (Rückgängig möglich).";
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+    }
+
+    // ───────────── Rückgängig ─────────────
+
+    [RelayCommand(CanExecute = nameof(CanUndo))]
+    public void Undo()
+    {
+        if (_undo.Count == 0)
+        {
+            return;
+        }
+
+        StopPlayback();
+        _redo.Push(Capture());
+        var state = _undo[^1];
+        _undo.RemoveAt(_undo.Count - 1);
+        Restore(state);
+        StatusText = "Rückgängig gemacht.";
+    }
+
+    [RelayCommand(CanExecute = nameof(CanRedo))]
+    public void Redo()
+    {
+        if (_redo.Count == 0)
+        {
+            return;
+        }
+
+        StopPlayback();
+        _undo.Add(Capture());
+        Restore(_redo.Pop());
+        StatusText = "Wiederholt.";
+    }
+
+    // ───────────── Loop-Bereich ─────────────
+
+    [RelayCommand(CanExecute = nameof(HasSelectedClip))]
+    private void LoopSelectedClip()
+    {
+        if (SelectedClip is { } clip)
+        {
+            LoopStart = clip.StartFrame;
+            LoopEnd = clip.EndFrame;
+            IsLooping = true;
+            StatusText = "Loop-Bereich = gewählter Clip. Tipp: Umschalt + Ziehen in der Zeitleiste legt einen eigenen Bereich fest.";
+        }
+    }
+
+    [RelayCommand]
+    private void SetLoopRange(LoopRange? range)
+    {
+        if (range is null || range.End - range.Start < SampleRate / 20)
+        {
+            return;
+        }
+
+        long start = range.Start;
+        long end = range.End;
+        if (IsSnapEnabled)
+        {
+            start = (long)(Math.Round(start / BeatFrames) * BeatFrames);
+            end = (long)(Math.Round(end / BeatFrames) * BeatFrames);
+        }
+
+        LoopStart = Math.Min(start, end);
+        LoopEnd = Math.Max(start, end);
+        IsLooping = true;
+    }
+
+    public void ToggleLoop()
+    {
+        if (LoopEnd <= LoopStart)
+        {
+            // Noch kein Bereich: ganzes Projekt
+            LoopStart = 0;
+            LoopEnd = ProjectLength;
+        }
+
+        IsLooping = !IsLooping;
+        StatusText = IsLooping ? "Loop ein." : "Loop aus.";
     }
 
     // ───────────── Gruppen ─────────────
@@ -268,6 +612,7 @@ public sealed partial class MixerViewModel : ObservableObject, IDisposable
     [RelayCommand]
     private void AddGroup()
     {
+        RecordUndo();
         var group = new GroupViewModel($"Gruppe {Groups.Count + 1}", OnMixChanged);
         Groups.Add(group);
         GroupChoices.Add(group);
@@ -283,6 +628,7 @@ public sealed partial class MixerViewModel : ObservableObject, IDisposable
             return;
         }
 
+        RecordUndo();
         foreach (var track in Tracks.Where(t => t.Group == group))
         {
             track.Group = NoGroup;
@@ -308,17 +654,24 @@ public sealed partial class MixerViewModel : ObservableObject, IDisposable
 
         PlaybackStarting?.Invoke(this, EventArgs.Empty);
         long start = PlayheadFrame >= ProjectLength ? 0 : PlayheadFrame;
+        if (IsLooping && LoopEnd > LoopStart && (start < LoopStart || start >= LoopEnd))
+        {
+            start = LoopStart; // Loop aktiv: im Loop-Bereich beginnen
+        }
+
         _playStart = start;
         _engine = new MixEngine(BuildSnapshot());
         _engine.Seek(start);
+        _provider = new MixEngineSampleProvider(_engine, () => ProjectLength + TailFrames(), () => (IsLooping, LoopStart, LoopEnd));
 
         try
         {
-            _playback.PlayStream(new MixEngineSampleProvider(_engine, () => ProjectLength + TailFrames()), (int)start);
+            _playback.PlayStream(_provider, (int)start);
         }
         catch (Exception ex)
         {
             _engine = null;
+            _provider = null;
             _dialogs.ShowError($"Die Wiedergabe konnte nicht gestartet werden.\n\n{ex.Message}");
             return;
         }
@@ -368,10 +721,9 @@ public sealed partial class MixerViewModel : ObservableObject, IDisposable
     {
         frame = Math.Max(0, frame);
         PlayheadFrame = frame;
-        if (_engine is not null && _playback.State != PlaybackState.Stopped)
+        if (_provider is not null && _playback.State != PlaybackState.Stopped)
         {
-            _engine.Seek(frame);
-            _playback.MarkSeek((int)frame);
+            _provider.Seek(frame);
         }
         else
         {
@@ -393,6 +745,7 @@ public sealed partial class MixerViewModel : ObservableObject, IDisposable
     {
         _playback.Stop();
         _engine = null;
+        _provider = null;
         IsPlaying = false;
         StopUpdates();
         ResetMeters();
@@ -481,6 +834,16 @@ public sealed partial class MixerViewModel : ObservableObject, IDisposable
             ClearProject();
             SampleRate = project.SampleRate > 0 ? project.SampleRate : 44100;
             MasterDb = project.MasterDb;
+            MasterEqLow = project.MasterEqLow;
+            MasterEqMid = project.MasterEqMid;
+            MasterEqHigh = project.MasterEqHigh;
+            MasterCompression = project.MasterCompression;
+            MasterLimiter = project.MasterLimiter;
+            Bpm = project.Bpm > 0 ? project.Bpm : 120;
+            BeatsPerBar = project.BeatsPerBar > 0 ? project.BeatsPerBar : 4;
+            IsSnapEnabled = project.Snap;
+            LoopStart = project.LoopStart;
+            LoopEnd = project.LoopEnd;
 
             foreach (var g in project.Groups)
             {
@@ -503,6 +866,11 @@ public sealed partial class MixerViewModel : ObservableObject, IDisposable
                     SendHall = t.SendHall,
                     SendEcho = t.SendEcho,
                     Group = t.GroupIndex >= 0 && t.GroupIndex < Groups.Count ? Groups[t.GroupIndex] : NoGroup,
+                    EqLow = t.EqLow,
+                    EqMid = t.EqMid,
+                    EqHigh = t.EqHigh,
+                    HighPassHz = t.HighPass,
+                    Compression = t.Compression,
                 };
 
                 foreach (var c in t.Clips)
@@ -526,6 +894,7 @@ public sealed partial class MixerViewModel : ObservableObject, IDisposable
             }
 
             ProjectPath = path;
+            ClearUndo();
             OnStructureChanged();
             IsModified = false;
             StatusText = $"Projekt „{Path.GetFileNameWithoutExtension(path)}“ geöffnet – {Tracks.Count} Spuren.";
@@ -615,7 +984,9 @@ public sealed partial class MixerViewModel : ObservableObject, IDisposable
             tracks,
             Groups.Select(g => g.ToMixGroup()).ToArray(),
             [HallBus.ToMixBus(), EchoBus.ToMixBus()],
-            MasterDb);
+            MasterDb,
+            new TrackInserts(MasterEqLow, MasterEqMid, MasterEqHigh, 20, MasterCompression) is { IsNeutral: false } master ? master : null,
+            MasterLimiter);
     }
 
     /// <summary>Passt Audio an das Projekt an: höchstens Stereo, Abtastrate des Projekts.</summary>
@@ -664,6 +1035,11 @@ public sealed partial class MixerViewModel : ObservableObject, IDisposable
         SelectedClip = null;
         SampleRate = 44100;
         MasterDb = 0;
+        MasterEqLow = MasterEqMid = MasterEqHigh = MasterCompression = 0;
+        MasterLimiter = true;
+        IsLooping = false;
+        LoopStart = LoopEnd = 0;
+        ClearUndo();
         PlayheadFrame = 0;
         _playStart = 0;
         _nextColor = 0;
@@ -710,6 +1086,16 @@ public sealed partial class MixerViewModel : ObservableObject, IDisposable
         {
             SampleRate = SampleRate,
             MasterDb = MasterDb,
+            MasterEqLow = MasterEqLow,
+            MasterEqMid = MasterEqMid,
+            MasterEqHigh = MasterEqHigh,
+            MasterCompression = MasterCompression,
+            MasterLimiter = MasterLimiter,
+            Bpm = Bpm,
+            BeatsPerBar = BeatsPerBar,
+            Snap = IsSnapEnabled,
+            LoopStart = LoopStart,
+            LoopEnd = LoopEnd,
             Groups = Groups.Select(g => new ProjectGroup { Name = g.Name, VolumeDb = g.VolumeDb, Mute = g.Mute }).ToList(),
             Buses = [ToProjectBus(HallBus), ToProjectBus(EchoBus)],
         };
@@ -730,6 +1116,11 @@ public sealed partial class MixerViewModel : ObservableObject, IDisposable
                 SendHall = track.SendHall,
                 SendEcho = track.SendEcho,
                 GroupIndex = track.Group is null || track.Group.IsNone ? -1 : Groups.IndexOf(track.Group),
+                EqLow = track.EqLow,
+                EqMid = track.EqMid,
+                EqHigh = track.EqHigh,
+                HighPass = track.HighPassHz,
+                Compression = track.Compression,
             };
 
             for (int c = 0; c < track.Clips.Count; c++)
@@ -797,6 +1188,151 @@ public sealed partial class MixerViewModel : ObservableObject, IDisposable
         }
     }
 
+    // ───────────── Rückgängig: Zustand sichern und wiederherstellen ─────────────
+
+    private sealed record ClipState(AudioBuffer Audio, long Start, string? SavedFile, AudioBuffer? SavedAudio, string? SavedPath);
+
+    private sealed record TrackState(
+        string Name, string Color, double VolumeDb, double Pan, bool Mute, bool Solo, double SendHall, double SendEcho,
+        int GroupIndex, double EqLow, double EqMid, double EqHigh, double HighPassHz, double Compression, ClipState[] Clips);
+
+    private sealed record GroupState(string Name, double VolumeDb, bool Mute);
+
+    private sealed record MixerState(TrackState[] Tracks, GroupState[] Groups, int SelectedTrack, int SelectedClip, int NextColor);
+
+    /// <summary>Merkt sich den aktuellen Zustand für „Rückgängig“ (höchstens 50 Schritte).</summary>
+    private void RecordUndo()
+    {
+        _undo.Add(Capture());
+        if (_undo.Count > 50)
+        {
+            _undo.RemoveAt(0);
+        }
+
+        _redo.Clear();
+        NotifyUndo();
+    }
+
+    private void ClearUndo()
+    {
+        _undo.Clear();
+        _redo.Clear();
+        NotifyUndo();
+    }
+
+    private void NotifyUndo()
+    {
+        OnPropertyChanged(nameof(CanUndo));
+        OnPropertyChanged(nameof(CanRedo));
+        UndoCommand.NotifyCanExecuteChanged();
+        RedoCommand.NotifyCanExecuteChanged();
+    }
+
+    private MixerState Capture()
+    {
+        int selectedTrack = SelectedClip is { } s ? Tracks.IndexOf(s.Track) : -1;
+        int selectedClip = SelectedClip is { } c && selectedTrack >= 0 ? Tracks[selectedTrack].Clips.IndexOf(c) : -1;
+        return new MixerState(
+            Tracks.Select(t => new TrackState(
+                t.Name, t.Color, t.VolumeDb, t.Pan, t.Mute, t.Solo, t.SendHall, t.SendEcho,
+                t.Group is null || t.Group.IsNone ? -1 : Groups.IndexOf(t.Group),
+                t.EqLow, t.EqMid, t.EqHigh, t.HighPassHz, t.Compression,
+                t.Clips.Select(c => new ClipState(c.Audio, c.StartFrame, c.SavedFileName, c.SavedAudio, c.SavedProjectPath)).ToArray()))
+                .ToArray(),
+            Groups.Select(g => new GroupState(g.Name, g.VolumeDb, g.Mute)).ToArray(),
+            selectedTrack,
+            selectedClip,
+            _nextColor);
+    }
+
+    private void Restore(MixerState state)
+    {
+        SelectedClip = null;
+        Tracks.Clear();
+        foreach (var group in Groups.ToArray())
+        {
+            GroupChoices.Remove(group);
+        }
+
+        Groups.Clear();
+        foreach (var g in state.Groups)
+        {
+            var group = new GroupViewModel(g.Name, OnMixChanged) { VolumeDb = g.VolumeDb, Mute = g.Mute };
+            Groups.Add(group);
+            GroupChoices.Add(group);
+        }
+
+        foreach (var t in state.Tracks)
+        {
+            var track = new TrackViewModel(t.Name, t.Color, OnMixChanged)
+            {
+                VolumeDb = t.VolumeDb,
+                Pan = t.Pan,
+                Mute = t.Mute,
+                Solo = t.Solo,
+                SendHall = t.SendHall,
+                SendEcho = t.SendEcho,
+                Group = t.GroupIndex >= 0 && t.GroupIndex < Groups.Count ? Groups[t.GroupIndex] : NoGroup,
+                EqLow = t.EqLow,
+                EqMid = t.EqMid,
+                EqHigh = t.EqHigh,
+                HighPassHz = t.HighPassHz,
+                Compression = t.Compression,
+            };
+            foreach (var c in t.Clips)
+            {
+                track.Clips.Add(new ClipViewModel(track, c.Audio, c.Start)
+                {
+                    SavedFileName = c.SavedFile,
+                    SavedAudio = c.SavedAudio,
+                    SavedProjectPath = c.SavedPath,
+                });
+            }
+
+            Tracks.Add(track);
+        }
+
+        _nextColor = state.NextColor;
+        if (state.SelectedTrack >= 0 && state.SelectedTrack < Tracks.Count &&
+            state.SelectedClip >= 0 && state.SelectedClip < Tracks[state.SelectedTrack].Clips.Count)
+        {
+            SelectedClip = Tracks[state.SelectedTrack].Clips[state.SelectedClip];
+        }
+
+        OnStructureChanged();
+        NotifyUndo();
+    }
+
+    partial void OnMasterEqLowChanged(double value) => OnMixChanged();
+
+    partial void OnMasterEqMidChanged(double value) => OnMixChanged();
+
+    partial void OnMasterEqHighChanged(double value) => OnMixChanged();
+
+    partial void OnMasterCompressionChanged(double value) => OnMixChanged();
+
+    partial void OnMasterLimiterChanged(bool value) => OnMixChanged();
+
+    partial void OnBpmChanged(double value)
+    {
+        IsModified = true;
+        TimelineVersion++;
+    }
+
+    partial void OnBeatsPerBarChanged(int value)
+    {
+        IsModified = true;
+        TimelineVersion++;
+    }
+
+    partial void OnIsSnapEnabledChanged(bool value) => TimelineVersion++;
+
+    partial void OnIsLoopingChanged(bool value) => TimelineVersion++;
+
+    partial void OnLoopStartChanged(long value) => TimelineVersion++;
+
+    partial void OnLoopEndChanged(long value) => TimelineVersion++;
+
     private async void StartUpdates()
     {
         StopUpdates();
@@ -809,7 +1345,11 @@ public sealed partial class MixerViewModel : ObservableObject, IDisposable
         {
             while (await timer.WaitForNextTickAsync(token) && !token.IsCancellationRequested)
             {
-                PlayheadFrame = _playback.CurrentFrame;
+                if (_provider is { } provider)
+                {
+                    PlayheadFrame = provider.MapPlayedToTimeline(_playback.PlayedFrames);
+                }
+
                 UpdateMeters();
             }
         }
@@ -866,6 +1406,7 @@ public sealed partial class MixerViewModel : ObservableObject, IDisposable
     {
         IsPlaying = false;
         _engine = null;
+        _provider = null;
         StopUpdates();
         ResetMeters();
         PlayheadFrame = _playStart;
@@ -880,6 +1421,9 @@ public sealed partial class MixerViewModel : ObservableObject, IDisposable
         OnPropertyChanged(nameof(HasSelectedClip));
         DeleteSelectedClipCommand.NotifyCanExecuteChanged();
         OpenSelectedClipInEditorCommand.NotifyCanExecuteChanged();
+        MergeWithNextClipCommand.NotifyCanExecuteChanged();
+        AutoTrimClipCommand.NotifyCanExecuteChanged();
+        LoopSelectedClipCommand.NotifyCanExecuteChanged();
         TimelineVersion++;
     }
 
@@ -894,6 +1438,8 @@ public sealed partial class MixerViewModel : ObservableObject, IDisposable
         IRelayCommand[] commands =
         [
             AddTrackFromFileCommand, DeleteSelectedClipCommand, OpenSelectedClipInEditorCommand,
+            SplitClipCommand, MergeWithNextClipCommand, AutoTrimClipCommand, ArrangeClipsCommand, BounceCommand,
+            LoopSelectedClipCommand,
             PlayCommand, TogglePlayPauseCommand, ExportMixdownCommand, NewProjectCommand,
             OpenProjectCommand, SaveProjectCommand, SaveProjectAsCommand,
         ];

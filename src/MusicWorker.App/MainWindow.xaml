@@ -1057,6 +1057,56 @@
                             </Button>
                             <TextBlock Margin="8,0" VerticalAlignment="Center" FontWeight="SemiBold" Text="{Binding Mixer.ProjectTitle}" />
                         </ToolBar>
+                        <ToolBar Band="1">
+                            <Button Style="{StaticResource ToolButton}" Command="{Binding Mixer.UndoCommand}" ToolTip="Rückgängig im Mischpult (Strg+Z)">
+                                <TextBlock Style="{StaticResource Glyph}" Text="&#xE7A7;" />
+                            </Button>
+                            <Button Style="{StaticResource ToolButton}" Command="{Binding Mixer.RedoCommand}" ToolTip="Wiederholen im Mischpult (Strg+Y)">
+                                <TextBlock Style="{StaticResource Glyph}" Text="&#xE7A6;" />
+                            </Button>
+                            <Separator />
+                            <Button Style="{StaticResource ToolButton}" Command="{Binding Mixer.SplitClipCommand}" ToolTip="Trenner: Clip an der Abspielposition (roter Griff) teilen (Strg+T)">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Style="{StaticResource Glyph}" Text="&#xE8C6;" />
+                                    <TextBlock Margin="4,0,0,0" Text="Teilen" />
+                                </StackPanel>
+                            </Button>
+                            <Button Style="{StaticResource ToolButton}" Command="{Binding Mixer.MergeWithNextClipCommand}" Content="Verbinden"
+                                    ToolTip="Clip-Zusammenführung: den gewählten Clip mit dem nächsten Clip derselben Spur zu einem Clip verbinden" />
+                            <Button Style="{StaticResource ToolButton}" Command="{Binding Mixer.AutoTrimClipCommand}" Content="Auto-Zuschnitt"
+                                    ToolTip="Stille am Anfang und Ende des gewählten Clips entfernen" />
+                            <Button Style="{StaticResource ToolButton}" Command="{Binding Mixer.ArrangeClipsCommand}" Content="Aneinanderreihen …"
+                                    ToolTip="Alle Clips der Spur lückenlos hintereinanderlegen – auf Wunsch mit Überblendung (Mixtape)" />
+                            <Button Style="{StaticResource ToolButton}" Command="{Binding Mixer.BounceCommand}" Content="Zusammenmischen"
+                                    ToolTip="Clip-Mischung: alle hörbaren Spuren zu einer neuen Spur mischen (Quellen werden stummgeschaltet)" />
+                        </ToolBar>
+                        <ToolBar Band="1">
+                            <ToggleButton Style="{StaticResource ChannelToggle}" Content="Raster" IsChecked="{Binding Mixer.ShowGrid}"
+                                          ToolTip="Takt-Raster in der Spuransicht anzeigen" />
+                            <TextBlock Margin="8,0,4,0" VerticalAlignment="Center" Text="Tempo" />
+                            <TextBox Width="44" VerticalAlignment="Center" HorizontalContentAlignment="Right" Text="{Binding Mixer.BpmText, UpdateSourceTrigger=LostFocus}"
+                                     KeyDown="OnCommitTextBoxKeyDown" ToolTip="Tempo in Schlägen pro Minute (20 … 300) – mit Eingabetaste übernehmen" />
+                            <TextBlock Margin="4,0,8,0" VerticalAlignment="Center" Text="BPM" />
+                            <ComboBox Width="52" VerticalAlignment="Center" ItemsSource="{Binding Mixer.BeatsPerBarChoices}" SelectedItem="{Binding Mixer.BeatsPerBar}"
+                                      ItemStringFormat="{}{0}/4" ToolTip="Taktart (Schläge pro Takt)" />
+                            <ToggleButton Style="{StaticResource ChannelToggle}" Margin="6,0,0,0" Content="Einrasten" IsChecked="{Binding Mixer.IsSnapEnabled}"
+                                          ToolTip="Clips und Loop-Bereich rasten beim Verschieben auf die Schläge des Rasters ein" />
+                            <Separator />
+                            <ToggleButton Style="{StaticResource ChannelToggle}" IsChecked="{Binding Mixer.IsLooping}"
+                                          ToolTip="Loop-Bereich wiederholen (Strg+L) – Bereich mit Umschalt+Ziehen in der Spuransicht festlegen">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Style="{StaticResource Glyph}" Text="&#xE8EE;" />
+                                    <TextBlock Margin="4,0,0,0" Text="Loop" />
+                                </StackPanel>
+                            </ToggleButton>
+                            <Button Style="{StaticResource ToolButton}" Command="{Binding Mixer.LoopSelectedClipCommand}" Content="Loop = Clip"
+                                    ToolTip="Den gewählten Clip als Loop-Bereich übernehmen" />
+                            <Separator />
+                            <ToggleButton Style="{StaticResource ChannelToggle}" Content="Inserts" IsChecked="{Binding Mixer.ShowInserts}"
+                                          ToolTip="EQ, Hochpass und Kompressor in den Kanalzügen ein-/ausblenden" />
+                            <TextBlock Margin="8,0" VerticalAlignment="Center" Foreground="#80868F" FontSize="11"
+                                       Text="Tipp: Clips auf andere Spuren ziehen · Umschalt+Ziehen = Loop-Bereich" />
+                        </ToolBar>
                     </ToolBarTray>
 
                     <!-- Mischkonsole -->
@@ -1086,6 +1136,33 @@
                                                     <StackPanel Margin="0,4,0,0" Orientation="Horizontal" HorizontalAlignment="Center">
                                                         <ToggleButton Style="{StaticResource StripToggle}" Content="M" IsChecked="{Binding Mute}" ToolTip="Stumm (Mute)" />
                                                         <ToggleButton Style="{StaticResource StripToggle}" Margin="4,0,0,0" Content="S" IsChecked="{Binding Solo}" ToolTip="Solo" />
+                                                    </StackPanel>
+                                                    <StackPanel Visibility="{Binding DataContext.Mixer.ShowInserts, RelativeSource={RelativeSource AncestorType=ItemsControl}, Converter={StaticResource BoolToVisibility}}">
+                                                        <TextBlock Style="{StaticResource StripSmall}" Margin="0,6,0,2" Text="EQ" />
+                                                        <UniformGrid Columns="3">
+                                                            <StackPanel ToolTip="Tiefen ±12 dB (120 Hz) – Doppelklick = 0">
+                                                                <controls:Knob Width="24" Height="24" Minimum="-12" Maximum="12" DefaultValue="0" Value="{Binding EqLow}" Accent="#E57373" />
+                                                                <TextBlock Style="{StaticResource StripSmall}" Text="Tief" />
+                                                            </StackPanel>
+                                                            <StackPanel ToolTip="Mitten ±12 dB (1 kHz) – Doppelklick = 0">
+                                                                <controls:Knob Width="24" Height="24" Minimum="-12" Maximum="12" DefaultValue="0" Value="{Binding EqMid}" Accent="#FFD54F" />
+                                                                <TextBlock Style="{StaticResource StripSmall}" Text="Mitte" />
+                                                            </StackPanel>
+                                                            <StackPanel ToolTip="Höhen ±12 dB (8 kHz) – Doppelklick = 0">
+                                                                <controls:Knob Width="24" Height="24" Minimum="-12" Maximum="12" DefaultValue="0" Value="{Binding EqHigh}" Accent="#4FC3F7" />
+                                                                <TextBlock Style="{StaticResource StripSmall}" Text="Höhe" />
+                                                            </StackPanel>
+                                                        </UniformGrid>
+                                                        <UniformGrid Margin="0,4,0,0" Columns="2">
+                                                            <StackPanel ToolTip="Hochpass: entfernt Brummen und Rumpeln unterhalb der Frequenz (20 Hz = aus) – Doppelklick = aus">
+                                                                <controls:Knob Width="24" Height="24" Minimum="20" Maximum="500" DefaultValue="20" Value="{Binding HighPassHz}" Accent="#81C784" />
+                                                                <TextBlock Style="{StaticResource StripSmall}" Text="{Binding HighPassText}" />
+                                                            </StackPanel>
+                                                            <StackPanel ToolTip="Kompressor: gleicht Lautstärkeschwankungen aus (0 % = aus) – Doppelklick = aus">
+                                                                <controls:Knob Width="24" Height="24" Minimum="0" Maximum="100" DefaultValue="0" Value="{Binding Compression}" Accent="#FF8A65" />
+                                                                <TextBlock Style="{StaticResource StripSmall}" Text="Komp." />
+                                                            </StackPanel>
+                                                        </UniformGrid>
                                                     </StackPanel>
                                                     <TextBlock Style="{StaticResource StripSmall}" Margin="0,6,0,2" Text="Sends" />
                                                     <UniformGrid Columns="2">
@@ -1196,6 +1273,27 @@
                                                     ToolTip="Master-Fader: Gesamtlautstärke" />
                                         </StackPanel>
                                         <TextBlock Style="{StaticResource StripText}" FontFamily="Consolas" Text="{Binding Mixer.MasterVolumeText}" />
+                                        <TextBlock Style="{StaticResource StripSmall}" Margin="0,8,0,2" Text="Master-EQ" />
+                                        <UniformGrid Columns="3">
+                                            <StackPanel ToolTip="Tiefen der Summe ±12 dB (120 Hz) – Doppelklick = 0">
+                                                <controls:Knob Width="26" Height="26" Minimum="-12" Maximum="12" DefaultValue="0" Value="{Binding Mixer.MasterEqLow}" Accent="#E57373" />
+                                                <TextBlock Style="{StaticResource StripSmall}" Text="Tief" />
+                                            </StackPanel>
+                                            <StackPanel ToolTip="Mitten der Summe ±12 dB (1 kHz) – Doppelklick = 0">
+                                                <controls:Knob Width="26" Height="26" Minimum="-12" Maximum="12" DefaultValue="0" Value="{Binding Mixer.MasterEqMid}" Accent="#FFD54F" />
+                                                <TextBlock Style="{StaticResource StripSmall}" Text="Mitte" />
+                                            </StackPanel>
+                                            <StackPanel ToolTip="Höhen der Summe ±12 dB (8 kHz) – Doppelklick = 0">
+                                                <controls:Knob Width="26" Height="26" Minimum="-12" Maximum="12" DefaultValue="0" Value="{Binding Mixer.MasterEqHigh}" Accent="#4FC3F7" />
+                                                <TextBlock Style="{StaticResource StripSmall}" Text="Höhe" />
+                                            </StackPanel>
+                                        </UniformGrid>
+                                        <StackPanel Margin="0,4,0,0" ToolTip="Summen-Kompressor: verdichtet den Gesamtklang (0 % = aus) – Doppelklick = aus">
+                                            <controls:Knob Width="26" Height="26" Minimum="0" Maximum="100" DefaultValue="0" Value="{Binding Mixer.MasterCompression}" Accent="#FF8A65" />
+                                            <TextBlock Style="{StaticResource StripSmall}" Text="Komp." />
+                                        </StackPanel>
+                                        <CheckBox Margin="0,4,0,0" HorizontalAlignment="Center" Foreground="#C8CCD4" FontSize="11" Content="Limiter"
+                                                  IsChecked="{Binding Mixer.MasterLimiter}" ToolTip="Begrenzer: verhindert, dass die Summe übersteuert (empfohlen)" />
                                     </StackPanel>
                                 </Border>
                             </StackPanel>
@@ -1245,7 +1343,14 @@
                                                        SeekCommand="{Binding Mixer.SeekCommand}"
                                                        MoveClipCommand="{Binding Mixer.MoveClipCommand}"
                                                        SelectClipCommand="{Binding Mixer.SelectClipCommand}"
-                                                       OpenClipCommand="{Binding Mixer.OpenClipInEditorCommand}" />
+                                                       OpenClipCommand="{Binding Mixer.OpenClipInEditorCommand}"
+                                                       SetLoopCommand="{Binding Mixer.SetLoopRangeCommand}"
+                                                       Bpm="{Binding Mixer.Bpm}"
+                                                       BeatsPerBar="{Binding Mixer.BeatsPerBar}"
+                                                       ShowGrid="{Binding Mixer.ShowGrid}"
+                                                       IsLooping="{Binding Mixer.IsLooping}"
+                                                       LoopStart="{Binding Mixer.LoopStart}"
+                                                       LoopEnd="{Binding Mixer.LoopEnd}" />
                             </Grid>
                         </ScrollViewer>
 

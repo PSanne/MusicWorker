@@ -3,7 +3,7 @@
 **MusicWorker** ist eine Windows-Anwendung zum Bearbeiten von Musik, geschrieben in C# mit WPF und .NET 8.
 
 Langfristig soll MusicWorker **Audio-Editor, Mehrspur-Mixer und Noten-Editor** in einem Programm vereinen.
-Version 0.3 bietet einen vollständigen Audio-Editor mit Live-Effekten **und ein Mehrspur-Mischpult** mit Fadern, Panorama, Sends, Effekt-Bussen, Gruppen und Projekten.
+Version 0.3 bietet einen vollständigen Audio-Editor mit Live-Effekten **und ein Mehrspur-Mischpult** mit Fadern, Panorama, Sends, Effekt-Bussen, Gruppen und Projekten – seit 0.3.2 auch mit **Schnitt-Werkzeugen, Takt-Raster, Loop-Bereich und Rückgängig**.
 
 ## Mischpult (Version 0.3)
 
@@ -11,11 +11,13 @@ Die Registerkarte **„Mischpult“** macht aus MusicWorker eine kleine Mehrspur
 
 | Bereich | Funktionen |
 |---|---|
-| **Spuren** | Audiodateien als Spuren laden (auch per Drag & Drop, mehrere auf einmal) · Editor-Datei als Spur übernehmen · Clips mit der Maus **verschieben** · Positionsgriff, Zoom (Strg+Mausrad), waagerecht scrollen (Umschalt+Mausrad) |
-| **Kanalzüge** | **Fader** (-∞ … +6 dB) mit **Pegelanzeige** · **Panorama**-Drehregler · **Mute/Solo** · **Sends** auf Hall- und Echo-Bus · **Gruppen**-Zuordnung |
+| **Spuren** | Audiodateien als Spuren laden (auch per Drag & Drop, mehrere auf einmal) · Editor-Datei als Spur übernehmen · Clips mit der Maus **verschieben – auch auf andere Spuren** · Positionsgriff, Zoom (Strg+Mausrad), waagerecht scrollen (Umschalt+Mausrad) |
+| **Schnitt** | **Teilen** an der Abspielposition (Trenner, Strg+T) · **Verbinden** (Clip mit dem nächsten zusammenführen) · **Auto-Zuschnitt** (Stille am Anfang/Ende entfernen) · **Überblendung** automatisch, sobald sich Clips überlappen (im Clip als ✕ sichtbar) · **Aneinanderreihen / Mixtape** (Clips lückenlos oder mit Überblendung hintereinander) · **Zusammenmischen** (hörbare Spuren in eine neue Spur mischen) · **Rückgängig/Wiederholen** (Strg+Z / Strg+Y, 50 Schritte) |
+| **Raster & Loop** | **Takt-Raster** mit Tempo (BPM) und Taktart, Taktnummern · **Einrasten** auf die Schläge · **Loop-Bereich** mit Umschalt+Ziehen oder „Loop = Clip“, Loop ein/aus mit Strg+L |
+| **Kanalzüge** | **Fader** (-∞ … +6 dB) mit **Pegelanzeige** · **Panorama**-Drehregler · **Mute/Solo** · **Insert-Effekte:** 3-Band-EQ (Tiefen/Mitten/Höhen), Hochpass, Kompressor · **Sends** auf Hall- und Echo-Bus · **Gruppen**-Zuordnung |
 | **Effekt-Busse** | **Hall-Bus** (Raumgröße, Dämpfung) und **Echo-Bus** (Zeit L/R, Rückkopplung, Dämpfung, Ping-Pong) mit Rückweg-Fader – ein gemeinsamer Hall für alle Spuren |
 | **Gruppen** | Gruppen-Fader und -Mute wirken auf alle zugeordneten Spuren |
-| **Master** | Master-Fader mit Stereo-Pegelanzeige |
+| **Master** | Master-Fader mit Stereo-Pegelanzeige · **Master-EQ** (3 Bänder) · **Summen-Kompressor** · **Limiter** gegen Übersteuerung |
 | **Mixdown** | Als WAV/MP3 exportieren oder im Editor öffnen (mit Ausklingen der Effekt-Busse; bei Übersteuerung automatisch auf -1 dB) |
 | **Projekte** | Speichern/Öffnen als `Name.mwproj` mit Audio-Ordner `Name-Audio` (verlustfreie 32-Bit-WAVs) |
 | **Editor-Brücke** | Doppelklick auf einen Clip öffnet ihn im Editor – nach dem Bearbeiten „In Spur übernehmen“ |
@@ -52,6 +54,10 @@ Die Registerkarte **„Mischpult“** macht aus MusicWorker eine kleine Mehrspur
 | Editor ↔ Mischpult | Registerkarten oben (Leertaste, Esc, Strg+←/→ gelten für die sichtbare Ansicht) |
 | Projekt speichern (Mischpult) | Strg+S |
 | Clip löschen (Mischpult) | Entf |
+| Clip teilen (Mischpult) | Strg+T (an der Abspielposition) |
+| Clip auf andere Spur (Mischpult) | Clip nach oben/unten ziehen |
+| Loop-Bereich festlegen (Mischpult) | Umschalt + Ziehen in der Spuransicht |
+| Rückgängig im Mischpult | Strg+Z / Strg+Y (gilt für die sichtbare Ansicht) |
 | Position verschieben | roten Griff ▼ in der Zeitleiste ziehen oder in die Zeitleiste klicken |
 | 5 Sekunden vor / zurück | Strg+→ / Strg+← |
 | Schleife (Loop) ein/aus | Strg+L oder 🔁 in der Werkzeugleiste |
@@ -155,7 +161,7 @@ die Oberfläche nur in `MusicWorker.App`. So können Mehrspur- und Noten-Editor 
 - [x] **v0.2 – Komfort & Klang:** 15-Band-Live-Equalizer mit Live-Spektrum, Live-Hall, -Kompressor und -Echo pro Kanal, Stereo-Kanäle getrennt anzeigen/bearbeiten/exportieren, Tempo/Tonhöhe, Stille einfügen, Umkehren, Stummschalten, zuletzt geöffnete Dateien
 - [x] **v0.3 – Mehrspur-Mischpult:** mehrere Spuren, Clips verschieben, Fader, Panning, Mute/Solo pro Spur, Sends & Effekt-Busse, Gruppen, Mixdown, Projekte speichern/laden
 - [x] **v0.3.1 – Effekte & Komfort:** Chorus, Flanger, Verzerrung (Overdrive, Fuzz, Bitcrusher), Hochpass/Tiefpass-Filter, Wiedergabegerät wählen, Loop-Wiedergabe
-- [ ] **v0.3.2 – Schnitt im Mischpult:** Trenner hinzufügen / Clip-Trennung, Clip-Zusammenführung, Clip-Mischung, Crossfade zwischen Clips, Auto-Zuschnitt (Stille an Anfang/Ende entfernen), Rasterlinien mit Tempo/Takt und Einrasten, Loop-Bereich, Mixtape (Songs automatisch mit Überblendung aneinanderreihen), Insert- und Master-Effekte, Rückgängig im Mischpult
+- [x] **v0.3.2 – Schnitt im Mischpult:** Trenner hinzufügen / Clip-Trennung, Clip-Zusammenführung, Clip-Mischung, Crossfade zwischen Clips, Auto-Zuschnitt (Stille an Anfang/Ende entfernen), Rasterlinien mit Tempo/Takt und Einrasten, Loop-Bereich, Mixtape (Songs automatisch mit Überblendung aneinanderreihen), Insert- und Master-Effekte, Rückgängig im Mischpult, Clips zwischen Spuren verschieben
 - [ ] **v0.4 – Automation & Dynamik:** Hüllkurven für Lautstärke, Panorama und Effektparameter; Auto-Absenkung (Musik wird leiser, sobald die Stimme einsetzt)
 - [ ] **v0.5 – Noten, MIDI & Instrumente:** Piano-Roll, Bildschirmtastatur, Notenlängen-Anpassung, Quantisieren, Humanisierung, Anschlagstärke-Panel, Transponieren, Stimmaufteilung (Noten auf Stimmen verteilen), frei verfügbare SoundFont-Instrumente
 - [ ] **v0.6 – Aufnahme:** Record, Neuaufnahme (Punch-In), Metronom, Takes mit Comping-Tool (inkl. Clear-Comp)

@@ -4,6 +4,6 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <Product>MusicWorker</Product>
-    <Version>0.3.1</Version>
+    <Version>0.3.2</Version>
   </PropertyGroup>
 </Project>
