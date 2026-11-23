@@ -381,6 +381,13 @@ public sealed partial class MixerViewModel : ObservableObject, IDisposable
 
     public void SkipBy(TimeSpan offset) => Seek(PlayheadFrame + (long)(offset.TotalSeconds * SampleRate));
 
+    /// <summary>Wiedergabegerät für das Mischpult festlegen.</summary>
+    public void SetOutputDevice(int deviceNumber)
+    {
+        StopPlayback();
+        _playback.DeviceNumber = deviceNumber;
+    }
+
     /// <summary>Hält die Mischpult-Wiedergabe an (Position bleibt).</summary>
     public void StopPlayback()
     {

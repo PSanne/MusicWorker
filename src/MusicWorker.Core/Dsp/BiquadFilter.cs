@@ -33,6 +33,66 @@ public readonly record struct BiquadCoefficients(double B0, double B1, double B2
             (1 - alpha / a) / a0);
     }
 
+    /// <summary>Hochpass 2. Ordnung.</summary>
+    public static BiquadCoefficients HighPass(double sampleRate, double frequency, double q)
+    {
+        double w0 = 2 * Math.PI * Math.Min(frequency, sampleRate * 0.49) / sampleRate;
+        double alpha = Math.Sin(w0) / (2 * q);
+        double cos = Math.Cos(w0);
+
+        double a0 = 1 + alpha;
+        return new BiquadCoefficients(
+            (1 + cos) / 2 / a0,
+            -(1 + cos) / a0,
+            (1 + cos) / 2 / a0,
+            -2 * cos / a0,
+            (1 - alpha) / a0);
+    }
+
+    /// <summary>Tiefen-Kuhschwanzfilter (Low Shelf): hebt/senkt alles unterhalb von <paramref name="frequency"/>.</summary>
+    public static BiquadCoefficients LowShelf(double sampleRate, double frequency, double gainDb)
+    {
+        if (gainDb == 0)
+        {
+            return Identity;
+        }
+
+        var (a, cos, twoSqrtAAlpha) = ShelfTerms(sampleRate, frequency, gainDb);
+        double a0 = (a + 1) + (a - 1) * cos + twoSqrtAAlpha;
+        return new BiquadCoefficients(
+            a * ((a + 1) - (a - 1) * cos + twoSqrtAAlpha) / a0,
+            2 * a * ((a - 1) - (a + 1) * cos) / a0,
+            a * ((a + 1) - (a - 1) * cos - twoSqrtAAlpha) / a0,
+            -2 * ((a - 1) + (a + 1) * cos) / a0,
+            ((a + 1) + (a - 1) * cos - twoSqrtAAlpha) / a0);
+    }
+
+    /// <summary>Höhen-Kuhschwanzfilter (High Shelf): hebt/senkt alles oberhalb von <paramref name="frequency"/>.</summary>
+    public static BiquadCoefficients HighShelf(double sampleRate, double frequency, double gainDb)
+    {
+        if (gainDb == 0)
+        {
+            return Identity;
+        }
+
+        var (a, cos, twoSqrtAAlpha) = ShelfTerms(sampleRate, frequency, gainDb);
+        double a0 = (a + 1) - (a - 1) * cos + twoSqrtAAlpha;
+        return new BiquadCoefficients(
+            a * ((a + 1) + (a - 1) * cos + twoSqrtAAlpha) / a0,
+            -2 * a * ((a - 1) + (a + 1) * cos) / a0,
+            a * ((a + 1) + (a - 1) * cos - twoSqrtAAlpha) / a0,
+            2 * ((a - 1) - (a + 1) * cos) / a0,
+            ((a + 1) - (a - 1) * cos - twoSqrtAAlpha) / a0);
+    }
+
+    private static (double A, double Cos, double TwoSqrtAAlpha) ShelfTerms(double sampleRate, double frequency, double gainDb)
+    {
+        double a = Math.Pow(10, gainDb / 40);
+        double w0 = 2 * Math.PI * Math.Min(frequency, sampleRate * 0.45) / sampleRate;
+        double alpha = Math.Sin(w0) / 2 * Math.Sqrt(2); // Flankensteilheit S = 1
+        return (a, Math.Cos(w0), 2 * Math.Sqrt(a) * alpha);
+    }
+
     /// <summary>Betrag des Frequenzgangs in dB bei <paramref name="frequency"/>.</summary>
     public double MagnitudeDb(double frequency, double sampleRate)
     {

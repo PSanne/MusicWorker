@@ -29,6 +29,9 @@ Die Registerkarte **„Mischpult“** macht aus MusicWorker eine kleine Mehrspur
 | **Live-Equalizer** | **15 Bänder** von 25 Hz bis 16 kHz (2/3-Oktave, ±12 dB) · Vorverstärkung · 13 Voreinstellungen (Bass-Boost, Rock, Stimme, Loudness …) · **wirkt sofort beim Abspielen** · **Pro-Kanal-EQ:** links und rechts getrennt einstellbar · Ein/Aus für Vorher-/Nachher-Vergleich · „In Audio übernehmen“ · beim Export einrechenbar · Schutz vor Übersteuerung · Einstellung wird gespeichert |
 | **Live-Hall** | Freeverb-Hall mit **Drehreglern**: Stärke **pro Kanal** (links/rechts), Raumgröße, Dämpfung · wirkt sofort beim Abspielen · „In Audio übernehmen“ (bei der ganzen Datei mit Ausklingen am Ende) · beim Export einrechenbar |
 | **Live-Kompressor** | Schwelle, Verhältnis, Attack, Release, Aufholverstärkung (Drehregler) · Stärke pro Kanal (Parallel-Kompression) · L/R gekoppelt oder getrennt · Anzeige der Pegelreduktion |
+| **Filter** | Hochpass und Tiefpass (24 dB/Oktave) – z. B. gegen Brummen oder Rauschen |
+| **Verzerrung** | Overdrive (warm), Fuzz (hart), Bitcrusher (Lo-Fi) · Drive, Ton, Stärke pro Kanal |
+| **Chorus & Flanger** | Tempo, Tiefe (Flanger: Rückkopplung) · Stärke pro Kanal · L/R versetzt moduliert für mehr Breite |
 | **Live-Echo** | Zeit und Stärke pro Kanal (20–2000 ms) · Rückkopplung · Dämpfung (Bandecho-Charakter) · **Ping-Pong** · weiches Gleiten bei Zeitänderungen |
 | **Live-Spektrum** | Frequenzspektrum der Wiedergabe *nach* dem EQ in Echtzeit (60 Bänder, 20 Hz–20 kHz) · bei Stereo links/rechts getrennt · darübergelegte EQ-Kurve · jede Spalte steht genau über ihrem EQ-Regler |
 | **Stereo-Kanäle** | Wellenform in getrennten Spuren (L blau, R rosa) · Effekte wahlweise nur auf links oder rechts · einzelne Kanäle beim Abhören stummschalten · als zwei Mono-Dateien exportieren (`…_L` / `…_R`) · nur einen Kanal behalten (Stereo → Mono) |
@@ -51,6 +54,8 @@ Die Registerkarte **„Mischpult“** macht aus MusicWorker eine kleine Mehrspur
 | Clip löschen (Mischpult) | Entf |
 | Position verschieben | roten Griff ▼ in der Zeitleiste ziehen oder in die Zeitleiste klicken |
 | 5 Sekunden vor / zurück | Strg+→ / Strg+← |
+| Schleife (Loop) ein/aus | Strg+L oder 🔁 in der Werkzeugleiste |
+| Wiedergabegerät wählen | Menü *Wiedergabe → Wiedergabegerät* |
 | Zum Anfang / Ende | Pos1 / Ende |
 | Zoomen / Scrollen | Strg + Mausrad / Mausrad |
 | Öffnen / Exportieren | Strg+O / Strg+E |
@@ -68,8 +73,10 @@ Die Registerkarte **„Mischpult“** macht aus MusicWorker eine kleine Mehrspur
 > wenn du auf *In Audio übernehmen* klickst; beim Exportieren fragt MusicWorker, ob er eingerechnet werden soll.
 > Darüber zeigt das **Live-Spektrum**, was gerade zu hören ist (Stereo: blau = links, rosa = rechts), und in Orange die eingestellte EQ-Kurve.
 >
-> **Hall, Kompressor, Echo:** Rechts neben dem EQ liegen drei Felder mit Drehreglern – alle gleichzeitig sichtbar
-> und sofort hörbar. Ein grüner Punkt zeigt, welcher Effekt gerade wirkt. Reihenfolge der Live-Kette:
+> **Weitere Effekte:** Rechts neben dem EQ liegen Filter, Verzerrung, Kompressor, Chorus, Flanger, Echo und Hall
+> als Felder mit Drehreglern – alle gleichzeitig sichtbar und sofort hörbar (auf kleinen Bildschirmen seitlich
+> scrollbar). Ein grüner Punkt zeigt, welcher Effekt gerade wirkt. Live-Kette:
+> Filter → EQ → Verzerrung → Kompressor → Chorus → Flanger → Echo → Hall. Reihenfolge der Live-Kette:
 > Equalizer → Kompressor → Echo → Hall.
 >
 > **Pro-Kanal-EQ:** Mit „Links/rechts getrennt“ bekommt jeder Kanal seinen eigenen Equalizer. Über *Einstellen [L] [R]*
@@ -147,13 +154,12 @@ die Oberfläche nur in `MusicWorker.App`. So können Mehrspur- und Noten-Editor 
 - [x] **v0.1 – Audio-Editor:** Öffnen, Abspielen, Schneiden, Effekte, Export
 - [x] **v0.2 – Komfort & Klang:** 15-Band-Live-Equalizer mit Live-Spektrum, Live-Hall, -Kompressor und -Echo pro Kanal, Stereo-Kanäle getrennt anzeigen/bearbeiten/exportieren, Tempo/Tonhöhe, Stille einfügen, Umkehren, Stummschalten, zuletzt geöffnete Dateien
 - [x] **v0.3 – Mehrspur-Mischpult:** mehrere Spuren, Clips verschieben, Fader, Panning, Mute/Solo pro Spur, Sends & Effekt-Busse, Gruppen, Mixdown, Projekte speichern/laden
-- [ ] **v0.3.1 – Effekte & Komfort:** Chorus, Flanger, Verzerrung (Overdrive, Fuzz, Bitcrusher), Hochpass/Tiefpass-Filter, Wiedergabegerät wählen, Loop-Wiedergabe
+- [x] **v0.3.1 – Effekte & Komfort:** Chorus, Flanger, Verzerrung (Overdrive, Fuzz, Bitcrusher), Hochpass/Tiefpass-Filter, Wiedergabegerät wählen, Loop-Wiedergabe
 - [ ] **v0.3.2 – Schnitt im Mischpult:** Trenner hinzufügen / Clip-Trennung, Clip-Zusammenführung, Clip-Mischung, Crossfade zwischen Clips, Auto-Zuschnitt (Stille an Anfang/Ende entfernen), Rasterlinien mit Tempo/Takt und Einrasten, Loop-Bereich, Mixtape (Songs automatisch mit Überblendung aneinanderreihen), Insert- und Master-Effekte, Rückgängig im Mischpult
 - [ ] **v0.4 – Automation & Dynamik:** Hüllkurven für Lautstärke, Panorama und Effektparameter; Auto-Absenkung (Musik wird leiser, sobald die Stimme einsetzt)
 - [ ] **v0.5 – Noten, MIDI & Instrumente:** Piano-Roll, Bildschirmtastatur, Notenlängen-Anpassung, Quantisieren, Humanisierung, Anschlagstärke-Panel, Transponieren, Stimmaufteilung (Noten auf Stimmen verteilen), frei verfügbare SoundFont-Instrumente
 - [ ] **v0.6 – Aufnahme:** Record, Neuaufnahme (Punch-In), Metronom, Takes mit Comping-Tool (inkl. Clear-Comp)
 - [ ] **v0.7 – Tonhöhe & Spektrum:** Autotune, Tonhöhen-Korrektur, parametrische Tonhöhe, Stimmeffekte, Spektrogramm (Wasserfall-Ansicht der Fourier-Transformation), spektrale Rauschentfernung
-- [ ] **Langfristig / offen:** VST-Plugins (Hosting sehr aufwendig), SoundCloud-Upload (abhängig vom API-Zugang)
 
 ## Verwendete Bibliotheken
 

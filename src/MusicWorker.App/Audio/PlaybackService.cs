@@ -10,6 +10,7 @@ public sealed class PlaybackService : IDisposable
     private AudioBufferSampleProvider? _provider;
     private int _startFrame;
     private int _endFrame;
+    private int _loopStartFrame;
     private bool _loop;
 
     // Für die Positionsberechnung nach einem Sprung: Wo wurde hingesprungen, und wie viel war da schon gespielt?
@@ -24,6 +25,27 @@ public sealed class PlaybackService : IDisposable
 
     public PlaybackState State => _output?.PlaybackState ?? PlaybackState.Stopped;
 
+    /// <summary>Soundkarte (-1 = Windows-Standardgerät). Gilt ab der nächsten Wiedergabe.</summary>
+    public int DeviceNumber { get; set; } = -1;
+
+    /// <summary>Seit dem Start abgespielte Frames (für laufend berechnete Datenströme).</summary>
+    public long PlayedFrames => _output is { } output ? output.GetPosition() / output.OutputWaveFormat.BlockAlign : 0;
+
+    /// <summary>Schleife während der Wiedergabe ein-/ausschalten.</summary>
+    public bool Loop
+    {
+        get => _loop;
+        set
+        {
+            _loop = value;
+            if (_provider is not null)
+            {
+                _provider.Loop = value;
+                _loop = _provider.Loop;
+            }
+        }
+    }
+
     /// <summary>Frame, das gerade tatsächlich zu hören ist (berücksichtigt die Puffer-Latenz).</summary>
     public int CurrentFrame
     {
@@ -34,14 +56,15 @@ public sealed class PlaybackService : IDisposable
                 return _startFrame;
             }
 
-            long playedFrames = _output.GetPosition() / _output.OutputWaveFormat.BlockAlign - _playedAtSeek;
-            int length = _endFrame - _startFrame;
-            if (_loop && length > 0)
+            long played = _output.GetPosition() / _output.OutputWaveFormat.BlockAlign - _playedAtSeek;
+            long firstPass = _endFrame - _seekFrame;          // vom Start/Sprung bis zum Ende
+            long cycle = _endFrame - _loopStartFrame;         // danach: Schleife ab dem Rücksprungpunkt
+            if (_loop && cycle > 0 && played >= firstPass)
             {
-                return _startFrame + (int)((_seekFrame - _startFrame + playedFrames) % length);
+                return _loopStartFrame + (int)((played - firstPass) % cycle);
             }
 
-            return (int)Math.Min(_seekFrame + playedFrames, _endFrame);
+            return (int)Math.Min(_seekFrame + played, _endFrame);
         }
     }
 
@@ -55,26 +78,28 @@ public sealed class PlaybackService : IDisposable
         int startFrame,
         int endFrame,
         bool loop = false,
-        Func<ISampleProvider, ISampleProvider>? effects = null)
+        Func<ISampleProvider, ISampleProvider>? effects = null,
+        int? loopStartFrame = null)
     {
         Stop();
 
-        var bufferProvider = new AudioBufferSampleProvider(buffer, startFrame, endFrame, loop);
+        var bufferProvider = new AudioBufferSampleProvider(buffer, startFrame, endFrame, loop, loopStartFrame);
         ISampleProvider provider = bufferProvider;
         if (effects is not null)
         {
             provider = effects(provider);
         }
 
-        var output = new WaveOutEvent { DesiredLatency = 120 };
+        var output = new WaveOutEvent { DesiredLatency = 120, DeviceNumber = DeviceNumber };
         output.PlaybackStopped += OnPlaybackStopped;
         output.Init(provider);
 
         _output = output;
         _provider = bufferProvider;
         _startFrame = startFrame;
-        _endFrame = endFrame;
-        _loop = loop;
+        _endFrame = bufferProvider.EndFrame;
+        _loopStartFrame = bufferProvider.LoopStartFrame;
+        _loop = bufferProvider.Loop;
         _seekFrame = startFrame;
         _playedAtSeek = 0;
         output.Play();
@@ -88,7 +113,7 @@ public sealed class PlaybackService : IDisposable
     {
         Stop();
 
-        var output = new WaveOutEvent { DesiredLatency = 120 };
+        var output = new WaveOutEvent { DesiredLatency = 120, DeviceNumber = DeviceNumber };
         output.PlaybackStopped += OnPlaybackStopped;
         output.Init(provider);
 
@@ -128,6 +153,7 @@ public sealed class PlaybackService : IDisposable
         _provider.Seek(frame);
         _seekFrame = Math.Clamp(frame, 0, _provider.EndFrame);
         _endFrame = _provider.EndFrame;
+        _loopStartFrame = _provider.LoopStartFrame;
         if (_seekFrame < _startFrame)
         {
             _startFrame = 0;

@@ -11,24 +11,40 @@ namespace MusicWorker.App.Audio;
 internal sealed class AudioBufferSampleProvider : ISampleProvider
 {
     private readonly AudioBuffer _buffer;
-    private readonly bool _loop;
+    private bool _loop;
+    private int _loopStartFrame;
     private int _startFrame;
     private int _endFrame;
     private int _positionFrame;
 
-    public AudioBufferSampleProvider(AudioBuffer buffer, int startFrame, int endFrame, bool loop = false)
+    /// <param name="buffer">Das Audio.</param>
+    /// <param name="startFrame">Ab hier wird gespielt.</param>
+    /// <param name="endFrame">Bis hier wird gespielt.</param>
+    /// <param name="loop">Am Ende wieder bei <paramref name="loopStartFrame"/> beginnen.</param>
+    /// <param name="loopStartFrame">Rücksprungpunkt der Schleife (Standard: <paramref name="startFrame"/>).</param>
+    public AudioBufferSampleProvider(AudioBuffer buffer, int startFrame, int endFrame, bool loop = false, int? loopStartFrame = null)
     {
         _buffer = buffer;
         _startFrame = Math.Clamp(startFrame, 0, buffer.FrameCount);
         _endFrame = Math.Clamp(endFrame, _startFrame, buffer.FrameCount);
         _positionFrame = _startFrame;
-        _loop = loop && _endFrame > _startFrame;
+        _loopStartFrame = Math.Clamp(loopStartFrame ?? _startFrame, 0, _endFrame);
+        _loop = loop && _endFrame > _loopStartFrame;
         WaveFormat = WaveFormat.CreateIeeeFloatWaveFormat(buffer.SampleRate, buffer.Channels);
     }
 
     public WaveFormat WaveFormat { get; }
 
     public int EndFrame => Volatile.Read(ref _endFrame);
+
+    public int LoopStartFrame => Volatile.Read(ref _loopStartFrame);
+
+    /// <summary>Schleife während der Wiedergabe ein-/ausschalten.</summary>
+    public bool Loop
+    {
+        get => Volatile.Read(ref _loop);
+        set => Volatile.Write(ref _loop, value && EndFrame > LoopStartFrame);
+    }
 
     /// <summary>
     /// Springt an <paramref name="frame"/> (thread-sicher). Liegt die Stelle außerhalb des
@@ -40,6 +56,7 @@ internal sealed class AudioBufferSampleProvider : ISampleProvider
         if (frame < Volatile.Read(ref _startFrame) || frame >= Volatile.Read(ref _endFrame))
         {
             Volatile.Write(ref _startFrame, 0);
+            Volatile.Write(ref _loopStartFrame, 0);
             Volatile.Write(ref _endFrame, _buffer.FrameCount);
         }
 
@@ -58,12 +75,12 @@ internal sealed class AudioBufferSampleProvider : ISampleProvider
         {
             if (position >= end)
             {
-                if (!_loop)
+                if (!Loop)
                 {
                     break;
                 }
 
-                position = Volatile.Read(ref _startFrame); // Schleife: wieder von vorn
+                position = Volatile.Read(ref _loopStartFrame); // Schleife: wieder von vorn
             }
 
             int frames = Math.Min(end - position, (count - written) / channels);

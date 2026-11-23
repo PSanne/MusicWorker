@@ -29,6 +29,10 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     private ReverbProcessor? _liveReverb;
     private CompressorProcessor? _liveCompressor;
     private DelayProcessor? _liveDelay;
+    private FilterProcessor? _liveFilter;
+    private DistortionProcessor? _liveDistortion;
+    private ChorusProcessor? _liveChorus;
+    private FlangerProcessor? _liveFlanger;
     private SpectrumAnalyzer[]? _spectrumAnalyzers;
     private ChannelMonitorSampleProvider? _channelMonitor;
 
@@ -177,6 +181,85 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     [ObservableProperty]
     private bool _delayPingPong;
 
+    // ───────────── Filter (Hoch-/Tiefpass) ─────────────
+
+    [ObservableProperty]
+    private bool _isFilterEnabled;
+
+    /// <summary>Hochpass als Reglerstellung 0 … 100 % (logarithmisch 20 Hz … 20 kHz; 0 % = aus).</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(FilterHighPassText))]
+    private double _filterHighPassPosition;
+
+    /// <summary>Tiefpass als Reglerstellung 0 … 100 % (logarithmisch 20 Hz … 20 kHz; 100 % = aus).</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(FilterLowPassText))]
+    private double _filterLowPassPosition = 100;
+
+    // ───────────── Verzerrung ─────────────
+
+    [ObservableProperty]
+    private bool _isDistortionEnabled;
+
+    /// <summary>0 = Overdrive, 1 = Fuzz, 2 = Bitcrusher.</summary>
+    [ObservableProperty]
+    private int _distortionTypeIndex;
+
+    [ObservableProperty]
+    private double _distortionDrive = 50;
+
+    [ObservableProperty]
+    private double _distortionTone = 70;
+
+    [ObservableProperty]
+    private double _distortionMixLeft = 100;
+
+    [ObservableProperty]
+    private double _distortionMixRight = 100;
+
+    // ───────────── Chorus ─────────────
+
+    [ObservableProperty]
+    private bool _isChorusEnabled;
+
+    [ObservableProperty]
+    private double _chorusRate = 0.8;
+
+    [ObservableProperty]
+    private double _chorusDepth = 50;
+
+    [ObservableProperty]
+    private double _chorusMixLeft = 70;
+
+    [ObservableProperty]
+    private double _chorusMixRight = 70;
+
+    // ───────────── Flanger ─────────────
+
+    [ObservableProperty]
+    private bool _isFlangerEnabled;
+
+    [ObservableProperty]
+    private double _flangerRate = 0.3;
+
+    [ObservableProperty]
+    private double _flangerDepth = 70;
+
+    [ObservableProperty]
+    private double _flangerFeedback = 50;
+
+    [ObservableProperty]
+    private double _flangerMixLeft = 70;
+
+    [ObservableProperty]
+    private double _flangerMixRight = 70;
+
+    // ───────────── Wiedergabe: Schleife & Gerät ─────────────
+
+    /// <summary>Schleife: Auswahl (bzw. ganze Datei) endlos wiederholen.</summary>
+    [ObservableProperty]
+    private bool _isLooping;
+
     /// <summary>
     /// Live-Spektrum der Wiedergabe (nach dem EQ) in dBFS – ein Array pro Kanal (Stereo: links, rechts);
     /// null, wenn nichts spielt.
@@ -264,6 +347,27 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         _delayFeedback = saved.DelayFeedbackPercent;
         _delayDamping = saved.DelayDampingPercent;
         _delayPingPong = saved.DelayPingPong;
+        _isFilterEnabled = saved.FilterEnabled;
+        _filterHighPassPosition = saved.FilterHighPassPosition;
+        _filterLowPassPosition = saved.FilterLowPassPosition;
+        _isDistortionEnabled = saved.DistortionEnabled;
+        _distortionTypeIndex = Math.Clamp(saved.DistortionType, 0, 2);
+        _distortionDrive = saved.DistortionDrive;
+        _distortionTone = saved.DistortionTone;
+        _distortionMixLeft = saved.DistortionMixLeft;
+        _distortionMixRight = saved.DistortionMixRight;
+        _isChorusEnabled = saved.ChorusEnabled;
+        _chorusRate = saved.ChorusRate;
+        _chorusDepth = saved.ChorusDepth;
+        _chorusMixLeft = saved.ChorusMixLeft;
+        _chorusMixRight = saved.ChorusMixRight;
+        _isFlangerEnabled = saved.FlangerEnabled;
+        _flangerRate = saved.FlangerRate;
+        _flangerDepth = saved.FlangerDepth;
+        _flangerFeedback = saved.FlangerFeedback;
+        _flangerMixLeft = saved.FlangerMixLeft;
+        _flangerMixRight = saved.FlangerMixRight;
+        RefreshOutputDevices(saved.OutputDeviceName);
         UpdateEqualizerCurve();
 
         _editor.Changed += OnEditorChanged;
@@ -320,9 +424,29 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
                 parts.Add(UsesPerChannelEqualizer ? "EQ (L/R)" : "EQ");
             }
 
+            if (IsFilterActive)
+            {
+                parts.Add("Filter");
+            }
+
+            if (IsDistortionActive)
+            {
+                parts.Add("Verzerrung");
+            }
+
             if (IsCompressorActive)
             {
                 parts.Add("Kompressor");
+            }
+
+            if (IsChorusActive)
+            {
+                parts.Add("Chorus");
+            }
+
+            if (IsFlangerActive)
+            {
+                parts.Add("Flanger");
             }
 
             if (IsDelayActive)
@@ -355,8 +479,35 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
 
     public bool IsDelayAudible => IsDelayActive;
 
+    private bool IsFilterActive => IsFilterEnabled && !EffectiveFilterSettings().IsNeutral;
+
+    private bool IsDistortionActive => IsDistortionEnabled && !EffectiveDistortionSettings().IsNeutral;
+
+    private bool IsChorusActive => IsChorusEnabled && !EffectiveChorusSettings().IsNeutral;
+
+    private bool IsFlangerActive => IsFlangerEnabled && !EffectiveFlangerSettings().IsNeutral;
+
+    public bool IsFilterAudible => IsFilterActive;
+
+    public bool IsDistortionAudible => IsDistortionActive;
+
+    public bool IsChorusAudible => IsChorusActive;
+
+    public bool IsFlangerAudible => IsFlangerActive;
+
+    public string FilterHighPassText => FilterHighPassPosition <= 0.05 ? "aus" : FormatHz(PositionToHz(FilterHighPassPosition));
+
+    public string FilterLowPassText => FilterLowPassPosition >= 99.95 ? "aus" : FormatHz(PositionToHz(FilterLowPassPosition));
+
+    /// <summary>Auswahl für die Art der Verzerrung.</summary>
+    public IReadOnlyList<string> DistortionTypes { get; } = ["Overdrive (warm)", "Fuzz (hart)", "Bitcrusher (Lo-Fi)"];
+
+    /// <summary>Wiedergabegeräte für das Menü „Wiedergabe → Wiedergabegerät“.</summary>
+    public ObservableCollection<OutputDeviceItem> OutputDevices { get; } = [];
+
     /// <summary>Mindestens ein Live-Effekt verändert gerade den Klang.</summary>
-    private bool AreLiveEffectsActive => IsEqualizerActive || IsCompressorActive || IsDelayActive || IsReverbActive;
+    private bool AreLiveEffectsActive => IsEqualizerActive || IsFilterActive || IsDistortionActive || IsCompressorActive
+        || IsChorusActive || IsFlangerActive || IsDelayActive || IsReverbActive;
 
     /// <summary>True, wenn der EQ eingeschaltet ist und den Klang tatsächlich verändert.</summary>
     private bool IsEqualizerActive => IsEqualizerEnabled &&
@@ -851,9 +1002,12 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             start = 0; // Cursor steht am Ende → von vorn beginnen
         }
 
+        // Schleife: Auswahl endlos – ohne Auswahl ab dem Cursor, danach immer wieder ab dem Anfang.
+        int loopStart = selection.IsEmpty ? 0 : start;
+
         try
         {
-            _playback.Play(Buffer, start, end, effects: AttachLiveEqualizer);
+            _playback.Play(Buffer, start, end, IsLooping, AttachLiveEqualizer, loopStart);
         }
         catch (Exception ex)
         {
@@ -1253,16 +1407,28 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         // Das Spektrum zeigt also genau das, was zu hören ist.
         int rate = source.WaveFormat.SampleRate;
         int channels = source.WaveFormat.Channels;
+        var filter = new FilterProcessor(rate, channels, EffectiveFilterSettings());
+        var distortion = new DistortionProcessor(rate, channels, EffectiveDistortionSettings());
         var compressor = new CompressorProcessor(rate, channels, EffectiveCompressorSettings());
+        var chorus = new ChorusProcessor(rate, channels, EffectiveChorusSettings());
+        var flanger = new FlangerProcessor(rate, channels, EffectiveFlangerSettings());
         var delay = new DelayProcessor(rate, channels, EffectiveDelaySettings());
         var reverb = new ReverbProcessor(rate, channels, EffectiveReverbSettings());
+        _liveFilter = filter;
+        _liveDistortion = distortion;
         _liveCompressor = compressor;
+        _liveChorus = chorus;
+        _liveFlanger = flanger;
         _liveDelay = delay;
         _liveReverb = reverb;
 
-        // … → Equalizer → Kompressor → Echo → Hall → Spektrum-Abgriff → Soundkarte.
-        ISampleProvider chain = new EqualizerSampleProvider(_channelMonitor, processor);
+        // … → Filter → Equalizer → Verzerrung → Kompressor → Chorus → Flanger → Echo → Hall → Spektrum → Soundkarte.
+        ISampleProvider chain = new ProcessingSampleProvider(_channelMonitor, filter.Process);
+        chain = new EqualizerSampleProvider(chain, processor);
+        chain = new ProcessingSampleProvider(chain, distortion.Process);
         chain = new ProcessingSampleProvider(chain, compressor.Process);
+        chain = new ProcessingSampleProvider(chain, chorus.Process);
+        chain = new ProcessingSampleProvider(chain, flanger.Process);
         chain = new ProcessingSampleProvider(chain, delay.Process);
         chain = new ReverbSampleProvider(chain, reverb);
         return new SpectrumTapSampleProvider(chain, _spectrumAnalyzers);
@@ -1392,8 +1558,12 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     /// <summary>Namen der aktiven Live-Effekte für Rückfragen, z. B. „Equalizer, Echo, Hall“.</summary>
     private string LiveEffectsName => string.Join(", ", new (bool Active, string Name)[]
     {
+        (IsFilterActive, "Filter"),
         (IsEqualizerActive, "Equalizer"),
+        (IsDistortionActive, "Verzerrung"),
         (IsCompressorActive, "Kompressor"),
+        (IsChorusActive, "Chorus"),
+        (IsFlangerActive, "Flanger"),
         (IsDelayActive, "Echo"),
         (IsReverbActive, "Hall"),
     }.Where(e => e.Active).Select(e => e.Name));
@@ -1407,14 +1577,34 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         }
 
         var effects = new List<IAudioEffect>();
+        if (IsFilterActive)
+        {
+            effects.Add(new FilterEffect(EffectiveFilterSettings()));
+        }
+
         if (CreateEqualizerEffectForAllChannels() is { } equalizer)
         {
             effects.Add(equalizer);
         }
 
+        if (IsDistortionActive)
+        {
+            effects.Add(new DistortionEffect(EffectiveDistortionSettings(), EqualizerPreventClipping));
+        }
+
         if (IsCompressorActive)
         {
             effects.Add(new CompressorEffect(EffectiveCompressorSettings(), EqualizerPreventClipping));
+        }
+
+        if (IsChorusActive)
+        {
+            effects.Add(new ChorusEffect(EffectiveChorusSettings()));
+        }
+
+        if (IsFlangerActive)
+        {
+            effects.Add(new FlangerEffect(EffectiveFlangerSettings(), preventClipping: EqualizerPreventClipping));
         }
 
         if (IsDelayActive)
@@ -1602,6 +1792,271 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         ApplyDelayCommand.NotifyCanExecuteChanged();
     }
 
+
+    // ───────────── Filter, Verzerrung, Chorus, Flanger ─────────────
+
+    private static double PositionToHz(double position) =>
+        FilterSettings.MinHz * Math.Pow(FilterSettings.MaxHz / FilterSettings.MinHz, Math.Clamp(position, 0, 100) / 100);
+
+    private static string FormatHz(double hz) => hz >= 1000
+        ? string.Format(CultureInfo.CurrentCulture, "{0:0.#} kHz", hz / 1000)
+        : string.Format(CultureInfo.CurrentCulture, "{0:0} Hz", hz);
+
+    private FilterSettings EffectiveFilterSettings() => IsFilterEnabled
+        ? new FilterSettings(
+            FilterHighPassPosition <= 0.05 ? FilterSettings.MinHz : PositionToHz(FilterHighPassPosition),
+            FilterLowPassPosition >= 99.95 ? FilterSettings.MaxHz : PositionToHz(FilterLowPassPosition))
+        : FilterSettings.Off;
+
+    private DistortionSettings EffectiveDistortionSettings() => IsDistortionEnabled
+        ? new DistortionSettings(IsStereo ? [DistortionMixLeft, DistortionMixRight] : [DistortionMixLeft],
+            (DistortionType)DistortionTypeIndex, DistortionDrive, DistortionTone)
+        : DistortionSettings.Off;
+
+    private ModulationSettings EffectiveChorusSettings() => IsChorusEnabled
+        ? new ModulationSettings(IsStereo ? [ChorusMixLeft, ChorusMixRight] : [ChorusMixLeft], ChorusRate, ChorusDepth)
+        : ModulationSettings.Off;
+
+    private ModulationSettings EffectiveFlangerSettings() => IsFlangerEnabled
+        ? new ModulationSettings(IsStereo ? [FlangerMixLeft, FlangerMixRight] : [FlangerMixLeft], FlangerRate, FlangerDepth, FlangerFeedback)
+        : ModulationSettings.Off;
+
+    /// <summary>Stärke des Ziel-Kanals bei „Bearbeiten nur L/R“ (bei allen Kanälen: null).</summary>
+    private int? SingleTargetChannel => EditsAllChannels ? null : (EditLeft ? 0 : 1);
+
+    private FilterEffect? CreateFilterEffectForTarget()
+    {
+        var settings = EffectiveFilterSettings();
+        return HasAudio && !settings.IsNeutral ? new FilterEffect(settings) : null;
+    }
+
+    private DistortionEffect? CreateDistortionEffectForTarget()
+    {
+        if (!HasAudio || !IsDistortionEnabled)
+        {
+            return null;
+        }
+
+        var all = EffectiveDistortionSettings();
+        var settings = SingleTargetChannel is { } c
+            ? new DistortionSettings([all.MixFor(c)], all.Type, all.DrivePercent, all.TonePercent)
+            : all;
+        return settings.IsNeutral ? null : new DistortionEffect(settings, EqualizerPreventClipping);
+    }
+
+    private IAudioEffect? CreateModulationEffectForTarget(bool flanger)
+    {
+        if (!HasAudio || !(flanger ? IsFlangerEnabled : IsChorusEnabled))
+        {
+            return null;
+        }
+
+        var all = flanger ? EffectiveFlangerSettings() : EffectiveChorusSettings();
+        int offset = SingleTargetChannel ?? 0;
+        var settings = SingleTargetChannel is { } c
+            ? new ModulationSettings([all.MixFor(c)], all.RateHz, all.DepthPercent, all.FeedbackPercent)
+            : all;
+        if (settings.IsNeutral)
+        {
+            return null;
+        }
+
+        return flanger
+            ? new FlangerEffect(settings, offset, EqualizerPreventClipping)
+            : new ChorusEffect(settings, offset);
+    }
+
+    [RelayCommand(CanExecute = nameof(CanApplyFilter))]
+    private async Task ApplyFilterAsync()
+    {
+        if (CreateFilterEffectForTarget() is not { } effect || !await ApplyEffectAsync(effect))
+        {
+            return;
+        }
+
+        if (EditsAllChannels)
+        {
+            FilterHighPassPosition = 0;
+            FilterLowPassPosition = 100;
+            StatusText = $"{effect.Name} in das Audio übernommen – der Filter steht wieder auf „aus“.";
+        }
+        else
+        {
+            StatusText = $"{effect.Name} in einen Kanal übernommen – live wirkt der Filter weiter auf beide Kanäle.";
+        }
+    }
+
+    [RelayCommand(CanExecute = nameof(CanApplyDistortion))]
+    private async Task ApplyDistortionAsync()
+    {
+        if (CreateDistortionEffectForTarget() is not { } effect || !await ApplyEffectAsync(effect))
+        {
+            return;
+        }
+
+        ResetMix(v => DistortionMixLeft = v, v => DistortionMixRight = v);
+        StatusText = $"{effect.Name} in das Audio übernommen – der Stärke-Regler steht wieder auf 0.";
+    }
+
+    [RelayCommand(CanExecute = nameof(CanApplyChorus))]
+    private async Task ApplyChorusAsync()
+    {
+        if (CreateModulationEffectForTarget(flanger: false) is not { } effect || !await ApplyEffectAsync(effect))
+        {
+            return;
+        }
+
+        ResetMix(v => ChorusMixLeft = v, v => ChorusMixRight = v);
+        StatusText = "Chorus in das Audio übernommen – der Stärke-Regler steht wieder auf 0.";
+    }
+
+    [RelayCommand(CanExecute = nameof(CanApplyFlanger))]
+    private async Task ApplyFlangerAsync()
+    {
+        if (CreateModulationEffectForTarget(flanger: true) is not { } effect || !await ApplyEffectAsync(effect))
+        {
+            return;
+        }
+
+        ResetMix(v => FlangerMixLeft = v, v => FlangerMixRight = v);
+        StatusText = "Flanger in das Audio übernommen – der Stärke-Regler steht wieder auf 0.";
+    }
+
+    /// <summary>Nach dem Übernehmen die Stärke der betroffenen Kanäle auf 0 setzen.</summary>
+    private void ResetMix(Action<double> setLeft, Action<double> setRight)
+    {
+        if (!IsStereo || EditLeft)
+        {
+            setLeft(0);
+        }
+
+        if (IsStereo && EditRight)
+        {
+            setRight(0);
+        }
+    }
+
+    private bool CanApplyFilter() => !IsBusy && CreateFilterEffectForTarget() is not null;
+
+    private bool CanApplyDistortion() => !IsBusy && CreateDistortionEffectForTarget() is not null;
+
+    private bool CanApplyChorus() => !IsBusy && CreateModulationEffectForTarget(flanger: false) is not null;
+
+    private bool CanApplyFlanger() => !IsBusy && CreateModulationEffectForTarget(flanger: true) is not null;
+
+    private void RefreshColorEffectCommands()
+    {
+        ApplyFilterCommand.NotifyCanExecuteChanged();
+        ApplyDistortionCommand.NotifyCanExecuteChanged();
+        ApplyChorusCommand.NotifyCanExecuteChanged();
+        ApplyFlangerCommand.NotifyCanExecuteChanged();
+    }
+
+    private void RefreshColorEffects()
+    {
+        _liveFilter?.Update(EffectiveFilterSettings());
+        _liveDistortion?.Update(EffectiveDistortionSettings());
+        _liveChorus?.Update(EffectiveChorusSettings());
+        _liveFlanger?.Update(EffectiveFlangerSettings());
+        OnPropertyChanged(nameof(EqualizerIndicator));
+        OnPropertyChanged(nameof(IsFilterAudible));
+        OnPropertyChanged(nameof(IsDistortionAudible));
+        OnPropertyChanged(nameof(IsChorusAudible));
+        OnPropertyChanged(nameof(IsFlangerAudible));
+        RefreshColorEffectCommands();
+    }
+
+    partial void OnIsFilterEnabledChanged(bool value) => RefreshColorEffects();
+
+    partial void OnFilterHighPassPositionChanged(double value) => RefreshColorEffects();
+
+    partial void OnFilterLowPassPositionChanged(double value) => RefreshColorEffects();
+
+    partial void OnIsDistortionEnabledChanged(bool value) => RefreshColorEffects();
+
+    partial void OnDistortionTypeIndexChanged(int value) => RefreshColorEffects();
+
+    partial void OnDistortionDriveChanged(double value) => RefreshColorEffects();
+
+    partial void OnDistortionToneChanged(double value) => RefreshColorEffects();
+
+    partial void OnDistortionMixLeftChanged(double value) => RefreshColorEffects();
+
+    partial void OnDistortionMixRightChanged(double value) => RefreshColorEffects();
+
+    partial void OnIsChorusEnabledChanged(bool value) => RefreshColorEffects();
+
+    partial void OnChorusRateChanged(double value) => RefreshColorEffects();
+
+    partial void OnChorusDepthChanged(double value) => RefreshColorEffects();
+
+    partial void OnChorusMixLeftChanged(double value) => RefreshColorEffects();
+
+    partial void OnChorusMixRightChanged(double value) => RefreshColorEffects();
+
+    partial void OnIsFlangerEnabledChanged(bool value) => RefreshColorEffects();
+
+    partial void OnFlangerRateChanged(double value) => RefreshColorEffects();
+
+    partial void OnFlangerDepthChanged(double value) => RefreshColorEffects();
+
+    partial void OnFlangerFeedbackChanged(double value) => RefreshColorEffects();
+
+    partial void OnFlangerMixLeftChanged(double value) => RefreshColorEffects();
+
+    partial void OnFlangerMixRightChanged(double value) => RefreshColorEffects();
+
+    // ───────────── Schleife & Wiedergabegerät ─────────────
+
+    /// <summary>Strg+L bzw. Knopf: Schleife ein/aus (wirkt sofort, auch während der Wiedergabe).</summary>
+    [RelayCommand]
+    private void ToggleLoop() => IsLooping = !IsLooping;
+
+    partial void OnIsLoopingChanged(bool value)
+    {
+        _playback.Loop = value;
+        StatusText = value ? "Schleife ein – die Auswahl (bzw. die Datei) wird endlos wiederholt." : "Schleife aus.";
+    }
+
+    [RelayCommand]
+    private void SelectOutputDevice(OutputDeviceItem? device)
+    {
+        if (device is null)
+        {
+            return;
+        }
+
+        StopPlayback();
+        _playback.DeviceNumber = device.Number;
+        Mixer.SetOutputDevice(device.Number);
+        foreach (var item in OutputDevices)
+        {
+            item.IsSelected = ReferenceEquals(item, device);
+        }
+
+        _settings.Settings.OutputDeviceName = device.Number < 0 ? null : device.Name;
+        _settings.Save();
+        StatusText = $"Wiedergabegerät: {device.Name}";
+    }
+
+    [RelayCommand]
+    private void RefreshOutputDevices() =>
+        RefreshOutputDevices(OutputDevices.FirstOrDefault(d => d.IsSelected) is { Number: >= 0 } current ? current.Name : null);
+
+    private void RefreshOutputDevices(string? selectedName)
+    {
+        OutputDevices.Clear();
+        foreach (var device in AudioDevices.List())
+        {
+            OutputDevices.Add(new OutputDeviceItem(device.Number, device.Name, SelectOutputDeviceCommand));
+        }
+
+        var selected = OutputDevices.FirstOrDefault(d => d.Number >= 0 && d.Name == selectedName) ?? OutputDevices[0];
+        selected.IsSelected = true;
+        _playback.DeviceNumber = selected.Number;
+        Mixer?.SetOutputDevice(selected.Number);
+    }
+
     partial void OnIsCompressorEnabledChanged(bool value) => RefreshCompressor();
 
     partial void OnCompressorThresholdChanged(double value) => RefreshCompressor();
@@ -1689,6 +2144,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         ApplyReverbCommand.NotifyCanExecuteChanged();
         ApplyCompressorCommand.NotifyCanExecuteChanged();
         ApplyDelayCommand.NotifyCanExecuteChanged();
+        RefreshColorEffectCommands();
     }
 
     partial void OnEditRightChanged(bool value)
@@ -1703,6 +2159,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         ApplyReverbCommand.NotifyCanExecuteChanged();
         ApplyCompressorCommand.NotifyCanExecuteChanged();
         ApplyDelayCommand.NotifyCanExecuteChanged();
+        RefreshColorEffectCommands();
     }
 
     partial void OnHearLeftChanged(bool value)
@@ -1761,6 +2218,26 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         saved.DelayFeedbackPercent = DelayFeedback;
         saved.DelayDampingPercent = DelayDamping;
         saved.DelayPingPong = DelayPingPong;
+        saved.FilterEnabled = IsFilterEnabled;
+        saved.FilterHighPassPosition = FilterHighPassPosition;
+        saved.FilterLowPassPosition = FilterLowPassPosition;
+        saved.DistortionEnabled = IsDistortionEnabled;
+        saved.DistortionType = DistortionTypeIndex;
+        saved.DistortionDrive = DistortionDrive;
+        saved.DistortionTone = DistortionTone;
+        saved.DistortionMixLeft = DistortionMixLeft;
+        saved.DistortionMixRight = DistortionMixRight;
+        saved.ChorusEnabled = IsChorusEnabled;
+        saved.ChorusRate = ChorusRate;
+        saved.ChorusDepth = ChorusDepth;
+        saved.ChorusMixLeft = ChorusMixLeft;
+        saved.ChorusMixRight = ChorusMixRight;
+        saved.FlangerEnabled = IsFlangerEnabled;
+        saved.FlangerRate = FlangerRate;
+        saved.FlangerDepth = FlangerDepth;
+        saved.FlangerFeedback = FlangerFeedback;
+        saved.FlangerMixLeft = FlangerMixLeft;
+        saved.FlangerMixRight = FlangerMixRight;
         _settings.Save();
     }
 
@@ -1844,6 +2321,10 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         _liveReverb = null;
         _liveCompressor = null;
         _liveDelay = null;
+        _liveFilter = null;
+        _liveDistortion = null;
+        _liveChorus = null;
+        _liveFlanger = null;
         CompressorReductionLeft = CompressorReductionRight = 0;
         _spectrumAnalyzers = null;
         _channelMonitor = null;
@@ -1931,6 +2412,9 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         _liveReverb?.Update(EffectiveReverbSettings());
         _liveCompressor?.Update(EffectiveCompressorSettings());
         _liveDelay?.Update(EffectiveDelaySettings());
+        _liveDistortion?.Update(EffectiveDistortionSettings());
+        _liveChorus?.Update(EffectiveChorusSettings());
+        _liveFlanger?.Update(EffectiveFlangerSettings());
         OnPropertyChanged(nameof(ActiveChannels));
         OnPropertyChanged(nameof(MutedChannels));
         OnPropertyChanged(nameof(ChannelTargetText));
@@ -1972,7 +2456,8 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             SeekCommand, SkipForwardCommand, SkipBackCommand,
             SelectAllCommand, CutCommand, CopyCommand, PasteCommand, DeleteCommand, TrimCommand,
             InsertSilenceCommand, UndoCommand, RedoCommand,
-            ChangeGainCommand, NormalizeCommand, ApplyEqualizerCommand, ApplyReverbCommand, ApplyCompressorCommand, ApplyDelayCommand, TempoPitchCommand,
+            ChangeGainCommand, NormalizeCommand, ApplyEqualizerCommand, ApplyReverbCommand, ApplyCompressorCommand, ApplyDelayCommand, ApplyFilterCommand, ApplyDistortionCommand,
+            ApplyChorusCommand, ApplyFlangerCommand, TempoPitchCommand,
             FadeInCommand, FadeOutCommand, ReverseCommand, MuteCommand,
         ];
         foreach (var command in commands)

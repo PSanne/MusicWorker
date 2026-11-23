@@ -67,6 +67,49 @@ public sealed class AppSettings
 
     public bool DelayPingPong { get; set; }
 
+    public bool FilterEnabled { get; set; }
+
+    public double FilterHighPassPosition { get; set; }
+
+    public double FilterLowPassPosition { get; set; } = 100;
+
+    public bool DistortionEnabled { get; set; }
+
+    public int DistortionType { get; set; }
+
+    public double DistortionDrive { get; set; } = 50;
+
+    public double DistortionTone { get; set; } = 70;
+
+    public double DistortionMixLeft { get; set; } = 100;
+
+    public double DistortionMixRight { get; set; } = 100;
+
+    public bool ChorusEnabled { get; set; }
+
+    public double ChorusRate { get; set; } = 0.8;
+
+    public double ChorusDepth { get; set; } = 50;
+
+    public double ChorusMixLeft { get; set; } = 70;
+
+    public double ChorusMixRight { get; set; } = 70;
+
+    public bool FlangerEnabled { get; set; }
+
+    public double FlangerRate { get; set; } = 0.3;
+
+    public double FlangerDepth { get; set; } = 70;
+
+    public double FlangerFeedback { get; set; } = 50;
+
+    public double FlangerMixLeft { get; set; } = 70;
+
+    public double FlangerMixRight { get; set; } = 70;
+
+    /// <summary>Name des gewählten Wiedergabegeräts (null = Windows-Standard).</summary>
+    public string? OutputDeviceName { get; set; }
+
     public bool EqualizerVisible { get; set; }
 }
 
