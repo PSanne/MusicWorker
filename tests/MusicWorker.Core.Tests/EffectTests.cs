@@ -54,3 +54,25 @@ public class EffectTests
         Assert.Equal(0.5f, input.GetSample(0, 0));
     }
 }
+
+public class MoreEffectTests
+{
+    [Fact]
+    public void Reverse_flips_frames_but_keeps_channels()
+    {
+        var input = new AudioBuffer([1f, -1f, 2f, -2f, 3f, -3f], 1000, 2);
+
+        var output = new ReverseEffect().Apply(input);
+
+        Assert.Equal(new[] { 3f, -3f, 2f, -2f, 1f, -1f }, output.Samples.ToArray());
+    }
+
+    [Fact]
+    public void Mute_silences_but_keeps_length()
+    {
+        var output = new MuteEffect().Apply(TestAudio.Ramp(5));
+
+        Assert.Equal(5, output.FrameCount);
+        Assert.All(output.Samples.ToArray(), s => Assert.Equal(0f, s));
+    }
+}

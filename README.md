@@ -3,15 +3,17 @@
 **MusicWorker** ist eine Windows-Anwendung zum Bearbeiten von Musik, geschrieben in C# mit WPF und .NET 8.
 
 Langfristig soll MusicWorker **Audio-Editor, Mehrspur-Mixer und Noten-Editor** in einem Programm vereinen.
-Version 0.1 legt das Fundament mit einem vollständigen Audio-Editor.
+Version 0.2 bietet einen vollständigen Audio-Editor mit 15-Band-Equalizer sowie Tempo- und Tonhöhenänderung.
 
-## Funktionen (Version 0.1)
+## Funktionen (Version 0.2)
 
 | Bereich | Funktionen |
 |---|---|
-| **Öffnen & Abspielen** | WAV, MP3, FLAC, AIFF, M4A/AAC, WMA öffnen (Menü, Strg+O oder Drag & Drop) · Wellenform mit Zeitleiste · Abspielen, Pause, Stopp · laufende Abspielposition |
-| **Schneiden & Trimmen** | Bereich mit der Maus markieren · Ausschneiden, Kopieren, Einfügen, Löschen · Auf Auswahl zuschneiden · **Rückgängig/Wiederholen** (50 Schritte) |
-| **Effekte** | Lautstärke ändern (±24 dB) · Normalisieren (-1 dB) · Einblenden/Ausblenden (Fade In/Out) |
+| **Öffnen & Abspielen** | WAV, MP3, FLAC, AIFF, M4A/AAC, WMA öffnen (Menü, Strg+O oder Drag & Drop) · **zuletzt geöffnete Dateien** · Wellenform mit Zeitleiste · Abspielen, Pause, Stopp · laufende Abspielposition |
+| **Schneiden & Trimmen** | Bereich mit der Maus markieren · Ausschneiden, Kopieren, Einfügen, Löschen · Auf Auswahl zuschneiden · **Stille einfügen** · **Rückgängig/Wiederholen** (50 Schritte) |
+| **Equalizer** | **15 Bänder** von 25 Hz bis 16 kHz (2/3-Oktave, ±12 dB) · Vorverstärkung · 13 Voreinstellungen (Bass-Boost, Rock, Stimme, Loudness …) · **Live-Vorhören** · Schutz vor Übersteuerung · letzte Einstellung wird gespeichert |
+| **Tempo & Tonhöhe** | Tempo 50–200 % ohne Tonhöhenänderung · Tonhöhe ±12 Halbtöne ohne Tempoänderung · beides kombinierbar |
+| **Weitere Effekte** | Lautstärke ändern (±24 dB) · Normalisieren (-1 dB) · Einblenden/Ausblenden (Fade In/Out) · Umkehren · Stummschalten |
 | **Export** | WAV (16 Bit) · MP3 (192 kbit/s, über den in Windows eingebauten Encoder) |
 | **Ansicht** | Zoomen mit Strg+Mausrad · Scrollen mit dem Mausrad · Ansicht folgt beim Abspielen |
 
@@ -31,9 +33,11 @@ Version 0.1 legt das Fundament mit einem vollständigen Audio-Editor.
 | Ausschneiden / Kopieren / Einfügen | Strg+X / Strg+C / Strg+V |
 | Löschen | Entf |
 | Alles auswählen / Zuschneiden | Strg+A / Strg+T |
+| Equalizer | Strg+Umschalt+E |
 
 > **Tipp:** Ist nichts markiert, wirken *Lautstärke* und *Normalisieren* auf die ganze Datei.
 > *Abspielen* spielt die Auswahl, oder ab dem Cursor bis zum Ende.
+> Im Equalizer spielt *Vorhören* die Auswahl in Schleife, und jede Reglerbewegung ist sofort hörbar.
 
 ## Loslegen
 
@@ -77,14 +81,15 @@ MusicWorker.sln
 │  ├─ MusicWorker.Core/          Plattformunabhängiger Kern (ohne UI, voll testbar)
 │  │  ├─ Audio/                  AudioBuffer (unveränderlich), Dezibel-Umrechnung
 │  │  ├─ Editing/                AudioEditor, Auswahl, Rückgängig/Wiederholen (Command-Pattern)
-│  │  ├─ Effects/                Lautstärke, Normalisieren, Fades
+│  │  ├─ Dsp/                    Biquad-Filter, 15-Band-Equalizer, Zeitstreckung (WSOLA), Resampler
+│  │  ├─ Effects/                Lautstärke, Normalisieren, Fades, Equalizer, Tempo/Tonhöhe, Umkehren
 │  │  └─ Visualization/          Berechnung der Wellenform-Spitzen
 │  └─ MusicWorker.App/           WPF-Anwendung (MVVM)
-│     ├─ Audio/                  Laden, Wiedergabe und Export mit NAudio
+│     ├─ Audio/                  Laden, Wiedergabe, Export und Live-Equalizer mit NAudio
 │     ├─ Controls/WaveformView   Eigene Wellenform-Anzeige mit Zoom und Auswahl
 │     ├─ ViewModels/             MainViewModel (CommunityToolkit.Mvvm)
-│     ├─ Services/               Dialoge
-│     └─ Views/                  Zusätzliche Fenster
+│     ├─ Services/               Dialoge, gespeicherte Einstellungen
+│     └─ Views/                  Equalizer, Tempo & Tonhöhe, Eingabedialoge
 └─ tests/
    └─ MusicWorker.Core.Tests/    xUnit-Tests für den Kern
 ```
@@ -97,8 +102,8 @@ die Oberfläche nur in `MusicWorker.App`. So können Mehrspur- und Noten-Editor 
 ## Fahrplan
 
 - [x] **v0.1 – Audio-Editor:** Öffnen, Abspielen, Schneiden, Effekte, Export
-- [ ] **v0.2 – Komfort:** Projekt speichern/laden, zuletzt geöffnete Dateien, Stille einfügen, Umkehren, Tempo/Tonhöhe
-- [ ] **v0.3 – Mehrspur-Mixer:** mehrere Spuren, Clips verschieben, Lautstärke/Panorama/Mute/Solo pro Spur, Mixdown
+- [x] **v0.2 – Komfort & Klang:** 15-Band-Equalizer mit Live-Vorhören, Tempo/Tonhöhe, Stille einfügen, Umkehren, Stummschalten, zuletzt geöffnete Dateien
+- [ ] **v0.3 – Mehrspur-Mixer:** mehrere Spuren, Clips verschieben, Lautstärke/Panorama/Mute/Solo pro Spur, Mixdown, **Projekte speichern/laden**
 - [ ] **v0.4 – Noten-/MIDI-Editor:** MIDI importieren/exportieren, Piano-Roll, Noten bearbeiten, Wiedergabe über Software-Synthesizer
 - [ ] **v0.5 – Aufnahme:** Mikrofon-/Line-In-Aufnahme direkt in eine Spur
 

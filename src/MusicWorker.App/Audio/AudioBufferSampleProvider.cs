@@ -10,14 +10,18 @@ namespace MusicWorker.App.Audio;
 internal sealed class AudioBufferSampleProvider : ISampleProvider
 {
     private readonly AudioBuffer _buffer;
+    private readonly int _startFrame;
     private readonly int _endFrame;
+    private readonly bool _loop;
     private int _positionFrame;
 
-    public AudioBufferSampleProvider(AudioBuffer buffer, int startFrame, int endFrame)
+    public AudioBufferSampleProvider(AudioBuffer buffer, int startFrame, int endFrame, bool loop = false)
     {
         _buffer = buffer;
-        _positionFrame = Math.Clamp(startFrame, 0, buffer.FrameCount);
-        _endFrame = Math.Clamp(endFrame, _positionFrame, buffer.FrameCount);
+        _startFrame = Math.Clamp(startFrame, 0, buffer.FrameCount);
+        _endFrame = Math.Clamp(endFrame, _startFrame, buffer.FrameCount);
+        _positionFrame = _startFrame;
+        _loop = loop && _endFrame > _startFrame;
         WaveFormat = WaveFormat.CreateIeeeFloatWaveFormat(buffer.SampleRate, buffer.Channels);
     }
 
@@ -26,16 +30,34 @@ internal sealed class AudioBufferSampleProvider : ISampleProvider
     public int Read(float[] buffer, int offset, int count)
     {
         int channels = _buffer.Channels;
+        int written = 0;
         int position = Volatile.Read(ref _positionFrame);
-        int frames = Math.Min(_endFrame - position, count / channels);
-        if (frames <= 0)
+
+        while (written < count)
         {
-            return 0;
+            if (position >= _endFrame)
+            {
+                if (!_loop)
+                {
+                    break;
+                }
+
+                position = _startFrame; // Schleife: wieder von vorn
+            }
+
+            int frames = Math.Min(_endFrame - position, (count - written) / channels);
+            if (frames <= 0)
+            {
+                break;
+            }
+
+            _buffer.Samples.Slice(position * channels, frames * channels)
+                .CopyTo(buffer.AsSpan(offset + written, frames * channels));
+            position += frames;
+            written += frames * channels;
         }
 
-        _buffer.Samples.Slice(position * channels, frames * channels)
-            .CopyTo(buffer.AsSpan(offset, frames * channels));
-        Volatile.Write(ref _positionFrame, position + frames);
-        return frames * channels;
+        Volatile.Write(ref _positionFrame, position);
+        return written;
     }
 }

@@ -1,4 +1,18 @@
+using MusicWorker.App.ViewModels;
+
 namespace MusicWorker.App.Services;
+
+/// <summary>Beschreibt eine Zahlen-Abfrage mit Schieberegler (z. B. Lautstärke, Dauer).</summary>
+public sealed record ValueRequest(
+    string Title,
+    string Prompt,
+    string Hint,
+    double Minimum,
+    double Maximum,
+    double Value,
+    double SmallChange,
+    string Unit,
+    string Format = "0.0");
 
 /// <summary>
 /// Abstraktion für Dialoge, damit das ViewModel nichts von WPF-Fenstern wissen muss
@@ -10,8 +24,14 @@ public interface IDialogService
 
     string? ShowSaveFileDialog(string filter, string suggestedFileName);
 
-    /// <summary>Fragt die gewünschte Lautstärkeänderung in dB ab; null = abgebrochen.</summary>
-    double? AskGainDecibels();
+    /// <summary>Fragt einen Zahlenwert ab; null = abgebrochen.</summary>
+    double? AskValue(ValueRequest request);
+
+    /// <summary>Fragt Tempo (in %) und Tonhöhe (in Halbtönen) ab; null = abgebrochen.</summary>
+    (double TempoPercent, double Semitones)? AskTempoAndPitch();
+
+    /// <summary>Zeigt den Equalizer; true = „Anwenden“ gewählt.</summary>
+    bool ShowEqualizer(EqualizerViewModel equalizer);
 
     bool Confirm(string message, string title);
 

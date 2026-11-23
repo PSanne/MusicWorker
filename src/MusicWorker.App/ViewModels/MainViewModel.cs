@@ -1,3 +1,4 @@
+using System.Collections.ObjectModel;
 using System.Globalization;
 using System.IO;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -6,6 +7,7 @@ using MusicWorker.App.Audio;
 using MusicWorker.App.Helpers;
 using MusicWorker.App.Services;
 using MusicWorker.Core.Audio;
+using MusicWorker.Core.Dsp;
 using MusicWorker.Core.Editing;
 using MusicWorker.Core.Effects;
 using NAudio.Wave;
@@ -21,6 +23,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     private readonly IDialogService _dialogs;
     private readonly AudioFileService _files;
     private readonly PlaybackService _playback;
+    private readonly SettingsService _settings;
     private CancellationTokenSource? _playheadUpdates;
 
     [ObservableProperty]
@@ -40,11 +43,14 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     [ObservableProperty]
     private string _statusText = "Bereit – öffne eine Audiodatei (Strg+O) oder ziehe sie ins Fenster.";
 
-    public MainViewModel(IDialogService dialogs, AudioFileService files, PlaybackService playback)
+    public MainViewModel(
+        IDialogService dialogs, AudioFileService files, PlaybackService playback, SettingsService settings)
     {
         _dialogs = dialogs;
         _files = files;
         _playback = playback;
+        _settings = settings;
+        RefreshRecentFiles();
 
         _editor.Changed += OnEditorChanged;
         _editor.SelectionChanged += OnEditorSelectionChanged;
@@ -55,6 +61,11 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     public event EventHandler? DocumentLoaded;
 
     public AudioBuffer Buffer => _editor.Buffer;
+
+    /// <summary>Einträge für „Datei → Zuletzt geöffnet“.</summary>
+    public ObservableCollection<RecentFileItem> RecentFiles { get; } = [];
+
+    public bool HasRecentFiles => RecentFiles.Count > 0;
 
     /// <summary>Auswahl – wird von der Wellenform-Ansicht in beide Richtungen gebunden.</summary>
     public SelectionRange Selection
@@ -141,6 +152,25 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         {
             await LoadAsync(path);
         }
+    }
+
+    [RelayCommand(CanExecute = nameof(CanOpen))]
+    private async Task OpenRecentAsync(string? path)
+    {
+        if (string.IsNullOrEmpty(path))
+        {
+            return;
+        }
+
+        if (!File.Exists(path))
+        {
+            _dialogs.ShowError($"Die Datei wurde nicht gefunden und wird aus der Liste entfernt:\n\n{path}");
+            _settings.RemoveRecentFile(path);
+            RefreshRecentFiles();
+            return;
+        }
+
+        await OpenFileAsync(path);
     }
 
     [RelayCommand(CanExecute = nameof(CanUseAudio))]
@@ -280,25 +310,99 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         StatusText = $"Wiederholt: {description}";
     }
 
+    [RelayCommand(CanExecute = nameof(CanUseAudio))]
+    private void InsertSilence()
+    {
+        var request = new ValueRequest(
+            "Stille einfügen", "Dauer der Stille:", "Die Stille wird am Cursor bzw. am Anfang der Auswahl eingefügt.",
+            Minimum: 0.1, Maximum: 60, Value: 1, SmallChange: 0.1, Unit: "Sekunden");
+        if (_dialogs.AskValue(request) is { } seconds && seconds > 0)
+        {
+            Edit(() => _editor.InsertSilence(TimeSpan.FromSeconds(seconds)));
+        }
+    }
+
     // ───────────── Effekte ─────────────
 
     [RelayCommand(CanExecute = nameof(CanUseAudio))]
-    private void ChangeGain()
+    private async Task ChangeGainAsync()
     {
-        if (_dialogs.AskGainDecibels() is { } decibels && decibels != 0)
+        var request = new ValueRequest(
+            "Lautstärke ändern", "Verstärkung:",
+            "Positive Werte machen lauter, negative leiser. +6 dB ≈ doppelte Amplitude. " +
+            "Ohne Auswahl wird die ganze Datei geändert.",
+            Minimum: -24, Maximum: 24, Value: 0, SmallChange: 0.5, Unit: "dB");
+        if (_dialogs.AskValue(request) is { } decibels && decibels != 0)
         {
-            Edit(() => _editor.ApplyEffect(new GainEffect(decibels)));
+            await ApplyEffectAsync(new GainEffect(decibels));
         }
     }
 
     [RelayCommand(CanExecute = nameof(CanUseAudio))]
-    private void Normalize() => Edit(() => _editor.ApplyEffect(new NormalizeEffect()));
+    private Task NormalizeAsync() => ApplyEffectAsync(new NormalizeEffect());
+
+    [RelayCommand(CanExecute = nameof(CanUseAudio))]
+    private async Task EqualizerAsync()
+    {
+        StopPlayback();
+
+        // Vorhören: die Auswahl – oder ab dem Cursor bis zum Ende – in Schleife.
+        var selection = Selection;
+        int start = selection.Start < Buffer.FrameCount ? selection.Start : 0;
+        int end = selection.IsEmpty ? Buffer.FrameCount : selection.End;
+        var preview = new EqualizerPreview(_playback, Buffer, start, end);
+
+        var saved = _settings.Settings;
+        var initial = saved.EqualizerGainsDb is { Length: var n } gains && n == EqualizerSettings.BandFrequencies.Count
+            ? new EqualizerSettings(gains, saved.EqualizerPreampDb)
+            : EqualizerSettings.Neutral;
+
+        using var equalizer = new EqualizerViewModel(initial, saved.EqualizerPreventClipping, preview);
+        bool apply = _dialogs.ShowEqualizer(equalizer);
+        equalizer.StopPreview();
+        if (!apply)
+        {
+            return;
+        }
+
+        var settings = equalizer.ToSettings();
+        saved.EqualizerGainsDb = settings.GainsDb.ToArray();
+        saved.EqualizerPreampDb = settings.PreampDb;
+        saved.EqualizerPreventClipping = equalizer.PreventClipping;
+        _settings.Save();
+
+        if (!settings.IsNeutral)
+        {
+            await ApplyEffectAsync(new EqualizerEffect(settings, equalizer.PreventClipping));
+        }
+    }
+
+    [RelayCommand(CanExecute = nameof(CanUseAudio))]
+    private async Task TempoPitchAsync()
+    {
+        if (_dialogs.AskTempoAndPitch() is not { } values)
+        {
+            return;
+        }
+
+        var effect = new TempoPitchEffect(values.TempoPercent, values.Semitones);
+        if (!effect.IsNeutral)
+        {
+            await ApplyEffectAsync(effect);
+        }
+    }
 
     [RelayCommand(CanExecute = nameof(CanUseSelection))]
-    private void FadeIn() => Edit(() => _editor.ApplyEffect(new FadeEffect(FadeDirection.In)));
+    private Task FadeInAsync() => ApplyEffectAsync(new FadeEffect(FadeDirection.In));
 
     [RelayCommand(CanExecute = nameof(CanUseSelection))]
-    private void FadeOut() => Edit(() => _editor.ApplyEffect(new FadeEffect(FadeDirection.Out)));
+    private Task FadeOutAsync() => ApplyEffectAsync(new FadeEffect(FadeDirection.Out));
+
+    [RelayCommand(CanExecute = nameof(CanUseAudio))]
+    private Task ReverseAsync() => ApplyEffectAsync(new ReverseEffect());
+
+    [RelayCommand(CanExecute = nameof(CanUseSelection))]
+    private Task MuteAsync() => ApplyEffectAsync(new MuteEffect());
 
     public void Dispose()
     {
@@ -332,6 +436,8 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             _editor.Load(buffer);
             FilePath = path;
             PlayheadFrame = 0;
+            _settings.AddRecentFile(path);
+            RefreshRecentFiles();
             StatusText = $"„{FileName}“ geladen – Länge {TimeFormatter.Format(buffer.Duration, false)}.";
             DocumentLoaded?.Invoke(this, EventArgs.Empty);
         }
@@ -344,6 +450,52 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         {
             IsBusy = false;
         }
+    }
+
+    /// <summary>
+    /// Berechnet einen Effekt im Hintergrund (die Oberfläche bleibt bedienbar) und übernimmt
+    /// das Ergebnis anschließend im UI-Thread als rückgängig machbaren Schritt.
+    /// </summary>
+    private async Task ApplyEffectAsync(IAudioEffect effect)
+    {
+        if (!HasAudio)
+        {
+            return;
+        }
+
+        StopPlayback();
+        var range = _editor.EffectRange;
+        var input = Buffer.Slice(range.Start, range.Length);
+
+        IsBusy = true;
+        StatusText = $"{effect.Name} wird angewendet …";
+        try
+        {
+            var output = await Task.Run(() => effect.Apply(input));
+            _editor.ApplyEffectResult(effect.Name, range, output);
+            StatusText = $"{effect.Name} ✓";
+        }
+        catch (Exception ex)
+        {
+            StatusText = $"{effect.Name} fehlgeschlagen.";
+            _dialogs.ShowError($"Der Effekt „{effect.Name}“ konnte nicht angewendet werden.\n\n{ex.Message}");
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+    }
+
+    private void RefreshRecentFiles()
+    {
+        RecentFiles.Clear();
+        int number = 1;
+        foreach (string path in _settings.Settings.RecentFiles)
+        {
+            RecentFiles.Add(new RecentFileItem(number++, path, OpenRecentCommand));
+        }
+
+        OnPropertyChanged(nameof(HasRecentFiles));
     }
 
     private void Edit(Action edit)
@@ -464,9 +616,12 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     {
         IRelayCommand[] commands =
         [
-            OpenCommand, ExportCommand, PlayCommand, PauseCommand, StopCommand, TogglePlayPauseCommand,
+            OpenCommand, OpenRecentCommand, ExportCommand,
+            PlayCommand, PauseCommand, StopCommand, TogglePlayPauseCommand,
             SelectAllCommand, CutCommand, CopyCommand, PasteCommand, DeleteCommand, TrimCommand,
-            UndoCommand, RedoCommand, ChangeGainCommand, NormalizeCommand, FadeInCommand, FadeOutCommand,
+            InsertSilenceCommand, UndoCommand, RedoCommand,
+            ChangeGainCommand, NormalizeCommand, EqualizerCommand, TempoPitchCommand,
+            FadeInCommand, FadeOutCommand, ReverseCommand, MuteCommand,
         ];
         foreach (var command in commands)
         {

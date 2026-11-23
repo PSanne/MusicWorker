@@ -25,7 +25,8 @@ public partial class App : Application
         MediaFoundationApi.Startup();
         DispatcherUnhandledException += OnDispatcherUnhandledException;
 
-        var viewModel = new MainViewModel(new WpfDialogService(), new AudioFileService(), new PlaybackService());
+        var viewModel = new MainViewModel(
+            new WpfDialogService(), new AudioFileService(), new PlaybackService(), new SettingsService());
         var window = new MainWindow(viewModel);
         MainWindow = window;
         window.Show();

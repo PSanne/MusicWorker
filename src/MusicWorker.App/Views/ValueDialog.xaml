@@ -1,0 +1,21 @@
+<Window x:Class="MusicWorker.App.Views.ValueDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        SizeToContent="WidthAndHeight"
+        ResizeMode="NoResize"
+        ShowInTaskbar="False"
+        WindowStartupLocation="CenterOwner">
+    <StackPanel Margin="16">
+        <TextBlock x:Name="PromptText" />
+        <DockPanel Margin="0,8,0,0">
+            <TextBlock x:Name="UnitText" DockPanel.Dock="Right" Margin="6,0,0,0" VerticalAlignment="Center" />
+            <TextBox x:Name="ValueBox" DockPanel.Dock="Right" Width="64" Margin="8,0,0,0" VerticalContentAlignment="Center" />
+            <Slider x:Name="ValueSlider" Width="280" TickPlacement="BottomRight" IsMoveToPointEnabled="True" />
+        </DockPanel>
+        <TextBlock x:Name="HintText" Margin="0,8,0,0" Foreground="Gray" TextWrapping="Wrap" MaxWidth="380" />
+        <StackPanel Margin="0,16,0,0" HorizontalAlignment="Right" Orientation="Horizontal">
+            <Button Width="88" Content="OK" IsDefault="True" Click="OnOkClick" />
+            <Button Width="88" Margin="8,0,0,0" Content="Abbrechen" IsCancel="True" />
+        </StackPanel>
+    </StackPanel>
+</Window>

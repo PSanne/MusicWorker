@@ -126,23 +126,56 @@ public sealed class AudioEditor
         Execute(command, new SelectionRange(0, end - start));
     }
 
+    /// <summary>Bereich, auf den ein Effekt wirkt: die Auswahl – oder alles, wenn nichts markiert ist.</summary>
+    public SelectionRange EffectRange => HasSelection ? _selection : new SelectionRange(0, Buffer.FrameCount);
+
     /// <summary>Wendet einen Effekt auf die Auswahl an – oder auf alles, wenn nichts markiert ist.</summary>
     public void ApplyEffect(IAudioEffect effect)
     {
         ArgumentNullException.ThrowIfNull(effect);
-        if (!HasAudio)
+        RequireAudio();
+        var range = EffectRange;
+        var processed = effect.Apply(Buffer.Slice(range.Start, range.Length));
+        ApplyEffectResult(effect.Name, range, processed);
+    }
+
+    /// <summary>
+    /// Übernimmt ein bereits berechnetes Effekt-Ergebnis für <paramref name="range"/>.
+    /// So kann die (evtl. langsame) Berechnung im Hintergrund laufen, während der Editor
+    /// selbst nur im UI-Thread verändert wird.
+    /// </summary>
+    public void ApplyEffectResult(string description, SelectionRange range, AudioBuffer processed)
+    {
+        ArgumentNullException.ThrowIfNull(processed);
+        RequireAudio();
+        if (range.End > Buffer.FrameCount)
         {
-            throw new InvalidOperationException("Es ist kein Audio geladen.");
+            throw new ArgumentOutOfRangeException(nameof(range), "Der Bereich liegt außerhalb des Audios.");
         }
 
-        bool wholeFile = !HasSelection;
-        var range = wholeFile ? new SelectionRange(0, Buffer.FrameCount) : _selection;
-        var processed = effect.Apply(Buffer.Slice(range.Start, range.Length));
-        var selectionAfter = wholeFile
-            ? _selection
-            : new SelectionRange(range.Start, range.Start + processed.FrameCount);
+        bool wasSelection = HasSelection && range == _selection;
+        var selectionAfter = wasSelection
+            ? new SelectionRange(range.Start, range.Start + processed.FrameCount)
+            : _selection;
 
-        Execute(new ReplaceRangeCommand(effect.Name, range.Start, range.Length, processed), selectionAfter);
+        Execute(new ReplaceRangeCommand(description, range.Start, range.Length, processed), selectionAfter);
+    }
+
+    /// <summary>Fügt am Cursor (Anfang der Auswahl) Stille ein und markiert sie.</summary>
+    public void InsertSilence(TimeSpan duration)
+    {
+        RequireAudio();
+        int frames = (int)Math.Round(duration.TotalSeconds * Buffer.SampleRate);
+        if (frames <= 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(duration), "Die Dauer muss größer als 0 sein.");
+        }
+
+        int position = _selection.Start;
+        var silence = AudioBuffer.CreateSilence(Buffer.SampleRate, Buffer.Channels, frames);
+        Execute(
+            new ReplaceRangeCommand("Stille einfügen", position, 0, silence),
+            new SelectionRange(position, position + frames));
     }
 
     public void Undo()
@@ -191,6 +224,14 @@ public sealed class AudioEditor
 
         _selection = clamped;
         SelectionChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    private void RequireAudio()
+    {
+        if (!HasAudio)
+        {
+            throw new InvalidOperationException("Es ist kein Audio geladen.");
+        }
     }
 
     private void RequireSelection()

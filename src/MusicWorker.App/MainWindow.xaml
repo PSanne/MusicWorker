@@ -44,6 +44,7 @@
         <KeyBinding Key="V" Modifiers="Ctrl" Command="{Binding PasteCommand}" />
         <KeyBinding Key="A" Modifiers="Ctrl" Command="{Binding SelectAllCommand}" />
         <KeyBinding Key="T" Modifiers="Ctrl" Command="{Binding TrimCommand}" />
+        <KeyBinding Key="E" Modifiers="Ctrl+Shift" Command="{Binding EqualizerCommand}" />
         <KeyBinding Key="Delete" Command="{Binding DeleteCommand}" />
         <KeyBinding Key="Space" Command="{Binding TogglePlayPauseCommand}" />
         <KeyBinding Key="Escape" Command="{Binding StopCommand}" />
@@ -53,6 +54,16 @@
         <Menu DockPanel.Dock="Top">
             <MenuItem Header="_Datei">
                 <MenuItem Header="_Öffnen …" Command="{Binding OpenCommand}" InputGestureText="Strg+O" />
+                <MenuItem Header="_Zuletzt geöffnet" ItemsSource="{Binding RecentFiles}" IsEnabled="{Binding HasRecentFiles}">
+                    <MenuItem.ItemContainerStyle>
+                        <Style TargetType="MenuItem">
+                            <Setter Property="Header" Value="{Binding Header}" />
+                            <Setter Property="ToolTip" Value="{Binding Path}" />
+                            <Setter Property="Command" Value="{Binding OpenCommand}" />
+                            <Setter Property="CommandParameter" Value="{Binding Path}" />
+                        </Style>
+                    </MenuItem.ItemContainerStyle>
+                </MenuItem>
                 <MenuItem Header="_Exportieren …" Command="{Binding ExportCommand}" InputGestureText="Strg+E" />
                 <Separator />
                 <MenuItem Header="_Beenden" Click="OnExitClick" InputGestureText="Alt+F4" />
@@ -68,6 +79,8 @@
                 <Separator />
                 <MenuItem Header="Auf Auswahl _zuschneiden" Command="{Binding TrimCommand}" InputGestureText="Strg+T" />
                 <MenuItem Header="Alles a_uswählen" Command="{Binding SelectAllCommand}" InputGestureText="Strg+A" />
+                <Separator />
+                <MenuItem Header="_Stille einfügen …" Command="{Binding InsertSilenceCommand}" />
             </MenuItem>
             <MenuItem Header="_Wiedergabe">
                 <MenuItem Header="_Abspielen / Pause" Command="{Binding TogglePlayPauseCommand}" InputGestureText="Leertaste" />
@@ -76,9 +89,14 @@
             <MenuItem Header="E_ffekte">
                 <MenuItem Header="_Lautstärke ändern …" Command="{Binding ChangeGainCommand}" />
                 <MenuItem Header="_Normalisieren" Command="{Binding NormalizeCommand}" />
+                <MenuItem Header="_Equalizer …" Command="{Binding EqualizerCommand}" InputGestureText="Strg+Umschalt+E" />
+                <MenuItem Header="_Tempo &amp; Tonhöhe …" Command="{Binding TempoPitchCommand}" />
                 <Separator />
                 <MenuItem Header="_Einblenden (Fade In)" Command="{Binding FadeInCommand}" />
                 <MenuItem Header="_Ausblenden (Fade Out)" Command="{Binding FadeOutCommand}" />
+                <Separator />
+                <MenuItem Header="_Umkehren (rückwärts)" Command="{Binding ReverseCommand}" />
+                <MenuItem Header="_Stummschalten" Command="{Binding MuteCommand}" />
             </MenuItem>
             <MenuItem Header="_Ansicht">
                 <MenuItem Header="_Vergrößern" Click="OnZoomInClick" InputGestureText="Strg+Mausrad" />
@@ -137,6 +155,8 @@
                     <TextBlock Style="{StaticResource Glyph}" Text="&#xE767;" />
                 </Button>
                 <Button Style="{StaticResource ToolButton}" Command="{Binding NormalizeCommand}" Content="Normalisieren" ToolTip="Auf -1 dB normalisieren" />
+                <Button Style="{StaticResource ToolButton}" Command="{Binding EqualizerCommand}" Content="Equalizer" ToolTip="15-Band-Equalizer mit Live-Vorhören (Strg+Umschalt+E)" />
+                <Button Style="{StaticResource ToolButton}" Command="{Binding TempoPitchCommand}" Content="Tempo/Tonhöhe" ToolTip="Tempo und Tonhöhe unabhängig voneinander ändern" />
                 <Button Style="{StaticResource ToolButton}" Command="{Binding FadeInCommand}" Content="Fade In" ToolTip="Auswahl einblenden" />
                 <Button Style="{StaticResource ToolButton}" Command="{Binding FadeOutCommand}" Content="Fade Out" ToolTip="Auswahl ausblenden" />
             </ToolBar>

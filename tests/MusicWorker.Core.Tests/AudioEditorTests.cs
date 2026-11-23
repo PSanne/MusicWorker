@@ -202,3 +202,47 @@ public class AudioEditorTests
         public int GetHashCode(float obj) => 0;
     }
 }
+
+public class AudioEditorV2Tests
+{
+    [Fact]
+    public void InsertSilence_inserts_at_cursor_and_selects_it()
+    {
+        var editor = new AudioEditor();
+        editor.Load(TestAudio.Ramp(4, sampleRate: 1000));
+        editor.Selection = SelectionRange.Caret(2);
+
+        editor.InsertSilence(TimeSpan.FromMilliseconds(3));
+
+        Assert.Equal(new float[] { 0, 1, 0, 0, 0, 2, 3 }, TestAudio.Frames(editor.Buffer));
+        Assert.Equal(new SelectionRange(2, 5), editor.Selection);
+        Assert.Equal("Stille einfügen", editor.UndoDescription);
+    }
+
+    [Fact]
+    public void Length_changing_effect_on_selection_selects_the_result()
+    {
+        var editor = new AudioEditor();
+        editor.Load(TestAudio.Ramp(10));
+        editor.Selection = new SelectionRange(2, 6);
+        var range = editor.EffectRange;
+
+        editor.ApplyEffectResult("Test", range, TestAudio.Ramp(2));
+
+        Assert.Equal(8, editor.Buffer.FrameCount);
+        Assert.Equal(new SelectionRange(2, 4), editor.Selection);
+
+        editor.Undo();
+        Assert.Equal(10, editor.Buffer.FrameCount);
+        Assert.Equal(new SelectionRange(2, 6), editor.Selection);
+    }
+
+    [Fact]
+    public void EffectRange_is_whole_file_without_selection()
+    {
+        var editor = new AudioEditor();
+        editor.Load(TestAudio.Ramp(10));
+
+        Assert.Equal(new SelectionRange(0, 10), editor.EffectRange);
+    }
+}
