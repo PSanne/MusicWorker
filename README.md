@@ -3,9 +3,24 @@
 **MusicWorker** ist eine Windows-Anwendung zum Bearbeiten von Musik, geschrieben in C# mit WPF und .NET 8.
 
 Langfristig soll MusicWorker **Audio-Editor, Mehrspur-Mixer und Noten-Editor** in einem Programm vereinen.
-Version 0.2 bietet einen vollständigen Audio-Editor mit 15-Band-Equalizer sowie Tempo- und Tonhöhenänderung.
+Version 0.3 bietet einen vollständigen Audio-Editor mit Live-Effekten **und ein Mehrspur-Mischpult** mit Fadern, Panorama, Sends, Effekt-Bussen, Gruppen und Projekten.
 
-## Funktionen (Version 0.2)
+## Mischpult (Version 0.3)
+
+Die Registerkarte **„Mischpult“** macht aus MusicWorker eine kleine Mehrspur-Arbeitsumgebung:
+
+| Bereich | Funktionen |
+|---|---|
+| **Spuren** | Audiodateien als Spuren laden (auch per Drag & Drop, mehrere auf einmal) · Editor-Datei als Spur übernehmen · Clips mit der Maus **verschieben** · Positionsgriff, Zoom (Strg+Mausrad), waagerecht scrollen (Umschalt+Mausrad) |
+| **Kanalzüge** | **Fader** (-∞ … +6 dB) mit **Pegelanzeige** · **Panorama**-Drehregler · **Mute/Solo** · **Sends** auf Hall- und Echo-Bus · **Gruppen**-Zuordnung |
+| **Effekt-Busse** | **Hall-Bus** (Raumgröße, Dämpfung) und **Echo-Bus** (Zeit L/R, Rückkopplung, Dämpfung, Ping-Pong) mit Rückweg-Fader – ein gemeinsamer Hall für alle Spuren |
+| **Gruppen** | Gruppen-Fader und -Mute wirken auf alle zugeordneten Spuren |
+| **Master** | Master-Fader mit Stereo-Pegelanzeige |
+| **Mixdown** | Als WAV/MP3 exportieren oder im Editor öffnen (mit Ausklingen der Effekt-Busse; bei Übersteuerung automatisch auf -1 dB) |
+| **Projekte** | Speichern/Öffnen als `Name.mwproj` mit Audio-Ordner `Name-Audio` (verlustfreie 32-Bit-WAVs) |
+| **Editor-Brücke** | Doppelklick auf einen Clip öffnet ihn im Editor – nach dem Bearbeiten „In Spur übernehmen“ |
+
+## Editor (Funktionen)
 
 | Bereich | Funktionen |
 |---|---|
@@ -31,6 +46,9 @@ Version 0.2 bietet einen vollständigen Audio-Editor mit 15-Band-Equalizer sowie
 | Auswahl erweitern | Umschalt + Klick |
 | Abspielen / Pause | Leertaste |
 | Stopp | Esc |
+| Editor ↔ Mischpult | Registerkarten oben (Leertaste, Esc, Strg+←/→ gelten für die sichtbare Ansicht) |
+| Projekt speichern (Mischpult) | Strg+S |
+| Clip löschen (Mischpult) | Entf |
 | Position verschieben | roten Griff ▼ in der Zeitleiste ziehen oder in die Zeitleiste klicken |
 | 5 Sekunden vor / zurück | Strg+→ / Strg+← |
 | Zum Anfang / Ende | Pos1 / Ende |
@@ -50,8 +68,8 @@ Version 0.2 bietet einen vollständigen Audio-Editor mit 15-Band-Equalizer sowie
 > wenn du auf *In Audio übernehmen* klickst; beim Exportieren fragt MusicWorker, ob er eingerechnet werden soll.
 > Darüber zeigt das **Live-Spektrum**, was gerade zu hören ist (Stereo: blau = links, rosa = rechts), und in Orange die eingestellte EQ-Kurve.
 >
-> **Hall, Kompressor, Echo:** Rechts neben dem EQ liegen drei Registerkarten mit Drehreglern – alles sofort hörbar.
-> Ein grüner Punkt zeigt, welcher Effekt gerade wirkt. Reihenfolge der Live-Kette:
+> **Hall, Kompressor, Echo:** Rechts neben dem EQ liegen drei Felder mit Drehreglern – alle gleichzeitig sichtbar
+> und sofort hörbar. Ein grüner Punkt zeigt, welcher Effekt gerade wirkt. Reihenfolge der Live-Kette:
 > Equalizer → Kompressor → Echo → Hall.
 >
 > **Pro-Kanal-EQ:** Mit „Links/rechts getrennt“ bekommt jeder Kanal seinen eigenen Equalizer. Über *Einstellen [L] [R]*
@@ -105,14 +123,15 @@ MusicWorker.sln
 │  ├─ MusicWorker.Core/          Plattformunabhängiger Kern (ohne UI, voll testbar)
 │  │  ├─ Audio/                  AudioBuffer (unveränderlich), Dezibel-Umrechnung
 │  │  ├─ Editing/                AudioEditor, Auswahl, Rückgängig/Wiederholen (Command-Pattern)
+│  │  ├─ Mixing/                 Misch-Engine: Spuren, Panorama, Fader, Gruppen, Sends, Effekt-Busse, Master, Mixdown
 │  │  ├─ Dsp/                    Biquad-Filter, 15-Band-Equalizer, Kompressor, Echo, Hall (Freeverb), FFT & Spektrumanalyse, Zeitstreckung (WSOLA), Resampler
 │  │  ├─ Effects/                Lautstärke, Normalisieren, Fades, Equalizer, Tempo/Tonhöhe, Umkehren
 │  │  └─ Visualization/          Berechnung der Wellenform-Spitzen
 │  └─ MusicWorker.App/           WPF-Anwendung (MVVM)
 │     ├─ Audio/                  Laden, Wiedergabe, Export und Live-Equalizer mit NAudio
-│     ├─ Controls/               Wellenform (Zoom, Auswahl), Live-Spektrum mit EQ-Kurve, Drehregler
-│     ├─ ViewModels/             MainViewModel (CommunityToolkit.Mvvm)
-│     ├─ Services/               Dialoge, gespeicherte Einstellungen
+│     ├─ Controls/               Wellenform, Spuransicht (Timeline), Live-Spektrum mit EQ-Kurve, Drehregler
+│     ├─ ViewModels/             MainViewModel, MixerViewModel, Spuren/Gruppen/Busse (CommunityToolkit.Mvvm)
+│     ├─ Services/               Dialoge, gespeicherte Einstellungen, Projektdateien
 │     └─ Views/                  Equalizer, Tempo & Tonhöhe, Eingabedialoge
 └─ tests/
    └─ MusicWorker.Core.Tests/    xUnit-Tests für den Kern
@@ -127,7 +146,8 @@ die Oberfläche nur in `MusicWorker.App`. So können Mehrspur- und Noten-Editor 
 
 - [x] **v0.1 – Audio-Editor:** Öffnen, Abspielen, Schneiden, Effekte, Export
 - [x] **v0.2 – Komfort & Klang:** 15-Band-Live-Equalizer mit Live-Spektrum, Live-Hall, -Kompressor und -Echo pro Kanal, Stereo-Kanäle getrennt anzeigen/bearbeiten/exportieren, Tempo/Tonhöhe, Stille einfügen, Umkehren, Stummschalten, zuletzt geöffnete Dateien
-- [ ] **v0.3 – Mehrspur-Mischpult:** mehrere Spuren, Clips verschieben, Fader, Panning, Mute/Solo pro Spur, Sends & Effekt-Busse, Gruppen, Mixdown, **Projekte speichern/laden**
+- [x] **v0.3 – Mehrspur-Mischpult:** mehrere Spuren, Clips verschieben, Fader, Panning, Mute/Solo pro Spur, Sends & Effekt-Busse, Gruppen, Mixdown, Projekte speichern/laden
+- [ ] **v0.3.x – Ausbau:** Insert-Effekte (EQ, Kompressor …) pro Spur, Clips teilen/zwischen Spuren verschieben, Rückgängig im Mischpult
 - [ ] **v0.4 – Automation:** Lautstärke, Panning und Effektparameter als Kurven über die Zeit
 - [ ] **v0.5 – Noten-/MIDI-Editor:** MIDI importieren/exportieren, Piano-Roll, Noten bearbeiten, Wiedergabe über Software-Synthesizer
 - [ ] **v0.6 – Aufnahme:** Mikrofon-/Line-In-Aufnahme direkt in eine Spur

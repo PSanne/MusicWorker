@@ -22,7 +22,7 @@ public sealed class WpfDialogService : IDialogService
             Title = title,
             Filter = filter,
             FileName = suggestedFileName,
-            DefaultExt = ".wav",
+            DefaultExt = FirstExtension(filter),
             AddExtension = true,
             OverwritePrompt = true,
         };
@@ -59,6 +59,14 @@ public sealed class WpfDialogService : IDialogService
         {
             MessageBox.Show(message, "MusicWorker", MessageBoxButton.OK, MessageBoxImage.Error);
         }
+    }
+
+    /// <summary>Erste Endung aus einem Filter wie „WAV|*.wav|MP3|*.mp3“ → „.wav“.</summary>
+    private static string FirstExtension(string filter)
+    {
+        var parts = filter.Split('|');
+        string pattern = parts.Length > 1 ? parts[1].Split(';')[0] : "*.wav";
+        return pattern.StartsWith("*.", StringComparison.Ordinal) ? pattern[1..] : ".wav";
     }
 
     private static bool Show(CommonDialog dialog) =>

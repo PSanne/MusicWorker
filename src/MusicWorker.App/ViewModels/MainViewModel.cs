@@ -44,6 +44,21 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     [NotifyPropertyChangedFor(nameof(FileName), nameof(WindowTitle))]
     private string? _filePath;
 
+    /// <summary>Anzeigename, wenn das Audio keine eigene Datei hat (z. B. „Mixdown“ oder ein Clip).</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(FileName), nameof(WindowTitle))]
+    private string? _documentName;
+
+    /// <summary>Haupt-Registerkarte: 0 = Editor, 1 = Mischpult.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsEditorTab), nameof(IsMixerTab))]
+    private int _selectedMainTab;
+
+    /// <summary>Clip aus dem Mischpult, der gerade im Editor bearbeitet wird.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasLinkedClip), nameof(LinkedClipText))]
+    private ClipViewModel? _linkedClip;
+
     [ObservableProperty]
     private bool _isBusy;
 
@@ -204,6 +219,17 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         _playback = playback;
         _settings = settings;
         RefreshRecentFiles();
+
+        Mixer = new MixerViewModel(dialogs, files, new ProjectService(files));
+        Mixer.OpenClipInEditorRequested += OnOpenClipInEditorRequested;
+        Mixer.PlaybackStarting += (_, _) => StopPlayback();
+        Mixer.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName is nameof(MixerViewModel.HasTracks) or nameof(MixerViewModel.IsBusy))
+            {
+                OpenMixdownInEditorCommand.NotifyCanExecuteChanged();
+            }
+        };
 
         var saved = settings.Settings;
         Equalizer = new EqualizerViewModel(LoadEqualizerSettings(saved.EqualizerGainsDb, saved.EqualizerPreampDb));
@@ -394,7 +420,20 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
 
     public bool IsModified => _editor.IsModified;
 
-    public string FileName => FilePath is null ? "Unbenannt" : Path.GetFileName(FilePath);
+    public string FileName => FilePath is null ? DocumentName ?? "Unbenannt" : Path.GetFileName(FilePath);
+
+    /// <summary>Das Mehrspur-Mischpult.</summary>
+    public MixerViewModel Mixer { get; }
+
+    public bool IsEditorTab => SelectedMainTab == 0;
+
+    public bool IsMixerTab => SelectedMainTab == 1;
+
+    public bool HasLinkedClip => LinkedClip is not null;
+
+    public string LinkedClipText => LinkedClip is { } clip
+        ? $"Du bearbeitest einen Clip der Spur „{clip.Track.Name}“ aus dem Mischpult."
+        : string.Empty;
 
     public string WindowTitle => $"{(IsModified ? "● " : string.Empty)}{FileName} – MusicWorker";
 
@@ -584,8 +623,210 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     [RelayCommand(CanExecute = nameof(CanUseStereo))]
     private void KeepRightChannel() => Edit(() => _editor.KeepChannel(1));
 
-    /// <summary>Wird beim Schließen des Fensters gefragt.</summary>
-    public bool ConfirmClose() => ConfirmDiscardChanges();
+    /// <summary>Wird beim Schließen des Fensters gefragt (Editor und Mischpult-Projekt).</summary>
+    public bool ConfirmClose() => ConfirmDiscardChanges() && Mixer.ConfirmDiscardChanges();
+
+    // ───────────── Verbindung zum Mischpult ─────────────
+
+    /// <summary>Das Editor-Audio als neue Spur ins Mischpult übernehmen.</summary>
+    [RelayCommand(CanExecute = nameof(CanUseAudio))]
+    private void AddEditorAudioAsTrack()
+    {
+        StopPlayback();
+        string name = Path.GetFileNameWithoutExtension(FileName);
+        Mixer.AddTrack(Buffer, string.IsNullOrWhiteSpace(name) ? "Spur" : name);
+        SelectedMainTab = 1;
+    }
+
+    /// <summary>Die Änderungen am Clip zurück in seine Mischpult-Spur schreiben.</summary>
+    [RelayCommand(CanExecute = nameof(CanApplyToLinkedClip))]
+    private void ApplyToLinkedClip()
+    {
+        if (LinkedClip is not { } clip)
+        {
+            return;
+        }
+
+        StopPlayback();
+        if (!Mixer.ReplaceClipAudio(clip, Buffer))
+        {
+            _dialogs.ShowError("Der Clip ist im Mischpult nicht mehr vorhanden (Spur oder Clip wurde gelöscht).");
+            LinkedClip = null;
+            return;
+        }
+
+        _editor.MarkSaved();
+        StatusText = $"Clip in die Spur „{clip.Track.Name}“ übernommen.";
+        SelectedMainTab = 1;
+    }
+
+    private bool CanApplyToLinkedClip() => HasLinkedClip && CanUseAudio();
+
+    /// <summary>Den Mixdown des Mischpults im Editor öffnen (z. B. zum Nachbearbeiten).</summary>
+    [RelayCommand(CanExecute = nameof(CanOpenMixdown))]
+    private async Task OpenMixdownInEditorAsync()
+    {
+        if (!ConfirmDiscardChanges())
+        {
+            return;
+        }
+
+        StopPlayback();
+        Mixer.StopPlayback();
+        IsBusy = true;
+        StatusText = "Mixdown wird berechnet …";
+        try
+        {
+            var mix = await Task.Run(Mixer.RenderMixdown);
+            _editor.Load(mix);
+            FilePath = null;
+            DocumentName = "Mixdown";
+            LinkedClip = null;
+            PlayheadFrame = 0;
+            SelectedMainTab = 0;
+            DocumentLoaded?.Invoke(this, EventArgs.Empty);
+            StatusText = $"Mixdown im Editor geöffnet – Länge {TimeFormatter.Format(mix.Duration, false)}.";
+        }
+        catch (Exception ex)
+        {
+            StatusText = "Mixdown fehlgeschlagen.";
+            _dialogs.ShowError($"Der Mixdown konnte nicht berechnet werden.\n\n{ex.Message}");
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+    }
+
+    private bool CanOpenMixdown() => !IsBusy && Mixer.HasTracks && !Mixer.IsBusy;
+
+    private void OnOpenClipInEditorRequested(object? sender, ClipViewModel clip)
+    {
+        if (!ConfirmDiscardChanges())
+        {
+            return;
+        }
+
+        StopPlayback();
+        _editor.Load(clip.Audio);
+        FilePath = null;
+        DocumentName = $"Clip – {clip.Track.Name}";
+        LinkedClip = clip;
+        PlayheadFrame = 0;
+        SelectedMainTab = 0;
+        DocumentLoaded?.Invoke(this, EventArgs.Empty);
+        StatusText = "Clip im Editor geöffnet – nach dem Bearbeiten „In Spur übernehmen“ klicken.";
+    }
+
+    /// <summary>Dateien aus Drag &amp; Drop: im Mischpult als Spuren, im Editor als Datei öffnen.</summary>
+    public async Task HandleDroppedFilesAsync(IReadOnlyList<string> files)
+    {
+        if (IsMixerTab)
+        {
+            await Mixer.AddFilesAsync(files);
+        }
+        else if (files.Count > 0)
+        {
+            await OpenFileAsync(files[0]);
+        }
+    }
+
+    // ───────────── Transport (Tasten gelten für die sichtbare Ansicht) ─────────────
+
+    [RelayCommand]
+    private void TransportToggle()
+    {
+        if (IsMixerTab)
+        {
+            Mixer.TogglePlayPause();
+        }
+        else if (CanUseAudio())
+        {
+            TogglePlayPause();
+        }
+    }
+
+    [RelayCommand]
+    private void TransportStop()
+    {
+        if (IsMixerTab)
+        {
+            Mixer.Stop();
+        }
+        else
+        {
+            StopPlayback();
+        }
+    }
+
+    [RelayCommand]
+    private void TransportSkipForward()
+    {
+        if (IsMixerTab)
+        {
+            Mixer.SkipBy(TimeSpan.FromSeconds(5));
+        }
+        else if (CanUseAudio())
+        {
+            SkipForward();
+        }
+    }
+
+    [RelayCommand]
+    private void TransportSkipBack()
+    {
+        if (IsMixerTab)
+        {
+            Mixer.SkipBy(TimeSpan.FromSeconds(-5));
+        }
+        else if (CanUseAudio())
+        {
+            SkipBack();
+        }
+    }
+
+    /// <summary>Strg+S: im Mischpult das Projekt speichern, im Editor exportieren.</summary>
+    [RelayCommand]
+    private async Task SaveKeyAsync()
+    {
+        if (IsMixerTab)
+        {
+            if (Mixer.SaveProjectCommand.CanExecute(null))
+            {
+                await Mixer.SaveProjectCommand.ExecuteAsync(null);
+            }
+        }
+        else if (CanUseAudio())
+        {
+            await ExportAsync();
+        }
+    }
+
+    /// <summary>Entf: im Mischpult den gewählten Clip löschen, im Editor die Auswahl.</summary>
+    [RelayCommand]
+    private void DeleteKey()
+    {
+        if (IsMixerTab)
+        {
+            if (Mixer.DeleteSelectedClipCommand.CanExecute(null))
+            {
+                Mixer.DeleteSelectedClipCommand.Execute(null);
+            }
+        }
+        else if (CanUseSelection())
+        {
+            Delete();
+        }
+    }
+
+    partial void OnSelectedMainTabChanged(int value)
+    {
+        // Beim Wechseln der Ansicht hält alles an – so spielt nie etwas „unsichtbar“ weiter.
+        StopPlayback();
+        Mixer.StopPlayback();
+    }
+
+    partial void OnLinkedClipChanged(ClipViewModel? value) => ApplyToLinkedClipCommand.NotifyCanExecuteChanged();
 
     // ───────────── Wiedergabe ─────────────
 
@@ -599,6 +840,8 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             StartPlayheadUpdates();
             return;
         }
+
+        Mixer.StopPlayback(); // nie Editor und Mischpult gleichzeitig
 
         var selection = Selection;
         int start = selection.Start;
@@ -936,6 +1179,8 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         StopPlayback();
         _playback.PlaybackEnded -= OnPlaybackEnded;
         _playback.Dispose();
+        Mixer.OpenClipInEditorRequested -= OnOpenClipInEditorRequested;
+        Mixer.Dispose();
     }
 
     // ───────────── Hilfsmethoden ─────────────
@@ -969,6 +1214,8 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             var buffer = await Task.Run(() => _files.Load(path));
             _editor.Load(buffer);
             FilePath = path;
+            DocumentName = null;
+            LinkedClip = null;
             PlayheadFrame = 0;
             _settings.AddRecentFile(path);
             RefreshRecentFiles();
@@ -1719,6 +1966,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         IRelayCommand[] commands =
         [
             OpenCommand, OpenRecentCommand, ExportCommand, ExportChannelsCommand,
+            AddEditorAudioAsTrackCommand, ApplyToLinkedClipCommand, OpenMixdownInEditorCommand,
             KeepLeftChannelCommand, KeepRightChannelCommand,
             PlayCommand, PauseCommand, StopCommand, TogglePlayPauseCommand,
             SeekCommand, SkipForwardCommand, SkipBackCommand,

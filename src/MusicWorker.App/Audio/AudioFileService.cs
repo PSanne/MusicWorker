@@ -58,6 +58,13 @@ public sealed class AudioFileService
         }
     }
 
+    /// <summary>Speichert verlustfrei als 32-Bit-Float-WAV (für Projekt-Audiodateien).</summary>
+    public void SaveLossless(AudioBuffer buffer, string path)
+    {
+        var source = new AudioBufferSampleProvider(buffer, 0, buffer.FrameCount);
+        WaveFileWriter.CreateWaveFile(path, new SampleToWaveProvider(source));
+    }
+
     private static void ExportMp3(ISampleProvider source, string path)
     {
         if (source.WaveFormat.Channels > 2)

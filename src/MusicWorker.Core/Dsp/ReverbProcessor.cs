@@ -16,15 +16,18 @@ public sealed class ReverbProcessor
     private const float DryReduction = 0.3f;
 
     private readonly int _channels;
+    private readonly bool _wetOnly;
     private readonly ChannelTank[] _tanks;
     private Snapshot _snapshot = null!;
 
     /// <summary>
     /// Erstellt den Hall. <c>channelOffset</c> ist die Kanalnummer des ersten verarbeiteten Kanals –
     /// damit klingt z. B. „nur rechts“ genauso wie der rechte Kanal einer Stereo-Verarbeitung.
+    /// Mit <c>wetOnly</c> wird nur der Hall ausgegeben (ohne Originalsignal) – für Effekt-Busse.
     /// </summary>
-    public ReverbProcessor(int sampleRate, int channels, ReverbSettings settings, int channelOffset = 0)
+    public ReverbProcessor(int sampleRate, int channels, ReverbSettings settings, int channelOffset = 0, bool wetOnly = false)
     {
+        _wetOnly = wetOnly;
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(sampleRate);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(channels);
         _channels = channels;
@@ -46,7 +49,7 @@ public sealed class ReverbProcessor
         {
             float amount = (float)(settings.AmountFor(c) / 100);
             wet[c] = amount * WetScale;
-            dry[c] = 1f - amount * DryReduction;
+            dry[c] = _wetOnly ? 0f : 1f - amount * DryReduction;
         }
 
         Volatile.Write(ref _snapshot, new Snapshot(room * 0.28f + 0.7f, damp, 1f - damp, wet, dry));

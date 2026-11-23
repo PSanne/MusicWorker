@@ -12,6 +12,7 @@ public sealed class DelayProcessor
 
     private readonly int _sampleRate;
     private readonly int _channels;
+    private readonly float _dry;
     private readonly float[][] _lines;
     private readonly float[] _currentDelay;
     private readonly float[] _lowpass;
@@ -19,8 +20,10 @@ public sealed class DelayProcessor
     private int _write;
     private Snapshot _snapshot = null!;
 
-    public DelayProcessor(int sampleRate, int channels, DelaySettings settings)
+    /// <summary>Erstellt das Echo; mit <c>wetOnly</c> nur die Wiederholungen ohne Original (für Effekt-Busse).</summary>
+    public DelayProcessor(int sampleRate, int channels, DelaySettings settings, bool wetOnly = false)
     {
+        _dry = wetOnly ? 0f : 1f;
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(sampleRate);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(channels);
         _sampleRate = sampleRate;
@@ -81,7 +84,7 @@ public sealed class DelayProcessor
 
                 float input = samples[offset + c];
                 _lines[c][_write] = input + _lowpass[c] * s.Feedback;
-                samples[offset + c] = input + _delayed[c] * s.Wet[c];
+                samples[offset + c] = input * _dry + _delayed[c] * s.Wet[c];
             }
 
             _write = _write + 1 == length ? 0 : _write + 1;

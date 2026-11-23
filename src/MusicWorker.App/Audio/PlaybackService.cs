@@ -81,6 +81,40 @@ public sealed class PlaybackService : IDisposable
     }
 
     /// <summary>
+    /// Spielt einen laufend berechneten Datenstrom ab (z. B. das Mischpult). Die Position zählt ab
+    /// <paramref name="startFrame"/>; nach einem Sprung im Datenstrom <see cref="MarkSeek"/> aufrufen.
+    /// </summary>
+    public void PlayStream(ISampleProvider provider, int startFrame)
+    {
+        Stop();
+
+        var output = new WaveOutEvent { DesiredLatency = 120 };
+        output.PlaybackStopped += OnPlaybackStopped;
+        output.Init(provider);
+
+        _output = output;
+        _provider = null;
+        _startFrame = startFrame;
+        _endFrame = int.MaxValue;
+        _loop = false;
+        _seekFrame = startFrame;
+        _playedAtSeek = 0;
+        output.Play();
+    }
+
+    /// <summary>Teilt mit, dass der Datenstrom an <paramref name="frame"/> gesprungen ist (für die Positionsanzeige).</summary>
+    public void MarkSeek(int frame)
+    {
+        if (_output is null)
+        {
+            return;
+        }
+
+        _seekFrame = frame;
+        _playedAtSeek = _output.GetPosition() / _output.OutputWaveFormat.BlockAlign;
+    }
+
+    /// <summary>
     /// Springt während Wiedergabe oder Pause an eine andere Stelle, ohne neu zu starten.
     /// (Was schon an die Soundkarte übergeben wurde – etwa 0,1 s –, ist noch kurz zu hören.)
     /// </summary>
