@@ -26,6 +26,15 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     private readonly SettingsService _settings;
     private CancellationTokenSource? _playheadUpdates;
     private EqualizerProcessor? _liveEqualizer;
+    private SpectrumAnalyzer? _spectrumAnalyzer;
+
+    /// <summary>Spalten der Spektrumanzeige (je 1/6 Oktave über 10 Oktaven).</summary>
+    private const int SpectrumBands = 60;
+
+    /// <summary>Wie schnell Balken nach unten fallen (dB pro Bild, bei ~30 Bildern/s ≈ 45 dB/s).</summary>
+    private const float SpectrumFallPerFrame = 1.5f;
+
+    private static readonly double[] CurveFrequencies = SpectrumScale.CenterFrequencies(240);
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(FileName), nameof(WindowTitle))]
@@ -43,6 +52,14 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
 
     [ObservableProperty]
     private bool _isEqualizerVisible;
+
+    /// <summary>Live-Spektrum der Wiedergabe (nach dem EQ) in dBFS; null, wenn nichts spielt.</summary>
+    [ObservableProperty]
+    private float[]? _spectrum;
+
+    /// <summary>Frequenzgang des Live-EQ in dB für die Kurve über dem Spektrum.</summary>
+    [ObservableProperty]
+    private double[]? _equalizerCurve;
 
     [ObservableProperty]
     private string _statusText = "Bereit – öffne eine Audiodatei (Strg+O) oder ziehe sie ins Fenster.";
@@ -63,6 +80,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         Equalizer = new EqualizerViewModel(initialEq, saved.EqualizerEnabled, saved.EqualizerPreventClipping);
         Equalizer.SettingsChanged += OnEqualizerSettingsChanged;
         _isEqualizerVisible = saved.EqualizerVisible;
+        UpdateEqualizerCurve();
 
         _editor.Changed += OnEditorChanged;
         _editor.SelectionChanged += OnEditorSelectionChanged;
@@ -473,13 +491,43 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         var processor = new EqualizerProcessor(
             source.WaveFormat.SampleRate, source.WaveFormat.Channels, Equalizer.EffectiveSettings);
         _liveEqualizer = processor;
-        return new EqualizerSampleProvider(source, processor);
+        _spectrumAnalyzer = new SpectrumAnalyzer(source.WaveFormat.SampleRate);
+
+        // Reihenfolge: Puffer → Equalizer → Spektrum-Abgriff → Soundkarte (das Spektrum zeigt also den EQ-Klang).
+        return new SpectrumTapSampleProvider(new EqualizerSampleProvider(source, processor), _spectrumAnalyzer);
+    }
+
+    private void UpdateSpectrum()
+    {
+        if (_spectrumAnalyzer is null)
+        {
+            return;
+        }
+
+        var bands = _spectrumAnalyzer.GetBands(SpectrumBands);
+        if (Spectrum is { Length: SpectrumBands } previous)
+        {
+            // Sofort steigen, langsam fallen – so wirkt die Anzeige ruhig und gut ablesbar.
+            for (int i = 0; i < bands.Length; i++)
+            {
+                bands[i] = Math.Max(bands[i], previous[i] - SpectrumFallPerFrame);
+            }
+        }
+
+        Spectrum = bands;
+    }
+
+    private void UpdateEqualizerCurve()
+    {
+        int sampleRate = HasAudio ? Buffer.SampleRate : 44100;
+        EqualizerCurve = Equalizer.EffectiveSettings.ResponseDb(sampleRate, CurveFrequencies);
     }
 
     private void OnEqualizerSettingsChanged(object? sender, EventArgs e)
     {
         // Sofort hörbar: der laufende Filter übernimmt die neuen Werte ohne Neustart.
         _liveEqualizer?.Update(Equalizer.EffectiveSettings);
+        UpdateEqualizerCurve();
         OnPropertyChanged(nameof(EqualizerIndicator));
         ApplyEqualizerCommand.NotifyCanExecuteChanged();
     }
@@ -573,6 +621,8 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     {
         _playback.Stop();
         _liveEqualizer = null;
+        _spectrumAnalyzer = null;
+        Spectrum = null;
         IsPlaying = false;
         StopPlayheadUpdates();
         PlayheadFrame = Selection.Start;
@@ -596,6 +646,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             while (await timer.WaitForNextTickAsync(token) && !token.IsCancellationRequested)
             {
                 PlayheadFrame = _playback.CurrentFrame;
+                UpdateSpectrum();
             }
         }
         catch (OperationCanceledException)
@@ -620,6 +671,8 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     private void OnPlaybackEnded(object? sender, StoppedEventArgs e)
     {
         IsPlaying = false;
+        _spectrumAnalyzer = null;
+        Spectrum = null;
         StopPlayheadUpdates();
         PlayheadFrame = Selection.Start;
         if (e.Exception is not null)
@@ -638,6 +691,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         OnPropertyChanged(nameof(RedoText));
         OnPropertyChanged(nameof(PositionText));
         OnPropertyChanged(nameof(FormatText));
+        UpdateEqualizerCurve();
         RefreshCommands();
     }
 

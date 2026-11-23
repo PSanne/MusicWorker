@@ -31,14 +31,7 @@ public sealed class EqualizerProcessor
     public void Update(EqualizerSettings settings)
     {
         ArgumentNullException.ThrowIfNull(settings);
-        var frequencies = EqualizerSettings.BandFrequencies;
-        var coefficients = new BiquadCoefficients[frequencies.Count];
-        for (int band = 0; band < coefficients.Length; band++)
-        {
-            coefficients[band] = BiquadCoefficients.PeakingEq(
-                _sampleRate, frequencies[band], EqualizerSettings.BandQ, settings.GainsDb[band]);
-        }
-
+        var coefficients = settings.CreateCoefficients(_sampleRate);
         Volatile.Write(ref _snapshot, new Snapshot(coefficients, Decibels.ToGain(settings.PreampDb)));
     }
 

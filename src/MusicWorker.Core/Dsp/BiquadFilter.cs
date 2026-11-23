@@ -1,3 +1,5 @@
+using System.Numerics;
+
 namespace MusicWorker.Core.Dsp;
 
 /// <summary>
@@ -29,6 +31,15 @@ public readonly record struct BiquadCoefficients(double B0, double B1, double B2
             (1 - alpha * a) / a0,
             -2 * cos / a0,
             (1 - alpha / a) / a0);
+    }
+
+    /// <summary>Betrag des Frequenzgangs in dB bei <paramref name="frequency"/>.</summary>
+    public double MagnitudeDb(double frequency, double sampleRate)
+    {
+        var z1 = Complex.FromPolarCoordinates(1, -2 * Math.PI * frequency / sampleRate); // z^-1
+        var z2 = z1 * z1;                                                                 // z^-2
+        var response = (B0 + B1 * z1 + B2 * z2) / (1 + A1 * z1 + A2 * z2);
+        return 20 * Math.Log10(Math.Max(response.Magnitude, 1e-12));
     }
 
     /// <summary>Tiefpass 2. Ordnung.</summary>

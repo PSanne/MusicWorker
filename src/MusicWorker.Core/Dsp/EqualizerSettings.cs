@@ -36,6 +36,43 @@ public sealed class EqualizerSettings
     public double PreampDb { get; }
 
     public bool IsNeutral => PreampDb == 0 && GainsDb.All(g => g == 0);
+
+    /// <summary>Filterkoeffizienten der 15 Bänder für eine Abtastrate.</summary>
+    public BiquadCoefficients[] CreateCoefficients(int sampleRate)
+    {
+        var coefficients = new BiquadCoefficients[BandFrequencies.Count];
+        for (int band = 0; band < coefficients.Length; band++)
+        {
+            coefficients[band] = BiquadCoefficients.PeakingEq(sampleRate, BandFrequencies[band], BandQ, GainsDb[band]);
+        }
+
+        return coefficients;
+    }
+
+    /// <summary>
+    /// Gesamter Frequenzgang (alle Bänder plus Vorverstärkung) in dB bei den angegebenen Frequenzen –
+    /// für die EQ-Kurve in der Spektrumanzeige.
+    /// </summary>
+    public double[] ResponseDb(int sampleRate, IReadOnlyList<double> frequencies)
+    {
+        var coefficients = CreateCoefficients(sampleRate);
+        var result = new double[frequencies.Count];
+        for (int i = 0; i < result.Length; i++)
+        {
+            double db = PreampDb;
+            if (frequencies[i] < sampleRate / 2.0)
+            {
+                foreach (var c in coefficients)
+                {
+                    db += c.MagnitudeDb(frequencies[i], sampleRate);
+                }
+            }
+
+            result[i] = db;
+        }
+
+        return result;
+    }
 }
 
 /// <summary>Eine benannte Voreinstellung für den Equalizer.</summary>

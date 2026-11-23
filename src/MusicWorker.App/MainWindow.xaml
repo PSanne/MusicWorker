@@ -8,7 +8,7 @@
         mc:Ignorable="d"
         d:DataContext="{d:DesignInstance Type=vm:MainViewModel}"
         Title="{Binding WindowTitle}"
-        Width="1100" Height="760" MinWidth="980" MinHeight="420"
+        Width="1100" Height="880" MinWidth="980" MinHeight="560"
         WindowStartupLocation="CenterScreen"
         AllowDrop="True"
         DragOver="OnDragOver"
@@ -33,6 +33,13 @@
         </Style>
 
         <!-- Equalizer-Regler -->
+        <Style x:Key="EqDimWhenOff" TargetType="FrameworkElement">
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding IsEnabled}" Value="False">
+                    <Setter Property="Opacity" Value="0.45" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
         <Style x:Key="EqSlider" TargetType="Slider">
             <Setter Property="Orientation" Value="Vertical" />
             <Setter Property="Height" Value="150" />
@@ -247,26 +254,37 @@
                     </CheckBox>
                 </StackPanel>
 
-                <StackPanel Orientation="Horizontal">
-                    <StackPanel.Style>
-                        <Style TargetType="StackPanel">
-                            <Style.Triggers>
-                                <DataTrigger Binding="{Binding IsEnabled}" Value="False">
-                                    <Setter Property="Opacity" Value="0.45" />
-                                </DataTrigger>
-                            </Style.Triggers>
-                        </Style>
-                    </StackPanel.Style>
+                <Grid HorizontalAlignment="Left">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
 
-                    <StackPanel Width="52" ToolTip="Vorverstärkung vor dem Equalizer – Doppelklick setzt auf 0 dB">
+                    <!-- Live-Spektrum: genau so breit wie die 15 Regler, jede Spalte über ihrem Regler -->
+                    <TextBlock Grid.Row="0" Grid.Column="0" Margin="0,4,0,0" HorizontalAlignment="Center"
+                               FontSize="11" Foreground="Gray" Text="Live" />
+                    <controls:SpectrumView Grid.Row="0" Grid.Column="2" Width="600" Height="130" Margin="0,0,0,8"
+                                           Spectrum="{Binding DataContext.Spectrum, RelativeSource={RelativeSource AncestorType=Window}}"
+                                           EqualizerCurve="{Binding DataContext.EqualizerCurve, RelativeSource={RelativeSource AncestorType=Window}}"
+                                           ToolTip="Blau: Spektrum der Wiedergabe nach dem Equalizer · Orange: eingestellte EQ-Kurve" />
+
+                    <StackPanel Grid.Row="1" Grid.Column="0" Width="52" Style="{StaticResource EqDimWhenOff}"
+                                ToolTip="Vorverstärkung vor dem Equalizer – Doppelklick setzt auf 0 dB">
                         <TextBlock Style="{StaticResource EqValueLabel}" Text="{Binding PreampDb, StringFormat={}{0:+0.0;-0.0;0.0}}" />
                         <Slider Style="{StaticResource EqSlider}" Value="{Binding PreampDb}" MouseDoubleClick="OnEqSliderDoubleClick" />
                         <TextBlock Style="{StaticResource EqBandLabel}" FontWeight="SemiBold" Text="Pegel" />
                     </StackPanel>
 
-                    <Border Width="1" Margin="6,0" Background="#D9D9DE" />
+                    <Border Grid.Row="1" Grid.Column="1" Width="1" Margin="6,0" Background="#D9D9DE" />
 
-                    <ItemsControl ItemsSource="{Binding Bands}" Focusable="False">
+                    <ItemsControl Grid.Row="1" Grid.Column="2" ItemsSource="{Binding Bands}" Focusable="False"
+                                  Style="{StaticResource EqDimWhenOff}">
                         <ItemsControl.ItemsPanel>
                             <ItemsPanelTemplate>
                                 <StackPanel Orientation="Horizontal" />
@@ -283,12 +301,12 @@
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>
 
-                    <Grid Margin="6,19,0,0" Height="150" VerticalAlignment="Top">
+                    <Grid Grid.Row="1" Grid.Column="3" Margin="6,19,0,0" Height="150" VerticalAlignment="Top">
                         <TextBlock VerticalAlignment="Top" FontSize="10" Foreground="Gray" Text="+12 dB" />
                         <TextBlock VerticalAlignment="Center" FontSize="10" Foreground="Gray" Text="0 dB" />
                         <TextBlock VerticalAlignment="Bottom" FontSize="10" Foreground="Gray" Text="-12 dB" />
                     </Grid>
-                </StackPanel>
+                </Grid>
             </DockPanel>
         </Border>
 

@@ -12,6 +12,7 @@ Version 0.2 bietet einen vollständigen Audio-Editor mit 15-Band-Equalizer sowie
 | **Öffnen & Abspielen** | WAV, MP3, FLAC, AIFF, M4A/AAC, WMA öffnen (Menü, Strg+O oder Drag & Drop) · **zuletzt geöffnete Dateien** · Wellenform mit Zeitleiste · Abspielen, Pause, Stopp · laufende Abspielposition |
 | **Schneiden & Trimmen** | Bereich mit der Maus markieren · Ausschneiden, Kopieren, Einfügen, Löschen · Auf Auswahl zuschneiden · **Stille einfügen** · **Rückgängig/Wiederholen** (50 Schritte) |
 | **Live-Equalizer** | **15 Bänder** von 25 Hz bis 16 kHz (2/3-Oktave, ±12 dB) · Vorverstärkung · 13 Voreinstellungen (Bass-Boost, Rock, Stimme, Loudness …) · **wirkt sofort beim Abspielen** · Ein/Aus für Vorher-/Nachher-Vergleich · „In Audio übernehmen“ · beim Export einrechenbar · Schutz vor Übersteuerung · Einstellung wird gespeichert |
+| **Live-Spektrum** | Frequenzspektrum der Wiedergabe *nach* dem EQ in Echtzeit (60 Bänder, 20 Hz–20 kHz) · darübergelegte EQ-Kurve · jede Spalte steht genau über ihrem EQ-Regler |
 | **Tempo & Tonhöhe** | Tempo 50–200 % ohne Tonhöhenänderung · Tonhöhe ±12 Halbtöne ohne Tempoänderung · beides kombinierbar |
 | **Weitere Effekte** | Lautstärke ändern (±24 dB) · Normalisieren (-1 dB) · Einblenden/Ausblenden (Fade In/Out) · Umkehren · Stummschalten |
 | **Export** | WAV (16 Bit) · MP3 (192 kbit/s, über den in Windows eingebauten Encoder) |
@@ -40,6 +41,7 @@ Version 0.2 bietet einen vollständigen Audio-Editor mit 15-Band-Equalizer sowie
 > *Abspielen* spielt die Auswahl, oder ab dem Cursor bis zum Ende.
 > Der **Live-Equalizer** unter der Wellenform wirkt sofort auf die Wiedergabe. Deine Datei ändert er erst,
 > wenn du auf *In Audio übernehmen* klickst; beim Exportieren fragt MusicWorker, ob er eingerechnet werden soll.
+> Darüber zeigt das **Live-Spektrum** in Blau, was gerade zu hören ist, und in Orange die eingestellte EQ-Kurve.
 
 ## Loslegen
 
@@ -83,12 +85,12 @@ MusicWorker.sln
 │  ├─ MusicWorker.Core/          Plattformunabhängiger Kern (ohne UI, voll testbar)
 │  │  ├─ Audio/                  AudioBuffer (unveränderlich), Dezibel-Umrechnung
 │  │  ├─ Editing/                AudioEditor, Auswahl, Rückgängig/Wiederholen (Command-Pattern)
-│  │  ├─ Dsp/                    Biquad-Filter, 15-Band-Equalizer, Zeitstreckung (WSOLA), Resampler
+│  │  ├─ Dsp/                    Biquad-Filter, 15-Band-Equalizer, FFT & Spektrumanalyse, Zeitstreckung (WSOLA), Resampler
 │  │  ├─ Effects/                Lautstärke, Normalisieren, Fades, Equalizer, Tempo/Tonhöhe, Umkehren
 │  │  └─ Visualization/          Berechnung der Wellenform-Spitzen
 │  └─ MusicWorker.App/           WPF-Anwendung (MVVM)
 │     ├─ Audio/                  Laden, Wiedergabe, Export und Live-Equalizer mit NAudio
-│     ├─ Controls/WaveformView   Eigene Wellenform-Anzeige mit Zoom und Auswahl
+│     ├─ Controls/               Wellenform (Zoom, Auswahl) und Live-Spektrum mit EQ-Kurve
 │     ├─ ViewModels/             MainViewModel (CommunityToolkit.Mvvm)
 │     ├─ Services/               Dialoge, gespeicherte Einstellungen
 │     └─ Views/                  Equalizer, Tempo & Tonhöhe, Eingabedialoge
@@ -104,7 +106,7 @@ die Oberfläche nur in `MusicWorker.App`. So können Mehrspur- und Noten-Editor 
 ## Fahrplan
 
 - [x] **v0.1 – Audio-Editor:** Öffnen, Abspielen, Schneiden, Effekte, Export
-- [x] **v0.2 – Komfort & Klang:** 15-Band-Live-Equalizer, Tempo/Tonhöhe, Stille einfügen, Umkehren, Stummschalten, zuletzt geöffnete Dateien
+- [x] **v0.2 – Komfort & Klang:** 15-Band-Live-Equalizer mit Live-Spektrum, Tempo/Tonhöhe, Stille einfügen, Umkehren, Stummschalten, zuletzt geöffnete Dateien
 - [ ] **v0.3 – Mehrspur-Mixer:** mehrere Spuren, Clips verschieben, Lautstärke/Panorama/Mute/Solo pro Spur, Mixdown, **Projekte speichern/laden**
 - [ ] **v0.4 – Noten-/MIDI-Editor:** MIDI importieren/exportieren, Piano-Roll, Noten bearbeiten, Wiedergabe über Software-Synthesizer
 - [ ] **v0.5 – Aufnahme:** Mikrofon-/Line-In-Aufnahme direkt in eine Spur
