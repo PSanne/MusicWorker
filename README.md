@@ -147,10 +147,12 @@ die Oberfläche nur in `MusicWorker.App`. So können Mehrspur- und Noten-Editor 
 - [x] **v0.1 – Audio-Editor:** Öffnen, Abspielen, Schneiden, Effekte, Export
 - [x] **v0.2 – Komfort & Klang:** 15-Band-Live-Equalizer mit Live-Spektrum, Live-Hall, -Kompressor und -Echo pro Kanal, Stereo-Kanäle getrennt anzeigen/bearbeiten/exportieren, Tempo/Tonhöhe, Stille einfügen, Umkehren, Stummschalten, zuletzt geöffnete Dateien
 - [x] **v0.3 – Mehrspur-Mischpult:** mehrere Spuren, Clips verschieben, Fader, Panning, Mute/Solo pro Spur, Sends & Effekt-Busse, Gruppen, Mixdown, Projekte speichern/laden
-- [ ] **v0.3.x – Ausbau:** Insert-Effekte (EQ, Kompressor …) pro Spur, Clips teilen/zwischen Spuren verschieben, Rückgängig im Mischpult
+- [ ] **v0.3.1 – Modulation & Verzerrung:** Chorus, Flanger, Verzerrung (Overdrive, Fuzz, Bitcrusher) – live, mit Drehreglern, pro Kanal
+- [ ] **v0.3.2 – Schnitt im Mischpult:** Clips am Positionsgriff teilen (Trenner), Clips nahtlos aneinanderreihen, Überblendungen zwischen Clips, Clips zwischen Spuren verschieben, Rückgängig im Mischpult, Insert-Effekte pro Spur
 - [ ] **v0.4 – Automation:** Lautstärke, Panning und Effektparameter als Kurven über die Zeit
-- [ ] **v0.5 – Noten-/MIDI-Editor:** MIDI importieren/exportieren, Piano-Roll, Noten bearbeiten, Wiedergabe über Software-Synthesizer
+- [ ] **v0.5 – Noten, MIDI & Instrumente:** MIDI importieren/exportieren, Piano-Roll, Noten bearbeiten und **transponieren**, Wiedergabe mit **frei verfügbaren SoundFont-Instrumenten**
 - [ ] **v0.6 – Aufnahme:** Mikrofon-/Line-In-Aufnahme direkt in eine Spur
+- [ ] **v0.7 – Tonhöhe & Spektrum:** **Autotune** (Tonhöhenerkennung und -korrektur auf eine Tonleiter, für einstimmige Aufnahmen), Spektrogramm (Wasserfall-Ansicht der Fourier-Transformation), spektrale Rauschentfernung
 
 ## Verwendete Bibliotheken
 
