@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <RootNamespace>MusicWorker.App</RootNamespace>
+    <AssemblyName>MusicWorker</AssemblyName>
+    <!-- Erlaubt das Bauen auch außerhalb von Windows (z. B. in CI); ausführen lässt sich die App nur unter Windows. -->
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
+    <PackageReference Include="NAudio" Version="2.2.1" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\MusicWorker.Core\MusicWorker.Core.csproj" />
+  </ItemGroup>
+
+</Project>

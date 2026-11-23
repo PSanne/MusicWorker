@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Plattformunabhängiger Kern: Audio-Daten, Bearbeitung, Effekte, Rückgängig/Wiederholen.
+       Enthält bewusst keine Windows- oder UI-Abhängigkeiten, damit alles testbar bleibt. -->
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <RootNamespace>MusicWorker.Core</RootNamespace>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <NoWarn>$(NoWarn);CS1591</NoWarn>
+  </PropertyGroup>
+
+</Project>

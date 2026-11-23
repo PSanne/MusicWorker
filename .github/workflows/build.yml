@@ -1,0 +1,39 @@
+name: Build & Test
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Restore
+        run: dotnet restore MusicWorker.sln
+
+      - name: Build
+        run: dotnet build MusicWorker.sln --configuration Release --no-restore
+
+      - name: Test
+        run: dotnet test MusicWorker.sln --configuration Release --no-build --verbosity normal
+
+      # Erzeugt eine einzelne MusicWorker.exe, die ohne installiertes .NET läuft.
+      - name: Publish
+        run: >-
+          dotnet publish src/MusicWorker.App/MusicWorker.App.csproj
+          --configuration Release --runtime win-x64 --self-contained true
+          -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true
+          --output publish
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MusicWorker-win-x64
+          path: publish
