@@ -35,10 +35,10 @@ public sealed class WpfDialogService : IDialogService
         return dialog.ShowDialog() == true ? dialog.Value : null;
     }
 
-    public (double TempoPercent, double Semitones)? AskTempoAndPitch()
+    public TempoPitchRequest? AskTempoAndPitch(TempoPitchOptions options)
     {
-        var dialog = new TempoPitchDialog { Owner = Owner };
-        return dialog.ShowDialog() == true ? (dialog.TempoPercent, dialog.Semitones) : null;
+        var dialog = new TempoPitchDialog(options) { Owner = Owner };
+        return dialog.ShowDialog() == true ? dialog.Result : null;
     }
 
     public bool Confirm(string message, string title)

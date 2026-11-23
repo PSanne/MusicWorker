@@ -739,18 +739,75 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         StatusText = $"EQ-Einstellung auf den {name} Kanal kopiert.";
     }
 
-    [RelayCommand(CanExecute = nameof(CanChangeTempo))]
+    /// <summary>
+    /// Tempo und Tonhöhe – für beide Kanäle gemeinsam oder pro Kanal verschieden. Wird ein Kanal
+    /// dabei länger, wird der andere am Ende des Stücks mit Stille aufgefüllt.
+    /// </summary>
+    [RelayCommand(CanExecute = nameof(CanUseAudio))]
     private async Task TempoPitchAsync()
     {
-        if (_dialogs.AskTempoAndPitch() is not { } values)
+        var range = _editor.EffectRange;
+
+        // Ist unter „Bearbeiten“ nur ein Kanal gewählt, gleich im Pro-Kanal-Modus öffnen.
+        var options = new TempoPitchOptions(IsStereo, IsStereo && !EditsAllChannels, Buffer.FrameToTime(range.Length));
+        if (_dialogs.AskTempoAndPitch(options) is not { } request)
         {
             return;
         }
 
-        var effect = new TempoPitchEffect(values.TempoPercent, values.Semitones);
-        if (!effect.IsNeutral)
+        var left = new TempoPitchEffect(request.TempoLeft, request.SemitonesLeft);
+        if (!request.PerChannel || !IsStereo)
         {
-            await ApplyEffectAsync(effect);
+            // Beide Kanäle gemeinsam (Stereo bleibt dabei phasengleich zusammen).
+            if (!left.IsNeutral)
+            {
+                await ApplyEffectAsync(left, respectChannelTarget: false);
+            }
+
+            return;
+        }
+
+        var right = new TempoPitchEffect(request.TempoRight, request.SemitonesRight);
+        if (left.IsNeutral && right.IsNeutral)
+        {
+            return;
+        }
+
+        await ApplyPerChannelAsync(range, left.IsNeutral ? null : left, right.IsNeutral ? null : right);
+    }
+
+    /// <summary>Berechnet Tempo/Tonhöhe pro Kanal im Hintergrund und übernimmt das Ergebnis.</summary>
+    private async Task ApplyPerChannelAsync(SelectionRange range, TempoPitchEffect? left, TempoPitchEffect? right)
+    {
+        StopPlayback();
+        string description = $"Tempo & Tonhöhe pro Kanal (L: {left?.Name ?? "unverändert"}; R: {right?.Name ?? "unverändert"})";
+        var buffer = Buffer;
+        bool hadSelection = HasSelection;
+
+        IsBusy = true;
+        StatusText = "Tempo & Tonhöhe werden pro Kanal berechnet …";
+        try
+        {
+            var result = await Task.Run(() => PerChannelProcessor.Apply(buffer, range, [left, right]));
+            var selectionAfter = hadSelection
+                ? new SelectionRange(range.Start, range.Start + result.ProcessedLength)
+                : Selection;
+            _editor.ApplyBufferResult(description, result.Buffer, selectionAfter);
+
+            int padded = result.PaddingFrames.Max();
+            StatusText = padded == 0
+                ? $"{description} ✓"
+                : $"{description} ✓ – der {(result.PaddingFrames[0] > 0 ? "linke" : "rechte")} Kanal wurde am Ende " +
+                  $"um {TimeFormatter.Format(buffer.FrameToTime(padded))} mit Stille verlängert.";
+        }
+        catch (Exception ex)
+        {
+            StatusText = "Tempo & Tonhöhe fehlgeschlagen.";
+            _dialogs.ShowError($"Tempo und Tonhöhe konnten nicht geändert werden.\n\n{ex.Message}");
+        }
+        finally
+        {
+            IsBusy = false;
         }
     }
 
@@ -786,8 +843,6 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
 
     private bool CanUseStereo() => IsStereo && !IsBusy;
 
-    /// <summary>Tempo/Tonhöhe ändern die Länge – das geht nur für alle Kanäle gemeinsam.</summary>
-    private bool CanChangeTempo() => CanUseAudio() && EditsAllChannels;
 
     private bool CanUseAudio() => HasAudio && !IsBusy;
 
@@ -1133,14 +1188,14 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     /// Berechnet einen Effekt im Hintergrund (die Oberfläche bleibt bedienbar) und übernimmt
     /// das Ergebnis anschließend im UI-Thread als rückgängig machbaren Schritt.
     /// </summary>
-    private async Task<bool> ApplyEffectAsync(IAudioEffect effect)
+    private async Task<bool> ApplyEffectAsync(IAudioEffect effect, bool respectChannelTarget = true)
     {
         if (!HasAudio)
         {
             return false;
         }
 
-        if (!EditsAllChannels)
+        if (respectChannelTarget && !EditsAllChannels)
         {
             effect = new ChannelEffect(effect, EditLeft ? [0] : [1]);
         }

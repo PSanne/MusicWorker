@@ -162,6 +162,17 @@ public sealed class AudioEditor
     }
 
     /// <summary>
+    /// Übernimmt einen komplett neu berechneten Puffer (z. B. nach kanalweiser Tempoänderung,
+    /// bei der sich die Gesamtlänge ändern kann) als einen rückgängig machbaren Schritt.
+    /// </summary>
+    public void ApplyBufferResult(string description, AudioBuffer newBuffer, SelectionRange selectionAfter)
+    {
+        ArgumentNullException.ThrowIfNull(newBuffer);
+        RequireAudio();
+        Execute(new ReplaceBufferCommand(description, newBuffer), selectionAfter);
+    }
+
+    /// <summary>
     /// Macht aus einer Mehrkanal-Datei eine Mono-Datei, die nur den angegebenen Kanal enthält
     /// (0 = links, 1 = rechts). Rückgängig machbar.
     /// </summary>

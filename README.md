@@ -15,7 +15,7 @@ Version 0.2 bietet einen vollständigen Audio-Editor mit 15-Band-Equalizer sowie
 | **Live-Hall** | Freeverb-Hall mit **Drehreglern**: Stärke **pro Kanal** (links/rechts), Raumgröße, Dämpfung · wirkt sofort beim Abspielen · „In Audio übernehmen“ (bei der ganzen Datei mit Ausklingen am Ende) · beim Export einrechenbar |
 | **Live-Spektrum** | Frequenzspektrum der Wiedergabe *nach* dem EQ in Echtzeit (60 Bänder, 20 Hz–20 kHz) · bei Stereo links/rechts getrennt · darübergelegte EQ-Kurve · jede Spalte steht genau über ihrem EQ-Regler |
 | **Stereo-Kanäle** | Wellenform in getrennten Spuren (L blau, R rosa) · Effekte wahlweise nur auf links oder rechts · einzelne Kanäle beim Abhören stummschalten · als zwei Mono-Dateien exportieren (`…_L` / `…_R`) · nur einen Kanal behalten (Stereo → Mono) |
-| **Tempo & Tonhöhe** | Tempo 50–200 % ohne Tonhöhenänderung · Tonhöhe ±12 Halbtöne ohne Tempoänderung · beides kombinierbar |
+| **Tempo & Tonhöhe** | Time-Stretching 50–200 % ohne Tonhöhenänderung · Pitch-Shifting ±12 Halbtöne ohne Tempoänderung · beides kombinierbar · **pro Kanal verschieden** (wird ein Kanal länger, wird der andere am Ende des Stücks mit Stille aufgefüllt) |
 | **Weitere Effekte** | Lautstärke ändern (±24 dB) · Normalisieren (-1 dB) · Einblenden/Ausblenden (Fade In/Out) · Umkehren · Stummschalten |
 | **Export** | WAV (16 Bit) · MP3 (192 kbit/s, über den in Windows eingebauten Encoder) |
 | **Ansicht** | Zoomen mit Strg+Mausrad · Scrollen mit dem Mausrad · Ansicht folgt beim Abspielen |
@@ -56,7 +56,9 @@ Version 0.2 bietet einen vollständigen Audio-Editor mit 15-Band-Equalizer sowie
 >
 > **Stereo:** In der Werkzeugleiste „Kanäle“ legst du mit *Bearbeiten [L] [R]* fest, worauf Effekte wirken
 > (die Auswahl wird nur in diesen Spuren markiert), und mit *Hören [L] [R]*, welche Kanäle beim Abspielen zu hören sind.
-> Schneiden, Einfügen und Tempo/Tonhöhe betreffen immer beide Kanäle, weil sie die Länge verändern.
+> Schneiden und Einfügen betreffen immer beide Kanäle. *Tempo & Tonhöhe* lässt sich im Dialog
+> „Links und rechts getrennt“ einstellen; wird dabei ein Kanal länger, füllt MusicWorker den anderen
+> am Ende des Stücks mit Stille auf.
 
 ## Loslegen
 

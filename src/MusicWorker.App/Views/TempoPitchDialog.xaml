@@ -6,32 +6,89 @@
         ResizeMode="NoResize"
         ShowInTaskbar="False"
         WindowStartupLocation="CenterOwner">
+
+    <Window.Resources>
+        <Style x:Key="Caption" TargetType="TextBlock">
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Margin" Value="0,0,0,4" />
+        </Style>
+        <Style x:Key="Hint" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="Gray" />
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="Margin" Value="0,2,0,0" />
+        </Style>
+    </Window.Resources>
+
     <StackPanel Margin="16">
-        <TextBlock Text="Tempo (ohne die Tonhöhe zu verändern):" FontWeight="SemiBold" />
-        <DockPanel Margin="0,6,0,0">
-            <TextBlock DockPanel.Dock="Right" Margin="6,0,0,0" VerticalAlignment="Center" Text="%" />
-            <TextBox x:Name="TempoBox" DockPanel.Dock="Right" Width="64" Margin="8,0,0,0" VerticalContentAlignment="Center"
-                     Text="{Binding Value, ElementName=TempoSlider, StringFormat=0}" />
-            <Slider x:Name="TempoSlider" Width="300" Minimum="50" Maximum="200" Value="100"
-                    SmallChange="1" LargeChange="10" TickFrequency="25" TickPlacement="BottomRight"
-                    IsMoveToPointEnabled="True" />
-        </DockPanel>
-        <TextBlock Margin="0,2,0,0" Foreground="Gray" FontSize="11"
-                   Text="50 % = halb so schnell · 100 % = unverändert · 200 % = doppelt so schnell" />
+        <CheckBox x:Name="PerChannelBox" Margin="0,0,0,12"
+                  Content="Links und rechts getrennt einstellen (Pro-Kanal)"
+                  Checked="OnModeChanged" Unchecked="OnModeChanged" />
 
-        <TextBlock Margin="0,16,0,0" Text="Tonhöhe (ohne das Tempo zu verändern):" FontWeight="SemiBold" />
-        <DockPanel Margin="0,6,0,0">
-            <TextBlock DockPanel.Dock="Right" Margin="6,0,0,0" VerticalAlignment="Center" Text="Halbtöne" />
-            <TextBox x:Name="PitchBox" DockPanel.Dock="Right" Width="64" Margin="8,0,0,0" VerticalContentAlignment="Center"
-                     Text="{Binding Value, ElementName=PitchSlider, StringFormat=+0.#;-0.#;0}" />
-            <Slider x:Name="PitchSlider" Width="300" Minimum="-12" Maximum="12" Value="0"
-                    SmallChange="1" LargeChange="2" TickFrequency="1" TickPlacement="BottomRight"
-                    IsSnapToTickEnabled="True" IsMoveToPointEnabled="True" />
-        </DockPanel>
-        <TextBlock Margin="0,2,0,0" Foreground="Gray" FontSize="11"
-                   Text="12 Halbtöne = 1 Oktave · 7 Halbtöne = Quinte · -12 = eine Oktave tiefer" />
+        <StackPanel Orientation="Horizontal">
+            <!-- Linker Kanal (bzw. beide Kanäle ohne Pro-Kanal) -->
+            <GroupBox x:Name="LeftGroup" Padding="10,8" Header="Beide Kanäle">
+                <StackPanel Width="330">
+                    <TextBlock Style="{StaticResource Caption}" Text="Tempo (ohne die Tonhöhe zu verändern):" />
+                    <DockPanel>
+                        <TextBlock DockPanel.Dock="Right" Margin="6,0,0,0" VerticalAlignment="Center" Text="%" />
+                        <TextBox x:Name="TempoLeftBox" DockPanel.Dock="Right" Width="56" Margin="8,0,0,0" VerticalContentAlignment="Center"
+                                 Text="{Binding Value, ElementName=TempoLeftSlider, StringFormat=0}" />
+                        <Slider x:Name="TempoLeftSlider" Minimum="50" Maximum="200" Value="100" SmallChange="1" LargeChange="10"
+                                TickFrequency="25" TickPlacement="BottomRight" IsMoveToPointEnabled="True"
+                                ValueChanged="OnValuesChanged" />
+                    </DockPanel>
+                    <TextBlock Style="{StaticResource Hint}" Text="50 % = halb so schnell · 200 % = doppelt so schnell" />
 
-        <TextBlock Margin="0,12,0,0" Foreground="Gray" TextWrapping="Wrap" MaxWidth="420"
+                    <TextBlock Style="{StaticResource Caption}" Margin="0,12,0,4" Text="Tonhöhe (ohne das Tempo zu verändern):" />
+                    <DockPanel>
+                        <TextBlock DockPanel.Dock="Right" Margin="6,0,0,0" VerticalAlignment="Center" Text="HT" />
+                        <TextBox x:Name="PitchLeftBox" DockPanel.Dock="Right" Width="56" Margin="8,0,0,0" VerticalContentAlignment="Center"
+                                 Text="{Binding Value, ElementName=PitchLeftSlider, StringFormat=+0.#;-0.#;0}" />
+                        <Slider x:Name="PitchLeftSlider" Minimum="-12" Maximum="12" Value="0" SmallChange="1" LargeChange="2"
+                                TickFrequency="1" TickPlacement="BottomRight" IsSnapToTickEnabled="True" IsMoveToPointEnabled="True"
+                                ValueChanged="OnValuesChanged" />
+                    </DockPanel>
+                    <TextBlock Style="{StaticResource Hint}" Text="12 Halbtöne (HT) = 1 Oktave · 7 = Quinte" />
+                </StackPanel>
+            </GroupBox>
+
+            <!-- Rechter Kanal (nur im Pro-Kanal-Modus) -->
+            <GroupBox x:Name="RightGroup" Margin="12,0,0,0" Padding="10,8" Visibility="Collapsed">
+                <GroupBox.Header>
+                    <TextBlock FontWeight="Bold" Foreground="#C2185B" Text="Rechts" />
+                </GroupBox.Header>
+                <StackPanel Width="330">
+                    <TextBlock Style="{StaticResource Caption}" Text="Tempo (ohne die Tonhöhe zu verändern):" />
+                    <DockPanel>
+                        <TextBlock DockPanel.Dock="Right" Margin="6,0,0,0" VerticalAlignment="Center" Text="%" />
+                        <TextBox x:Name="TempoRightBox" DockPanel.Dock="Right" Width="56" Margin="8,0,0,0" VerticalContentAlignment="Center"
+                                 Text="{Binding Value, ElementName=TempoRightSlider, StringFormat=0}" />
+                        <Slider x:Name="TempoRightSlider" Minimum="50" Maximum="200" Value="100" SmallChange="1" LargeChange="10"
+                                TickFrequency="25" TickPlacement="BottomRight" IsMoveToPointEnabled="True"
+                                ValueChanged="OnValuesChanged" />
+                    </DockPanel>
+                    <TextBlock Style="{StaticResource Hint}" Text="50 % = halb so schnell · 200 % = doppelt so schnell" />
+
+                    <TextBlock Style="{StaticResource Caption}" Margin="0,12,0,4" Text="Tonhöhe (ohne das Tempo zu verändern):" />
+                    <DockPanel>
+                        <TextBlock DockPanel.Dock="Right" Margin="6,0,0,0" VerticalAlignment="Center" Text="HT" />
+                        <TextBox x:Name="PitchRightBox" DockPanel.Dock="Right" Width="56" Margin="8,0,0,0" VerticalContentAlignment="Center"
+                                 Text="{Binding Value, ElementName=PitchRightSlider, StringFormat=+0.#;-0.#;0}" />
+                        <Slider x:Name="PitchRightSlider" Minimum="-12" Maximum="12" Value="0" SmallChange="1" LargeChange="2"
+                                TickFrequency="1" TickPlacement="BottomRight" IsSnapToTickEnabled="True" IsMoveToPointEnabled="True"
+                                ValueChanged="OnValuesChanged" />
+                    </DockPanel>
+                    <TextBlock Style="{StaticResource Hint}" Text="12 Halbtöne (HT) = 1 Oktave · 7 = Quinte" />
+                </StackPanel>
+            </GroupBox>
+        </StackPanel>
+
+        <!-- Vorschau der neuen Länge -->
+        <Border Margin="0,12,0,0" Padding="10,6" Background="#F3F6FA" BorderBrush="#D6DEE8" BorderThickness="1" CornerRadius="3">
+            <TextBlock x:Name="LengthText" TextWrapping="Wrap" MaxWidth="680" />
+        </Border>
+
+        <TextBlock Margin="0,8,0,0" Foreground="Gray" TextWrapping="Wrap" MaxWidth="680"
                    Text="Ohne Auswahl wird die ganze Datei bearbeitet. Bei langen Dateien kann die Berechnung einige Sekunden dauern." />
 
         <DockPanel Margin="0,16,0,0">
