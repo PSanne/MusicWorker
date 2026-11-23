@@ -1,0 +1,50 @@
+name: Release
+
+# Wird ausgelöst, sobald eine Versionsmarke wie "v0.1.0" gepusht wird.
+# Baut und testet die App und veröffentlicht sie als GitHub-Release mit ZIP-Download.
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Test
+        run: dotnet test MusicWorker.sln --configuration Release
+
+      - name: Publish
+        shell: pwsh
+        run: |
+          $version = "${{ github.ref_name }}".TrimStart("v")
+          dotnet publish src/MusicWorker.App/MusicWorker.App.csproj `
+            --configuration Release --runtime win-x64 --self-contained true `
+            -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true `
+            -p:Version=$version --output publish
+          Compress-Archive -Path publish/* -DestinationPath "MusicWorker-${{ github.ref_name }}-win-x64.zip"
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          name: MusicWorker ${{ github.ref_name }}
+          files: MusicWorker-${{ github.ref_name }}-win-x64.zip
+          body: |
+            ## Installation
+            1. Unten bei **Assets** die Datei `MusicWorker-${{ github.ref_name }}-win-x64.zip` herunterladen.
+            2. ZIP-Datei entpacken (Rechtsklick → „Alle extrahieren …“).
+            3. `MusicWorker.exe` starten – es muss kein .NET installiert sein.
+
+            Falls Windows SmartScreen warnt: **„Weitere Informationen“ → „Trotzdem ausführen“**
+            (die Datei ist nicht digital signiert).
+
+            Alle Funktionen und Tastenkürzel stehen in der [README](https://github.com/${{ github.repository }}#readme).

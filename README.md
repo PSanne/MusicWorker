@@ -38,9 +38,21 @@ Version 0.1 legt das Fundament mit einem vollständigen Audio-Editor.
 ## Loslegen
 
 ### Fertige Version herunterladen
-Jeder Push baut automatisch eine lauffähige `MusicWorker.exe`. Du findest sie unter
-**Actions → „Build & Test“ → letzter Lauf → Artifacts → `MusicWorker-win-x64`**.
-Sie braucht kein installiertes .NET.
+Die aktuelle Version gibt es unter **[Releases](https://github.com/PSanne/MusicWorker/releases/latest)**:
+ZIP-Datei herunterladen, entpacken, `MusicWorker.exe` starten. Es muss kein .NET installiert sein.
+
+Zwischenstände aus jedem Push findest du außerdem unter
+**Actions → „Build & Test“ → Lauf auswählen → Artifacts** (nur angemeldet sichtbar, 90 Tage aufbewahrt).
+
+### Neue Version veröffentlichen
+Version in `Directory.Build.props` anpassen, committen und eine passende Versionsmarke pushen:
+
+```powershell
+git tag v0.2.0
+git push origin v0.2.0
+```
+
+GitHub baut und testet dann automatisch und legt das Release mit ZIP-Download an.
 
 ### Selbst bauen
 Voraussetzungen: Windows 10/11 und das [.NET 8 SDK](https://dotnet.microsoft.com/download/dotnet/8.0)
