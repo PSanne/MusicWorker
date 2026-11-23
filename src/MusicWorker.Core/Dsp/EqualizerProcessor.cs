@@ -6,7 +6,7 @@ namespace MusicWorker.Core.Dsp;
 /// Verarbeitet Audio fortlaufend durch den 15-Band-Equalizer (15 Glockenfilter in Reihe pro Kanal).
 /// Jeder Kanal kann eine eigene Einstellung haben (Pro-Kanal-EQ, z. B. links anders als rechts).
 /// Die Einstellungen können während der Wiedergabe aus einem anderen Thread geändert werden
-/// (<see cref="Update"/>) – so funktioniert das Live-Vorhören.
+/// (<see cref="Update(EqualizerSettings)"/>) – so funktioniert das Live-Vorhören.
 /// </summary>
 public sealed class EqualizerProcessor
 {

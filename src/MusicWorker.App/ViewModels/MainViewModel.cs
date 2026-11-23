@@ -26,6 +26,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     private readonly SettingsService _settings;
     private CancellationTokenSource? _playheadUpdates;
     private EqualizerProcessor? _liveEqualizer;
+    private ReverbProcessor? _liveReverb;
     private SpectrumAnalyzer[]? _spectrumAnalyzers;
     private ChannelMonitorSampleProvider? _channelMonitor;
 
@@ -75,6 +76,26 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     /// <summary>EQ-Kurve des rechten Kanals (nur im Pro-Kanal-Modus, sonst null).</summary>
     [ObservableProperty]
     private double[]? _equalizerCurveRight;
+
+    /// <summary>Live-Hall ein/aus.</summary>
+    [ObservableProperty]
+    private bool _isReverbEnabled;
+
+    /// <summary>Hall-Stärke links (bei Mono: für den einzigen Kanal) in %.</summary>
+    [ObservableProperty]
+    private double _reverbLeft;
+
+    /// <summary>Hall-Stärke rechts in %.</summary>
+    [ObservableProperty]
+    private double _reverbRight;
+
+    /// <summary>Raumgröße in % (klein = kurzer Nachhall, groß = langer).</summary>
+    [ObservableProperty]
+    private double _reverbRoomSize = 50;
+
+    /// <summary>Dämpfung in % (hoch = dunklerer Hall).</summary>
+    [ObservableProperty]
+    private double _reverbDamping = 50;
 
     /// <summary>
     /// Live-Spektrum der Wiedergabe (nach dem EQ) in dBFS – ein Array pro Kanal (Stereo: links, rechts);
@@ -130,6 +151,11 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         _equalizerPreventClipping = saved.EqualizerPreventClipping;
         _isEqualizerPerChannel = saved.EqualizerPerChannel;
         _isEqualizerVisible = saved.EqualizerVisible;
+        _isReverbEnabled = saved.ReverbEnabled;
+        _reverbLeft = saved.ReverbLeftPercent;
+        _reverbRight = saved.ReverbRightPercent;
+        _reverbRoomSize = saved.ReverbRoomSizePercent;
+        _reverbDamping = saved.ReverbDampingPercent;
         UpdateEqualizerCurve();
 
         _editor.Changed += OnEditorChanged;
@@ -175,10 +201,31 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         }
     }
 
-    /// <summary>Hinweis in der Statusleiste, solange der Live-EQ den Klang verändert.</summary>
-    public string EqualizerIndicator => !IsEqualizerActive
-        ? string.Empty
-        : UsesPerChannelEqualizer ? "EQ aktiv (L/R getrennt)" : "EQ aktiv";
+    /// <summary>Hinweis in der Statusleiste, solange Live-Effekte (EQ, Hall) den Klang verändern.</summary>
+    public string EqualizerIndicator
+    {
+        get
+        {
+            var parts = new List<string>();
+            if (IsEqualizerActive)
+            {
+                parts.Add(UsesPerChannelEqualizer ? "EQ (L/R)" : "EQ");
+            }
+
+            if (IsReverbActive)
+            {
+                parts.Add("Hall");
+            }
+
+            return parts.Count == 0 ? string.Empty : string.Join(" + ", parts) + " aktiv";
+        }
+    }
+
+    /// <summary>True, wenn der Hall eingeschaltet ist und tatsächlich etwas hinzufügt.</summary>
+    private bool IsReverbActive => IsReverbEnabled && !EffectiveReverbSettings().IsNeutral;
+
+    /// <summary>Mindestens ein Live-Effekt verändert gerade den Klang.</summary>
+    private bool AreLiveEffectsActive => IsEqualizerActive || IsReverbActive;
 
     /// <summary>True, wenn der EQ eingeschaltet ist und den Klang tatsächlich verändert.</summary>
     private bool IsEqualizerActive => IsEqualizerEnabled &&
@@ -345,16 +392,11 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             return;
         }
 
-        // Live-EQ einrechnen? (Er verändert sonst nur die Wiedergabe, nicht die Datei.)
-        EqualizerEffect? equalizer = null;
-        if (IsEqualizerActive && _dialogs.Confirm(
-                "Der Live-Equalizer ist eingeschaltet, aber noch nicht in das Audio übernommen.\n\n" +
-                "Soll er in die exportierte Datei eingerechnet werden?\n\n" +
-                "Ja = mit Equalizer exportieren\nNein = ohne Equalizer exportieren",
-                "Equalizer beim Export"))
-        {
-            equalizer = CreateEqualizerEffectForAllChannels();
-        }
+        // Live-Effekte einrechnen? (Sie verändern sonst nur die Wiedergabe, nicht die Datei.)
+        var liveEffects = AskIncludeLiveEffects(
+            $"{LiveEffectsName} ist eingeschaltet, aber noch nicht in das Audio übernommen.\n\n" +
+            "Soll das in die exportierte Datei eingerechnet werden?\n\n" +
+            "Ja = mit Effekten exportieren\nNein = ohne Effekte exportieren");
 
         StopPlayback();
         IsBusy = true;
@@ -362,7 +404,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         var buffer = Buffer;
         try
         {
-            await Task.Run(() => _files.Export(equalizer is null ? buffer : equalizer.Apply(buffer), path));
+            await Task.Run(() => _files.Export(ApplyAll(liveEffects, buffer), path));
             _editor.MarkSaved();
             FilePath = path;
             StatusText = $"Exportiert nach „{Path.GetFileName(path)}“.";
@@ -403,13 +445,8 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             return;
         }
 
-        EqualizerEffect? equalizer = null;
-        if (IsEqualizerActive && _dialogs.Confirm(
-                "Der Live-Equalizer ist eingeschaltet. Soll er in die exportierten Dateien eingerechnet werden?",
-                "Equalizer beim Export"))
-        {
-            equalizer = CreateEqualizerEffectForAllChannels();
-        }
+        var liveEffects = AskIncludeLiveEffects(
+            $"{LiveEffectsName} ist eingeschaltet. Soll das in die exportierten Dateien eingerechnet werden?");
 
         StopPlayback();
         IsBusy = true;
@@ -419,7 +456,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         {
             await Task.Run(() =>
             {
-                var source = equalizer is null ? buffer : equalizer.Apply(buffer);
+                var source = ApplyAll(liveEffects, buffer);
                 _files.Export(source.GetChannel(0), leftPath);
                 _files.Export(source.GetChannel(1), rightPath);
             });
@@ -629,6 +666,35 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             : $"Equalizer in den {(left ? "linken" : "rechten")} Kanal übernommen – dessen Regler stehen wieder auf 0 dB.";
     }
 
+    /// <summary>
+    /// Rechnet den Live-Hall fest in das Audio ein (je nach „Bearbeiten L/R“ nur in einen Kanal) und
+    /// dreht die übernommenen Stärke-Regler danach auf 0. Bei der ganzen Datei wird hinten Platz
+    /// zum Ausklingen angehängt.
+    /// </summary>
+    [RelayCommand(CanExecute = nameof(CanApplyReverb))]
+    private async Task ApplyReverbAsync()
+    {
+        var effect = CreateReverbEffectForTarget();
+        if (effect is null || !await ApplyEffectAsync(effect))
+        {
+            return;
+        }
+
+        bool left = !IsStereo || EditLeft;
+        bool right = IsStereo && EditRight;
+        if (left)
+        {
+            ReverbLeft = 0;
+        }
+
+        if (right)
+        {
+            ReverbRight = 0;
+        }
+
+        StatusText = $"{effect.Name} in das Audio übernommen – der Stärke-Regler steht wieder auf 0.";
+    }
+
     /// <summary>Überträgt die gerade angezeigte EQ-Einstellung auf den anderen Kanal.</summary>
     [RelayCommand]
     private void CopyEqualizerToOtherChannel()
@@ -680,6 +746,8 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     // ───────────── Hilfsmethoden ─────────────
 
     private bool CanOpen() => !IsBusy;
+
+    private bool CanApplyReverb() => HasAudio && !IsBusy && CreateReverbEffectForTarget() is not null;
 
     private bool CanApplyEqualizer() => HasAudio && !IsBusy && CreateEqualizerEffectForTarget() is not null;
 
@@ -743,8 +811,13 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
 
         // Reihenfolge: Puffer → Kanal-Stummschaltung → Equalizer → Spektrum-Abgriff → Soundkarte.
         // Das Spektrum zeigt also genau das, was zu hören ist.
+        var reverb = new ReverbProcessor(source.WaveFormat.SampleRate, source.WaveFormat.Channels, EffectiveReverbSettings());
+        _liveReverb = reverb;
+
+        // … → Equalizer → Hall → Spektrum-Abgriff → Soundkarte.
         return new SpectrumTapSampleProvider(
-            new EqualizerSampleProvider(_channelMonitor, processor), _spectrumAnalyzers);
+            new ReverbSampleProvider(new EqualizerSampleProvider(_channelMonitor, processor), reverb),
+            _spectrumAnalyzers);
     }
 
     private void UpdateSpectrum()
@@ -823,6 +896,109 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         return settings.IsNeutral ? null : new EqualizerEffect(settings, EqualizerPreventClipping);
     }
 
+    /// <summary>Hall-Einstellung, wie sie gerade zu hören sein soll (aus = kein Hall).</summary>
+    private ReverbSettings EffectiveReverbSettings()
+    {
+        if (!IsReverbEnabled)
+        {
+            return ReverbSettings.Off;
+        }
+
+        double[] amounts = IsStereo ? [ReverbLeft, ReverbRight] : [ReverbLeft];
+        return new ReverbSettings(amounts, ReverbRoomSize, ReverbDamping);
+    }
+
+    /// <summary>
+    /// Hall-Effekt für „In Audio übernehmen“ unter Berücksichtigung von „Bearbeiten L/R“.
+    /// Null, wenn sich nichts ändern würde.
+    /// </summary>
+    private ReverbEffect? CreateReverbEffectForTarget()
+    {
+        if (!IsReverbEnabled || !HasAudio)
+        {
+            return null;
+        }
+
+        if (EditsAllChannels)
+        {
+            var settings = EffectiveReverbSettings();
+            if (settings.IsNeutral)
+            {
+                return null;
+            }
+
+            // Ganze Datei: hinten Platz lassen, damit der Hall natürlich ausklingt.
+            double tail = _editor.HasSelection ? 0 : settings.TailSeconds;
+            return new ReverbEffect(settings, tail, EqualizerPreventClipping);
+        }
+
+        // Nur ein Kanal (die Länge muss gleich bleiben → kein Ausklingen anhängen).
+        int channel = EditLeft ? 0 : 1;
+        double amount = channel == 0 ? ReverbLeft : ReverbRight;
+        return amount <= 0
+            ? null
+            : new ReverbEffect(new ReverbSettings([amount], ReverbRoomSize, ReverbDamping), 0,
+                EqualizerPreventClipping, channelOffset: channel);
+    }
+
+    /// <summary>Name der aktiven Live-Effekte für Rückfragen, z. B. „Der Live-Equalizer und der Hall“.</summary>
+    private string LiveEffectsName => (IsEqualizerActive, IsReverbActive) switch
+    {
+        (true, true) => "Der Live-Equalizer und der Hall",
+        (true, false) => "Der Live-Equalizer",
+        _ => "Der Hall",
+    };
+
+    /// <summary>Fragt nach, ob aktive Live-Effekte beim Export eingerechnet werden sollen.</summary>
+    private IAudioEffect[] AskIncludeLiveEffects(string question)
+    {
+        if (!AreLiveEffectsActive || !_dialogs.Confirm(question, "Live-Effekte beim Export"))
+        {
+            return [];
+        }
+
+        var effects = new List<IAudioEffect>();
+        if (CreateEqualizerEffectForAllChannels() is { } equalizer)
+        {
+            effects.Add(equalizer);
+        }
+
+        if (IsReverbActive)
+        {
+            var reverb = EffectiveReverbSettings();
+            effects.Add(new ReverbEffect(reverb, reverb.TailSeconds, EqualizerPreventClipping));
+        }
+
+        return effects.ToArray();
+    }
+
+    private static AudioBuffer ApplyAll(IEnumerable<IAudioEffect> effects, AudioBuffer buffer)
+    {
+        foreach (var effect in effects)
+        {
+            buffer = effect.Apply(buffer);
+        }
+
+        return buffer;
+    }
+
+    private void RefreshReverb()
+    {
+        _liveReverb?.Update(EffectiveReverbSettings());
+        OnPropertyChanged(nameof(EqualizerIndicator));
+        ApplyReverbCommand.NotifyCanExecuteChanged();
+    }
+
+    partial void OnIsReverbEnabledChanged(bool value) => RefreshReverb();
+
+    partial void OnReverbLeftChanged(double value) => RefreshReverb();
+
+    partial void OnReverbRightChanged(double value) => RefreshReverb();
+
+    partial void OnReverbRoomSizeChanged(double value) => RefreshReverb();
+
+    partial void OnReverbDampingChanged(double value) => RefreshReverb();
+
     private static EqualizerSettings LoadEqualizerSettings(double[]? gains, double preampDb) =>
         gains is { Length: var n } && n == EqualizerSettings.BandFrequencies.Count
             ? new EqualizerSettings(gains, preampDb)
@@ -863,6 +1039,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
 
         TempoPitchCommand.NotifyCanExecuteChanged();
         ApplyEqualizerCommand.NotifyCanExecuteChanged();
+        ApplyReverbCommand.NotifyCanExecuteChanged();
     }
 
     partial void OnEditRightChanged(bool value)
@@ -874,6 +1051,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
 
         TempoPitchCommand.NotifyCanExecuteChanged();
         ApplyEqualizerCommand.NotifyCanExecuteChanged();
+        ApplyReverbCommand.NotifyCanExecuteChanged();
     }
 
     partial void OnHearLeftChanged(bool value)
@@ -910,6 +1088,11 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         saved.EqualizerEnabled = IsEqualizerEnabled;
         saved.EqualizerPreventClipping = EqualizerPreventClipping;
         saved.EqualizerPerChannel = IsEqualizerPerChannel;
+        saved.ReverbEnabled = IsReverbEnabled;
+        saved.ReverbLeftPercent = ReverbLeft;
+        saved.ReverbRightPercent = ReverbRight;
+        saved.ReverbRoomSizePercent = ReverbRoomSize;
+        saved.ReverbDampingPercent = ReverbDamping;
         _settings.Save();
     }
 
@@ -990,6 +1173,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     {
         _playback.Stop();
         _liveEqualizer = null;
+        _liveReverb = null;
         _spectrumAnalyzers = null;
         _channelMonitor = null;
         Spectra = null;
@@ -1068,6 +1252,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         OnPropertyChanged(nameof(EqualizerTargetText));
         OnPropertyChanged(nameof(ActiveEqualizerCurve));
         _liveEqualizer?.Update(EffectiveEqualizerSettings());
+        _liveReverb?.Update(EffectiveReverbSettings());
         OnPropertyChanged(nameof(ActiveChannels));
         OnPropertyChanged(nameof(MutedChannels));
         OnPropertyChanged(nameof(ChannelTargetText));
@@ -1107,7 +1292,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             PlayCommand, PauseCommand, StopCommand, TogglePlayPauseCommand,
             SelectAllCommand, CutCommand, CopyCommand, PasteCommand, DeleteCommand, TrimCommand,
             InsertSilenceCommand, UndoCommand, RedoCommand,
-            ChangeGainCommand, NormalizeCommand, ApplyEqualizerCommand, TempoPitchCommand,
+            ChangeGainCommand, NormalizeCommand, ApplyEqualizerCommand, ApplyReverbCommand, TempoPitchCommand,
             FadeInCommand, FadeOutCommand, ReverseCommand, MuteCommand,
         ];
         foreach (var command in commands)

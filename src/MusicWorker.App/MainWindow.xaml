@@ -4,11 +4,12 @@
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:controls="clr-namespace:MusicWorker.App.Controls"
+        xmlns:local="clr-namespace:MusicWorker.App.Helpers"
         xmlns:vm="clr-namespace:MusicWorker.App.ViewModels"
         mc:Ignorable="d"
         d:DataContext="{d:DesignInstance Type=vm:MainViewModel}"
         Title="{Binding WindowTitle}"
-        Width="1100" Height="880" MinWidth="980" MinHeight="560"
+        Width="1320" Height="880" MinWidth="1240" MinHeight="560"
         WindowStartupLocation="CenterScreen"
         AllowDrop="True"
         DragOver="OnDragOver"
@@ -37,6 +38,24 @@
             <Setter Property="MinWidth" Value="26" />
             <Setter Property="Padding" Value="6,3" />
             <Setter Property="FontWeight" Value="Bold" />
+        </Style>
+
+        <Style x:Key="ReverbDimWhenOff" TargetType="FrameworkElement">
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding IsReverbEnabled}" Value="False">
+                    <Setter Property="Opacity" Value="0.45" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+        <Style x:Key="KnobValue" TargetType="TextBlock">
+            <Setter Property="HorizontalAlignment" Value="Center" />
+            <Setter Property="FontFamily" Value="Consolas" />
+            <Setter Property="FontSize" Value="11" />
+        </Style>
+        <Style x:Key="KnobLabel" TargetType="TextBlock">
+            <Setter Property="HorizontalAlignment" Value="Center" />
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="FontWeight" Value="SemiBold" />
         </Style>
 
         <!-- Equalizer-Regler -->
@@ -141,6 +160,7 @@
                 <MenuItem Header="_Lautstärke ändern …" Command="{Binding ChangeGainCommand}" />
                 <MenuItem Header="_Normalisieren" Command="{Binding NormalizeCommand}" />
                 <MenuItem Header="_Equalizer in Audio übernehmen" Command="{Binding ApplyEqualizerCommand}" />
+                <MenuItem Header="_Hall in Audio übernehmen" Command="{Binding ApplyReverbCommand}" />
                 <MenuItem Header="_Tempo &amp; Tonhöhe …" Command="{Binding TempoPitchCommand}" />
                 <Separator />
                 <MenuItem Header="_Einblenden (Fade In)" Command="{Binding FadeInCommand}" />
@@ -155,7 +175,7 @@
                 <MenuItem Header="_Ganze Datei" Click="OnZoomFitClick" />
                 <MenuItem Header="_Auswahl einpassen" Click="OnZoomSelectionClick" />
                 <Separator />
-                <MenuItem Header="_Equalizer anzeigen" IsCheckable="True"
+                <MenuItem Header="_Live-Effekte anzeigen (EQ &amp; Hall)" IsCheckable="True"
                           IsChecked="{Binding IsEqualizerVisible, Mode=TwoWay}" InputGestureText="Strg+Umschalt+E" />
             </MenuItem>
         </Menu>
@@ -227,10 +247,10 @@
                     <TextBlock Style="{StaticResource Glyph}" Text="&#xE767;" />
                 </Button>
                 <Button Style="{StaticResource ToolButton}" Command="{Binding NormalizeCommand}" Content="Normalisieren" ToolTip="Auf -1 dB normalisieren" />
-                <ToggleButton Focusable="False" Padding="7,4" Content="Equalizer"
+                <ToggleButton Focusable="False" Padding="7,4" Content="EQ &amp; Hall"
                               Style="{StaticResource {x:Static ToolBar.ToggleButtonStyleKey}}"
                               IsChecked="{Binding IsEqualizerVisible, Mode=TwoWay}"
-                              ToolTip="Live-Equalizer ein-/ausblenden (Strg+Umschalt+E)" />
+                              ToolTip="Live-Effekte (Equalizer und Hall) ein-/ausblenden (Strg+Umschalt+E)" />
                 <Button Style="{StaticResource ToolButton}" Command="{Binding TempoPitchCommand}" Content="Tempo/Tonhöhe" ToolTip="Tempo und Tonhöhe unabhängig voneinander ändern" />
                 <Button Style="{StaticResource ToolButton}" Command="{Binding FadeInCommand}" Content="Fade In" ToolTip="Auswahl einblenden" />
                 <Button Style="{StaticResource ToolButton}" Command="{Binding FadeOutCommand}" Content="Fade Out" ToolTip="Auswahl ausblenden" />
@@ -257,7 +277,7 @@
             </StatusBarItem>
             <StatusBarItem DockPanel.Dock="Right">
                 <TextBlock Text="{Binding EqualizerIndicator}" Margin="8,0" Foreground="#0078D4" FontWeight="SemiBold"
-                           ToolTip="Der Live-Equalizer verändert gerade den Klang der Wiedergabe." />
+                           ToolTip="Live-Effekte (Equalizer/Hall) verändern gerade den Klang der Wiedergabe." />
             </StatusBarItem>
             <Separator DockPanel.Dock="Right" />
             <StatusBarItem DockPanel.Dock="Right">
@@ -276,7 +296,7 @@
         <Border DockPanel.Dock="Bottom"
                 Visibility="{Binding IsEqualizerVisible, Converter={StaticResource BoolToVisibility}}"
                 Background="#F7F7F9" BorderBrush="#D9D9DE" BorderThickness="0,1,0,0">
-            <DockPanel Margin="14,10">
+            <DockPanel Margin="14,10" LastChildFill="False">
                 <StackPanel DockPanel.Dock="Left" Width="210" Margin="0,0,18,0">
                     <TextBlock FontSize="14" FontWeight="SemiBold" Text="Equalizer" />
                     <CheckBox Margin="0,8,0,0" Content="Equalizer eingeschaltet" IsChecked="{Binding IsEqualizerEnabled}"
@@ -316,7 +336,7 @@
                     </CheckBox>
                 </StackPanel>
 
-                <Grid HorizontalAlignment="Left">
+                <Grid DockPanel.Dock="Left" HorizontalAlignment="Left">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="Auto" />
                         <ColumnDefinition Width="Auto" />
@@ -397,6 +417,52 @@
                         <TextBlock VerticalAlignment="Bottom" FontSize="10" Foreground="Gray" Text="-12 dB" />
                     </Grid>
                 </Grid>
+
+                <!-- Hall: Drehregler wie an einem Mischpult -->
+                <Border DockPanel.Dock="Left" Margin="18,0,0,0" Padding="18,0,0,0"
+                        BorderBrush="#D9D9DE" BorderThickness="1,0,0,0">
+                    <StackPanel Width="200">
+                        <TextBlock FontSize="14" FontWeight="SemiBold" Text="Hall" />
+                        <CheckBox Margin="0,8,0,0" Content="Hall eingeschaltet" IsChecked="{Binding IsReverbEnabled}"
+                                  ToolTip="Ausschalten zum direkten Vorher-/Nachher-Vergleich" />
+
+                        <UniformGrid Margin="0,10,0,0" Columns="2" Style="{StaticResource ReverbDimWhenOff}">
+                            <StackPanel Margin="0,0,0,8" ToolTip="Hall-Stärke im linken Kanal (bei Mono: im einzigen Kanal) – ziehen, Mausrad oder Doppelklick für 0">
+                                <controls:Knob Width="56" Height="56" Value="{Binding ReverbLeft}" DefaultValue="0" Accent="#0277BD" />
+                                <TextBlock Style="{StaticResource KnobValue}" Text="{Binding ReverbLeft, StringFormat={}{0:0} %}" />
+                                <TextBlock Style="{StaticResource KnobLabel}">
+                                    <TextBlock.Text>
+                                        <Binding Path="IsStereo">
+                                            <Binding.Converter>
+                                                <local:BoolToTextConverter TrueText="Stärke Links" FalseText="Stärke" />
+                                            </Binding.Converter>
+                                        </Binding>
+                                    </TextBlock.Text>
+                                </TextBlock>
+                            </StackPanel>
+                            <StackPanel Margin="0,0,0,8" IsEnabled="{Binding IsStereo}" ToolTipService.ShowOnDisabled="True"
+                                        ToolTip="Hall-Stärke im rechten Kanal (nur bei Stereo) – ziehen, Mausrad oder Doppelklick für 0">
+                                <controls:Knob Width="56" Height="56" Value="{Binding ReverbRight}" DefaultValue="0" Accent="#C2185B" />
+                                <TextBlock Style="{StaticResource KnobValue}" Text="{Binding ReverbRight, StringFormat={}{0:0} %}" />
+                                <TextBlock Style="{StaticResource KnobLabel}" Text="Stärke Rechts" />
+                            </StackPanel>
+                            <StackPanel ToolTip="Raumgröße: klein = kurzer Nachhall, groß = langer Nachhall – Doppelklick für 50 %">
+                                <controls:Knob Width="56" Height="56" Value="{Binding ReverbRoomSize}" DefaultValue="50" Accent="#6A1B9A" />
+                                <TextBlock Style="{StaticResource KnobValue}" Text="{Binding ReverbRoomSize, StringFormat={}{0:0} %}" />
+                                <TextBlock Style="{StaticResource KnobLabel}" Text="Raumgröße" />
+                            </StackPanel>
+                            <StackPanel ToolTip="Dämpfung: wenig = heller, glänzender Hall; viel = dunkler, weicher Hall – Doppelklick für 50 %">
+                                <controls:Knob Width="56" Height="56" Value="{Binding ReverbDamping}" DefaultValue="50" Accent="#EF6C00" />
+                                <TextBlock Style="{StaticResource KnobValue}" Text="{Binding ReverbDamping, StringFormat={}{0:0} %}" />
+                                <TextBlock Style="{StaticResource KnobLabel}" Text="Dämpfung" />
+                            </StackPanel>
+                        </UniformGrid>
+
+                        <Button Margin="0,8,0,0" Padding="8,3" FontWeight="SemiBold" Content="Hall in Audio übernehmen"
+                                Command="{Binding ApplyReverbCommand}"
+                                ToolTip="Rechnet den Hall fest in die Auswahl (oder die ganze Datei – dann mit Ausklingen am Ende) ein, bei Stereo in die unter „Bearbeiten L/R“ gewählten Kanäle. Danach stehen die übernommenen Stärke-Regler wieder auf 0." />
+                    </StackPanel>
+                </Border>
             </DockPanel>
         </Border>
 

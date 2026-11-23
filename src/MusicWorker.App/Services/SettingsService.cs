@@ -23,6 +23,16 @@ public sealed class AppSettings
 
     public double EqualizerRightPreampDb { get; set; }
 
+    public bool ReverbEnabled { get; set; } = true;
+
+    public double ReverbLeftPercent { get; set; }
+
+    public double ReverbRightPercent { get; set; }
+
+    public double ReverbRoomSizePercent { get; set; } = 50;
+
+    public double ReverbDampingPercent { get; set; } = 50;
+
     public bool EqualizerVisible { get; set; }
 }
 
