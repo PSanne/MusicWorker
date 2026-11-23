@@ -11,7 +11,7 @@ Version 0.2 bietet einen vollständigen Audio-Editor mit 15-Band-Equalizer sowie
 |---|---|
 | **Öffnen & Abspielen** | WAV, MP3, FLAC, AIFF, M4A/AAC, WMA öffnen (Menü, Strg+O oder Drag & Drop) · **zuletzt geöffnete Dateien** · Wellenform mit Zeitleiste · Abspielen, Pause, Stopp · laufende Abspielposition |
 | **Schneiden & Trimmen** | Bereich mit der Maus markieren · Ausschneiden, Kopieren, Einfügen, Löschen · Auf Auswahl zuschneiden · **Stille einfügen** · **Rückgängig/Wiederholen** (50 Schritte) |
-| **Live-Equalizer** | **15 Bänder** von 25 Hz bis 16 kHz (2/3-Oktave, ±12 dB) · Vorverstärkung · 13 Voreinstellungen (Bass-Boost, Rock, Stimme, Loudness …) · **wirkt sofort beim Abspielen** · Ein/Aus für Vorher-/Nachher-Vergleich · „In Audio übernehmen“ · beim Export einrechenbar · Schutz vor Übersteuerung · Einstellung wird gespeichert |
+| **Live-Equalizer** | **15 Bänder** von 25 Hz bis 16 kHz (2/3-Oktave, ±12 dB) · Vorverstärkung · 13 Voreinstellungen (Bass-Boost, Rock, Stimme, Loudness …) · **wirkt sofort beim Abspielen** · **Pro-Kanal-EQ:** links und rechts getrennt einstellbar · Ein/Aus für Vorher-/Nachher-Vergleich · „In Audio übernehmen“ · beim Export einrechenbar · Schutz vor Übersteuerung · Einstellung wird gespeichert |
 | **Live-Spektrum** | Frequenzspektrum der Wiedergabe *nach* dem EQ in Echtzeit (60 Bänder, 20 Hz–20 kHz) · bei Stereo links/rechts getrennt · darübergelegte EQ-Kurve · jede Spalte steht genau über ihrem EQ-Regler |
 | **Stereo-Kanäle** | Wellenform in getrennten Spuren (L blau, R rosa) · Effekte wahlweise nur auf links oder rechts · einzelne Kanäle beim Abhören stummschalten · als zwei Mono-Dateien exportieren (`…_L` / `…_R`) · nur einen Kanal behalten (Stereo → Mono) |
 | **Tempo & Tonhöhe** | Tempo 50–200 % ohne Tonhöhenänderung · Tonhöhe ±12 Halbtöne ohne Tempoänderung · beides kombinierbar |
@@ -43,6 +43,9 @@ Version 0.2 bietet einen vollständigen Audio-Editor mit 15-Band-Equalizer sowie
 > Der **Live-Equalizer** unter der Wellenform wirkt sofort auf die Wiedergabe. Deine Datei ändert er erst,
 > wenn du auf *In Audio übernehmen* klickst; beim Exportieren fragt MusicWorker, ob er eingerechnet werden soll.
 > Darüber zeigt das **Live-Spektrum**, was gerade zu hören ist (Stereo: blau = links, rosa = rechts), und in Orange die eingestellte EQ-Kurve.
+>
+> **Pro-Kanal-EQ:** Mit „Links/rechts getrennt“ bekommt jeder Kanal seinen eigenen Equalizer. Über *Einstellen [L] [R]*
+> wählst du, welchen die Regler gerade zeigen; im Spektrum erscheinen beide Kurven (L blau, R rosa).
 >
 > **Stereo:** In der Werkzeugleiste „Kanäle“ legst du mit *Bearbeiten [L] [R]* fest, worauf Effekte wirken
 > (die Auswahl wird nur in diesen Spuren markiert), und mit *Hören [L] [R]*, welche Kanäle beim Abspielen zu hören sind.

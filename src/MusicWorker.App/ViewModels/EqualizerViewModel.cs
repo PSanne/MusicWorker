@@ -34,8 +34,9 @@ public sealed partial class EqualizerBandViewModel : ObservableObject
 }
 
 /// <summary>
-/// Zustand des Live-Equalizers im Hauptfenster: 15 Regler, Vorverstärkung, Presets, Ein/Aus.
-/// Jede Änderung löst <see cref="SettingsChanged"/> aus – die Wiedergabe übernimmt sie sofort.
+/// Die 15 Regler, Vorverstärkung und Voreinstellung eines Equalizers. Beim Pro-Kanal-EQ gibt es
+/// zwei davon (links und rechts). Jede Änderung löst <see cref="SettingsChanged"/> aus – die
+/// Wiedergabe übernimmt sie sofort.
 /// </summary>
 public sealed partial class EqualizerViewModel : ObservableObject
 {
@@ -45,19 +46,10 @@ public sealed partial class EqualizerViewModel : ObservableObject
     private double _preampDb;
 
     [ObservableProperty]
-    private bool _preventClipping;
-
-    [ObservableProperty]
     private EqualizerPreset? _selectedPreset;
 
-    [ObservableProperty]
-    private bool _isEnabled;
-
-    public EqualizerViewModel(EqualizerSettings initial, bool isEnabled, bool preventClipping)
+    public EqualizerViewModel(EqualizerSettings initial)
     {
-        _isEnabled = isEnabled;
-        _preventClipping = preventClipping;
-
         Bands = EqualizerSettings.BandFrequencies
             .Select(frequency => new EqualizerBandViewModel(frequency, 0))
             .ToArray();
@@ -69,21 +61,18 @@ public sealed partial class EqualizerViewModel : ObservableObject
         LoadSettings(initial);
     }
 
-    /// <summary>Regler, Pegel oder Ein/Aus wurden verändert.</summary>
+    /// <summary>Regler oder Pegel wurden verändert.</summary>
     public event EventHandler? SettingsChanged;
 
     public IReadOnlyList<EqualizerBandViewModel> Bands { get; }
 
     public IReadOnlyList<EqualizerPreset> Presets => EqualizerPresets.All;
 
-    /// <summary>Die Einstellung laut Reglern (unabhängig davon, ob der EQ eingeschaltet ist).</summary>
+    /// <summary>Die aktuelle Einstellung der Regler.</summary>
     public EqualizerSettings ToSettings() => new(Bands.Select(b => b.GainDb).ToArray(), PreampDb);
 
-    /// <summary>Das, was tatsächlich zu hören sein soll: neutral, wenn der EQ ausgeschaltet ist.</summary>
-    public EqualizerSettings EffectiveSettings => IsEnabled ? ToSettings() : EqualizerSettings.Neutral;
-
-    /// <summary>True, wenn der EQ eingeschaltet ist und den Klang tatsächlich verändert.</summary>
-    public bool IsActive => IsEnabled && !ToSettings().IsNeutral;
+    /// <summary>True, wenn alle Regler und der Pegel auf 0 dB stehen.</summary>
+    public bool IsNeutral => ToSettings().IsNeutral;
 
     /// <summary>Setzt alle Regler auf die angegebenen Werte.</summary>
     public void LoadSettings(EqualizerSettings settings)
@@ -97,7 +86,7 @@ public sealed partial class EqualizerViewModel : ObservableObject
         PreampDb = settings.PreampDb;
         SelectedPreset = EqualizerPresets.All.FirstOrDefault(p => p.GainsDb.SequenceEqual(settings.GainsDb));
         _loading = false;
-        RaiseSettingsChanged();
+        SettingsChanged?.Invoke(this, EventArgs.Empty);
     }
 
     [RelayCommand]
@@ -117,18 +106,16 @@ public sealed partial class EqualizerViewModel : ObservableObject
         }
 
         _loading = false;
-        RaiseSettingsChanged();
+        SettingsChanged?.Invoke(this, EventArgs.Empty);
     }
 
     partial void OnPreampDbChanged(double value)
     {
         if (!_loading)
         {
-            RaiseSettingsChanged();
+            SettingsChanged?.Invoke(this, EventArgs.Empty);
         }
     }
-
-    partial void OnIsEnabledChanged(bool value) => RaiseSettingsChanged();
 
     private void OnBandChanged(object? sender, EventArgs e)
     {
@@ -141,12 +128,6 @@ public sealed partial class EqualizerViewModel : ObservableObject
         _loading = true;
         SelectedPreset = null;
         _loading = false;
-        RaiseSettingsChanged();
-    }
-
-    private void RaiseSettingsChanged()
-    {
-        OnPropertyChanged(nameof(IsActive));
         SettingsChanged?.Invoke(this, EventArgs.Empty);
     }
 }

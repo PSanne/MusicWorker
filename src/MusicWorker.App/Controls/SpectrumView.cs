@@ -20,6 +20,14 @@ public sealed class SpectrumView : FrameworkElement
         nameof(EqualizerCurve), typeof(double[]), typeof(SpectrumView),
         new FrameworkPropertyMetadata(null, FrameworkPropertyMetadataOptions.AffectsRender));
 
+    public static readonly DependencyProperty EqualizerCurveRightProperty = DependencyProperty.Register(
+        nameof(EqualizerCurveRight), typeof(double[]), typeof(SpectrumView),
+        new FrameworkPropertyMetadata(null, FrameworkPropertyMetadataOptions.AffectsRender));
+
+    public static readonly DependencyProperty ActiveCurveProperty = DependencyProperty.Register(
+        nameof(ActiveCurve), typeof(int), typeof(SpectrumView),
+        new FrameworkPropertyMetadata(0, FrameworkPropertyMetadataOptions.AffectsRender));
+
     private const double CurveRangeDb = 15;
     private const double TopDb = 0;
 
@@ -32,6 +40,31 @@ public sealed class SpectrumView : FrameworkElement
         LineJoin = PenLineJoin.Round,
     });
     private static readonly Brush CurveFill = Frozen(new SolidColorBrush(Color.FromArgb(0x38, 0xFF, 0x9F, 0x1C)));
+
+    // Pro-Kanal-EQ: Kurven in den Kanalfarben; die gerade bearbeitete kräftig und gefüllt.
+    private static readonly Color LeftCurveColor = Color.FromRgb(0x29, 0xD8, 0xFF);
+    private static readonly Color RightCurveColor = Color.FromRgb(0xFF, 0x52, 0x9A);
+    private static readonly Pen[] ActiveCurvePens =
+    [
+        Frozen(new Pen(Frozen(new SolidColorBrush(LeftCurveColor)), 2.5) { LineJoin = PenLineJoin.Round }),
+        Frozen(new Pen(Frozen(new SolidColorBrush(RightCurveColor)), 2.5) { LineJoin = PenLineJoin.Round }),
+    ];
+    private static readonly Pen[] InactiveCurvePens =
+    [
+        Frozen(new Pen(Frozen(new SolidColorBrush(Color.FromArgb(0xB0, LeftCurveColor.R, LeftCurveColor.G, LeftCurveColor.B))), 1.2)
+        {
+            DashStyle = DashStyles.Dash,
+        }),
+        Frozen(new Pen(Frozen(new SolidColorBrush(Color.FromArgb(0xB0, RightCurveColor.R, RightCurveColor.G, RightCurveColor.B))), 1.2)
+        {
+            DashStyle = DashStyles.Dash,
+        }),
+    ];
+    private static readonly Brush[] CurveFills =
+    [
+        Frozen(new SolidColorBrush(Color.FromArgb(0x30, LeftCurveColor.R, LeftCurveColor.G, LeftCurveColor.B))),
+        Frozen(new SolidColorBrush(Color.FromArgb(0x30, RightCurveColor.R, RightCurveColor.G, RightCurveColor.B))),
+    ];
     // Farben je Kanal – passend zur Wellenform: links blau, rechts rosa.
     private static readonly Brush[] BarBrushes =
     [
@@ -67,6 +100,20 @@ public sealed class SpectrumView : FrameworkElement
     {
         get => (double[]?)GetValue(EqualizerCurveProperty);
         set => SetValue(EqualizerCurveProperty, value);
+    }
+
+    /// <summary>EQ-Frequenzgang des rechten Kanals (nur beim Pro-Kanal-EQ, sonst null).</summary>
+    public double[]? EqualizerCurveRight
+    {
+        get => (double[]?)GetValue(EqualizerCurveRightProperty);
+        set => SetValue(EqualizerCurveRightProperty, value);
+    }
+
+    /// <summary>Hervorgehobene Kurve beim Pro-Kanal-EQ (0 = links, 1 = rechts).</summary>
+    public int ActiveCurve
+    {
+        get => (int)GetValue(ActiveCurveProperty);
+        set => SetValue(ActiveCurveProperty, value);
     }
 
     protected override void OnRender(DrawingContext dc)
@@ -127,54 +174,91 @@ public sealed class SpectrumView : FrameworkElement
             DrawLabel(dc, "Spektrum erscheint beim Abspielen", new Point(30, 4), pixelsPerDip);
         }
 
-        // EQ-Kurve mit Füllung zur 0-dB-Linie
+        // EQ-Kurve(n) mit Füllung zur 0-dB-Linie
         dc.DrawLine(ZeroPen, new Point(0, curveMiddle), new Point(width, curveMiddle));
-        if (EqualizerCurve is { Length: > 1 } curve)
+        var rightCurve = EqualizerCurveRight;
+        if (rightCurve is null)
         {
-            var line = new StreamGeometry();
-            var area = new StreamGeometry();
-            using (var lineContext = line.Open())
-            using (var areaContext = area.Open())
-            {
-                areaContext.BeginFigure(new Point(0, curveMiddle), isFilled: true, isClosed: true);
-                for (int i = 0; i < curve.Length; i++)
-                {
-                    double x = (i + 0.5) / curve.Length * width;
-                    double y = Math.Clamp(curveMiddle - curve[i] * curveScale, 0, height);
-                    var point = new Point(x, y);
-                    if (i == 0)
-                    {
-                        lineContext.BeginFigure(point, isFilled: false, isClosed: false);
-                    }
-                    else
-                    {
-                        lineContext.LineTo(point, isStroked: true, isSmoothJoin: true);
-                    }
-
-                    areaContext.LineTo(point, isStroked: false, isSmoothJoin: false);
-                }
-
-                areaContext.LineTo(new Point(width, curveMiddle), isStroked: false, isSmoothJoin: false);
-            }
-
-            line.Freeze();
-            area.Freeze();
-            dc.DrawGeometry(CurveFill, null, area);
-            dc.DrawGeometry(null, CurvePen, line);
+            DrawCurve(dc, EqualizerCurve, width, height, curveMiddle, curveScale, CurvePen, CurveFill);
+        }
+        else
+        {
+            // Pro-Kanal-EQ: erst die nicht bearbeitete Kurve (gestrichelt), dann die bearbeitete darüber.
+            int active = ActiveCurve == 1 ? 1 : 0;
+            var curves = new[] { EqualizerCurve, rightCurve };
+            DrawCurve(dc, curves[1 - active], width, height, curveMiddle, curveScale, InactiveCurvePens[1 - active], null);
+            DrawCurve(dc, curves[active], width, height, curveMiddle, curveScale, ActiveCurvePens[active], CurveFills[active]);
         }
 
         // Legende
         bool stereo = spectra is { Length: 2 };
-        var legend = new FormattedText(stereo ? "▮ L   ▮ R   ━ EQ-Kurve" : "▮ Spektrum   ━ EQ-Kurve",
+        string curveLegend = rightCurve is null ? "━ EQ-Kurve" : "━ EQ L ━ EQ R";
+        string text = (stereo ? "▮ L   ▮ R   " : "▮ Spektrum   ") + curveLegend;
+        var legend = new FormattedText(text,
             CultureInfo.CurrentCulture, FlowDirection.LeftToRight, LabelTypeface, 10, LabelBrush, pixelsPerDip);
         if (stereo)
         {
-            // „L“ und „R“ in ihren Kanalfarben einfärben
+            // „▮“ von L und R in ihren Kanalfarben einfärben
             legend.SetForegroundBrush(BarBrushes[0], 0, 1);
             legend.SetForegroundBrush(BarBrushes[1], 6, 1);
         }
 
+        int curveStart = text.Length - curveLegend.Length;
+        if (rightCurve is null)
+        {
+            legend.SetForegroundBrush(CurvePen.Brush, curveStart, 1);
+        }
+        else
+        {
+            legend.SetForegroundBrush(ActiveCurvePens[0].Brush, curveStart, 1);
+            legend.SetForegroundBrush(ActiveCurvePens[1].Brush, curveStart + 7, 1);
+        }
+
         dc.DrawText(legend, new Point(width - legend.Width - 6, 3));
+    }
+
+    private static void DrawCurve(DrawingContext dc, double[]? curve, double width, double height,
+        double middle, double scale, Pen pen, Brush? fill)
+    {
+        if (curve is not { Length: > 1 })
+        {
+            return;
+        }
+
+        var line = new StreamGeometry();
+        var area = new StreamGeometry();
+        using (var lineContext = line.Open())
+        using (var areaContext = area.Open())
+        {
+            areaContext.BeginFigure(new Point(0, middle), isFilled: true, isClosed: true);
+            for (int i = 0; i < curve.Length; i++)
+            {
+                double x = (i + 0.5) / curve.Length * width;
+                double y = Math.Clamp(middle - curve[i] * scale, 0, height);
+                var point = new Point(x, y);
+                if (i == 0)
+                {
+                    lineContext.BeginFigure(point, isFilled: false, isClosed: false);
+                }
+                else
+                {
+                    lineContext.LineTo(point, isStroked: true, isSmoothJoin: true);
+                }
+
+                areaContext.LineTo(point, isStroked: false, isSmoothJoin: false);
+            }
+
+            areaContext.LineTo(new Point(width, middle), isStroked: false, isSmoothJoin: false);
+        }
+
+        line.Freeze();
+        area.Freeze();
+        if (fill is not null)
+        {
+            dc.DrawGeometry(fill, null, area);
+        }
+
+        dc.DrawGeometry(null, pen, line);
     }
 
     private static void DrawLabel(DrawingContext dc, string text, Point position, double pixelsPerDip)

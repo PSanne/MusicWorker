@@ -42,7 +42,7 @@
         <!-- Equalizer-Regler -->
         <Style x:Key="EqDimWhenOff" TargetType="FrameworkElement">
             <Style.Triggers>
-                <DataTrigger Binding="{Binding IsEnabled}" Value="False">
+                <DataTrigger Binding="{Binding IsEqualizerEnabled}" Value="False">
                     <Setter Property="Opacity" Value="0.45" />
                 </DataTrigger>
             </Style.Triggers>
@@ -274,21 +274,43 @@
 
         <!-- Live-Equalizer: wirkt sofort auf die Wiedergabe -->
         <Border DockPanel.Dock="Bottom"
-                DataContext="{Binding Equalizer}"
-                Visibility="{Binding DataContext.IsEqualizerVisible, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource BoolToVisibility}}"
+                Visibility="{Binding IsEqualizerVisible, Converter={StaticResource BoolToVisibility}}"
                 Background="#F7F7F9" BorderBrush="#D9D9DE" BorderThickness="0,1,0,0">
             <DockPanel Margin="14,10">
-                <StackPanel DockPanel.Dock="Left" Width="200" Margin="0,0,18,0">
+                <StackPanel DockPanel.Dock="Left" Width="210" Margin="0,0,18,0">
                     <TextBlock FontSize="14" FontWeight="SemiBold" Text="Equalizer" />
-                    <CheckBox Margin="0,8,0,0" Content="Equalizer eingeschaltet" IsChecked="{Binding IsEnabled}"
+                    <CheckBox Margin="0,8,0,0" Content="Equalizer eingeschaltet" IsChecked="{Binding IsEqualizerEnabled}"
                               ToolTip="Ausschalten zum direkten Vorher-/Nachher-Vergleich" />
+                    <CheckBox Margin="0,6,0,0" IsChecked="{Binding IsEqualizerPerChannel}" IsEnabled="{Binding IsStereo}"
+                              ToolTipService.ShowOnDisabled="True"
+                              ToolTip="Zwei unabhängige Equalizer: links und rechts getrennt einstellen (nur bei Stereo-Dateien)">
+                        <TextBlock TextWrapping="Wrap" Text="Links/rechts getrennt (Pro-Kanal-EQ)" />
+                    </CheckBox>
+
+                    <!-- Nur im Pro-Kanal-Modus: Welcher Kanal wird gerade eingestellt? -->
+                    <StackPanel Margin="0,6,0,0" Visibility="{Binding UsesPerChannelEqualizer, Converter={StaticResource BoolToVisibility}}">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock VerticalAlignment="Center" Text="Einstellen:" />
+                            <RadioButton Margin="8,0,0,0" GroupName="EqChannel" Content="L" FontWeight="Bold" Foreground="#0277BD"
+                                         Style="{StaticResource {x:Type ToggleButton}}" MinWidth="30"
+                                         IsChecked="{Binding EqualizerEditsLeft}" ToolTip="Regler zeigen den EQ des linken Kanals" />
+                            <RadioButton Margin="4,0,0,0" GroupName="EqChannel" Content="R" FontWeight="Bold" Foreground="#C2185B"
+                                         Style="{StaticResource {x:Type ToggleButton}}" MinWidth="30"
+                                         IsChecked="{Binding EqualizerEditsRight}" ToolTip="Regler zeigen den EQ des rechten Kanals" />
+                        </StackPanel>
+                        <Button Margin="0,6,0,0" Padding="8,2" Content="Auf anderen Kanal kopieren"
+                                Command="{Binding CopyEqualizerToOtherChannelCommand}"
+                                ToolTip="Überträgt die angezeigte Einstellung auf den anderen Kanal" />
+                    </StackPanel>
+
                     <TextBlock Margin="0,10,0,2" Text="Voreinstellung:" />
-                    <ComboBox ItemsSource="{Binding Presets}" SelectedItem="{Binding SelectedPreset}" DisplayMemberPath="Name" />
-                    <Button Margin="0,8,0,0" Padding="8,2" Content="Alle Regler auf 0" Command="{Binding ResetCommand}" />
+                    <ComboBox ItemsSource="{Binding CurrentEqualizer.Presets}" SelectedItem="{Binding CurrentEqualizer.SelectedPreset}"
+                              DisplayMemberPath="Name" />
+                    <Button Margin="0,8,0,0" Padding="8,2" Content="Alle Regler auf 0" Command="{Binding CurrentEqualizer.ResetCommand}" />
                     <Button Margin="0,8,0,0" Padding="8,3" FontWeight="SemiBold" Content="In Audio übernehmen"
-                            Command="{Binding DataContext.ApplyEqualizerCommand, RelativeSource={RelativeSource AncestorType=Window}}"
-                            ToolTip="Rechnet den Klang fest in die Auswahl (oder die ganze Datei) ein. Danach stehen die Regler wieder auf 0." />
-                    <CheckBox Margin="0,8,0,0" IsChecked="{Binding PreventClipping}"
+                            Command="{Binding ApplyEqualizerCommand}"
+                            ToolTip="Rechnet den Klang fest in die Auswahl (oder die ganze Datei) ein – bei Stereo in die unter „Bearbeiten L/R“ gewählten Kanäle. Danach stehen die übernommenen Regler wieder auf 0." />
+                    <CheckBox Margin="0,8,0,0" IsChecked="{Binding EqualizerPreventClipping}"
                               ToolTip="Beim Übernehmen und Exportieren den Pegel bei Bedarf auf -1 dB absenken.">
                         <TextBlock TextWrapping="Wrap" Text="Übersteuerung verhindern" />
                     </CheckBox>
@@ -304,26 +326,54 @@
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
                     </Grid.RowDefinitions>
 
                     <!-- Live-Spektrum: genau so breit wie die 15 Regler, jede Spalte über ihrem Regler -->
                     <TextBlock Grid.Row="0" Grid.Column="0" Margin="0,4,0,0" HorizontalAlignment="Center"
                                FontSize="11" Foreground="Gray" Text="Live" />
-                    <controls:SpectrumView Grid.Row="0" Grid.Column="2" Width="600" Height="130" Margin="0,0,0,8"
-                                           Spectra="{Binding DataContext.Spectra, RelativeSource={RelativeSource AncestorType=Window}}"
-                                           EqualizerCurve="{Binding DataContext.EqualizerCurve, RelativeSource={RelativeSource AncestorType=Window}}"
-                                           ToolTip="Spektrum der Wiedergabe nach dem Equalizer (Stereo: blau = links, rosa = rechts) · Orange: eingestellte EQ-Kurve" />
+                    <controls:SpectrumView Grid.Row="0" Grid.Column="2" Width="600" Height="130" Margin="0,0,0,4"
+                                           Spectra="{Binding Spectra}"
+                                           EqualizerCurve="{Binding EqualizerCurve}"
+                                           EqualizerCurveRight="{Binding EqualizerCurveRight}"
+                                           ActiveCurve="{Binding ActiveEqualizerCurve}"
+                                           ToolTip="Spektrum der Wiedergabe nach dem Equalizer (Stereo: blau = links, rosa = rechts) · Linien: eingestellte EQ-Kurve(n)" />
 
-                    <StackPanel Grid.Row="1" Grid.Column="0" Width="52" Style="{StaticResource EqDimWhenOff}"
+                    <TextBlock Grid.Row="1" Grid.Column="2" Margin="0,0,0,4" HorizontalAlignment="Center"
+                               FontWeight="SemiBold" FontSize="11" Text="{Binding EqualizerTargetText}">
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock">
+                                <Setter Property="Foreground" Value="Gray" />
+                                <Style.Triggers>
+                                    <MultiDataTrigger>
+                                        <MultiDataTrigger.Conditions>
+                                            <Condition Binding="{Binding UsesPerChannelEqualizer}" Value="True" />
+                                            <Condition Binding="{Binding EqualizerEditsRight}" Value="False" />
+                                        </MultiDataTrigger.Conditions>
+                                        <Setter Property="Foreground" Value="#0277BD" />
+                                    </MultiDataTrigger>
+                                    <MultiDataTrigger>
+                                        <MultiDataTrigger.Conditions>
+                                            <Condition Binding="{Binding UsesPerChannelEqualizer}" Value="True" />
+                                            <Condition Binding="{Binding EqualizerEditsRight}" Value="True" />
+                                        </MultiDataTrigger.Conditions>
+                                        <Setter Property="Foreground" Value="#C2185B" />
+                                    </MultiDataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
+
+                    <StackPanel Grid.Row="2" Grid.Column="0" Width="52" Style="{StaticResource EqDimWhenOff}"
                                 ToolTip="Vorverstärkung vor dem Equalizer – Doppelklick setzt auf 0 dB">
-                        <TextBlock Style="{StaticResource EqValueLabel}" Text="{Binding PreampDb, StringFormat={}{0:+0.0;-0.0;0.0}}" />
-                        <Slider Style="{StaticResource EqSlider}" Value="{Binding PreampDb}" MouseDoubleClick="OnEqSliderDoubleClick" />
+                        <TextBlock Style="{StaticResource EqValueLabel}" Text="{Binding CurrentEqualizer.PreampDb, StringFormat={}{0:+0.0;-0.0;0.0}}" />
+                        <Slider Style="{StaticResource EqSlider}" Value="{Binding CurrentEqualizer.PreampDb}" MouseDoubleClick="OnEqSliderDoubleClick" />
                         <TextBlock Style="{StaticResource EqBandLabel}" FontWeight="SemiBold" Text="Pegel" />
                     </StackPanel>
 
-                    <Border Grid.Row="1" Grid.Column="1" Width="1" Margin="6,0" Background="#D9D9DE" />
+                    <Border Grid.Row="2" Grid.Column="1" Width="1" Margin="6,0" Background="#D9D9DE" />
 
-                    <ItemsControl Grid.Row="1" Grid.Column="2" ItemsSource="{Binding Bands}" Focusable="False"
+                    <ItemsControl Grid.Row="2" Grid.Column="2" ItemsSource="{Binding CurrentEqualizer.Bands}" Focusable="False"
                                   Style="{StaticResource EqDimWhenOff}">
                         <ItemsControl.ItemsPanel>
                             <ItemsPanelTemplate>
@@ -341,7 +391,7 @@
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>
 
-                    <Grid Grid.Row="1" Grid.Column="3" Margin="6,19,0,0" Height="150" VerticalAlignment="Top">
+                    <Grid Grid.Row="2" Grid.Column="3" Margin="6,19,0,0" Height="150" VerticalAlignment="Top">
                         <TextBlock VerticalAlignment="Top" FontSize="10" Foreground="Gray" Text="+12 dB" />
                         <TextBlock VerticalAlignment="Center" FontSize="10" Foreground="Gray" Text="0 dB" />
                         <TextBlock VerticalAlignment="Bottom" FontSize="10" Foreground="Gray" Text="-12 dB" />

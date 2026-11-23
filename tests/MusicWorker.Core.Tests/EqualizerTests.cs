@@ -120,3 +120,55 @@ public class EqualizerTests
         Assert.Equal(BiquadCoefficients.Identity, c);
     }
 }
+
+public class PerChannelEqualizerTests
+{
+    private static EqualizerSettings Boost(int band, double db)
+    {
+        var gains = new double[15];
+        gains[band] = db;
+        return new EqualizerSettings(gains);
+    }
+
+    private static Audio.AudioBuffer StereoSine(double frequency) =>
+        Signals.Sine(frequency, 1, amplitude: 0.1f, channels: 2);
+
+    [Fact]
+    public void Each_channel_gets_its_own_settings()
+    {
+        // links +12 dB bei 1 kHz, rechts -12 dB bei 1 kHz
+        var effect = new EqualizerEffect([Boost(8, 12), Boost(8, -12)], preventClipping: false);
+
+        var output = effect.Apply(StereoSine(1000));
+
+        double ratioLeft = Signals.Rms(output.GetChannel(0)) / Signals.Rms(StereoSine(1000).GetChannel(0));
+        double ratioRight = Signals.Rms(output.GetChannel(1)) / Signals.Rms(StereoSine(1000).GetChannel(1));
+        Assert.Equal(3.98, ratioLeft, 0.2);
+        Assert.Equal(0.251, ratioRight, 0.02);
+        Assert.Equal("Equalizer (L/R getrennt)", effect.Name);
+    }
+
+    [Fact]
+    public void Single_setting_applies_to_all_channels()
+    {
+        var output = new EqualizerEffect(Boost(8, 12), preventClipping: false).Apply(StereoSine(1000));
+
+        Assert.Equal(Signals.Rms(output.GetChannel(0)), Signals.Rms(output.GetChannel(1)), 1e-6);
+        Assert.Equal("Equalizer", new EqualizerEffect(Boost(8, 12)).Name);
+    }
+
+    [Fact]
+    public void Processor_can_switch_to_per_channel_settings_live()
+    {
+        var processor = new EqualizerProcessor(44100, 2, Boost(8, 12));
+        var block = StereoSine(1000).Samples.ToArray();
+
+        processor.Update([EqualizerSettings.Neutral, Boost(8, 12)]);
+        processor.Process(block);
+
+        var output = new Audio.AudioBuffer(block, 44100, 2);
+        double expected = 0.1 / Math.Sqrt(2);
+        Assert.Equal(1.0, Signals.Rms(output.GetChannel(0)) / expected, 0.05);
+        Assert.Equal(3.98, Signals.Rms(output.GetChannel(1)) / expected, 0.2);
+    }
+}

@@ -54,6 +54,28 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     [ObservableProperty]
     private bool _isEqualizerVisible;
 
+    /// <summary>Live-EQ ein/aus (für den Vorher-/Nachher-Vergleich).</summary>
+    [ObservableProperty]
+    private bool _isEqualizerEnabled;
+
+    /// <summary>Beim Übernehmen/Exportieren den Pegel bei Bedarf auf -1 dB absenken.</summary>
+    [ObservableProperty]
+    private bool _equalizerPreventClipping;
+
+    /// <summary>Pro-Kanal-EQ: links und rechts getrennt einstellbar.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(UsesPerChannelEqualizer), nameof(CurrentEqualizer), nameof(EqualizerTargetText))]
+    private bool _isEqualizerPerChannel;
+
+    /// <summary>Im Pro-Kanal-Modus: Die Regler zeigen den rechten EQ (sonst den linken).</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(EqualizerEditsLeft), nameof(CurrentEqualizer), nameof(EqualizerTargetText), nameof(ActiveEqualizerCurve))]
+    private bool _equalizerEditsRight;
+
+    /// <summary>EQ-Kurve des rechten Kanals (nur im Pro-Kanal-Modus, sonst null).</summary>
+    [ObservableProperty]
+    private double[]? _equalizerCurveRight;
+
     /// <summary>
     /// Live-Spektrum der Wiedergabe (nach dem EQ) in dBFS – ein Array pro Kanal (Stereo: links, rechts);
     /// null, wenn nichts spielt.
@@ -98,11 +120,15 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         RefreshRecentFiles();
 
         var saved = settings.Settings;
-        var initialEq = saved.EqualizerGainsDb is { Length: var n } gains && n == EqualizerSettings.BandFrequencies.Count
-            ? new EqualizerSettings(gains, saved.EqualizerPreampDb)
-            : EqualizerSettings.Neutral;
-        Equalizer = new EqualizerViewModel(initialEq, saved.EqualizerEnabled, saved.EqualizerPreventClipping);
+        Equalizer = new EqualizerViewModel(LoadEqualizerSettings(saved.EqualizerGainsDb, saved.EqualizerPreampDb));
+        EqualizerRight = new EqualizerViewModel(saved.EqualizerRightGainsDb is null
+            ? Equalizer.ToSettings()
+            : LoadEqualizerSettings(saved.EqualizerRightGainsDb, saved.EqualizerRightPreampDb));
         Equalizer.SettingsChanged += OnEqualizerSettingsChanged;
+        EqualizerRight.SettingsChanged += OnEqualizerSettingsChanged;
+        _isEqualizerEnabled = saved.EqualizerEnabled;
+        _equalizerPreventClipping = saved.EqualizerPreventClipping;
+        _isEqualizerPerChannel = saved.EqualizerPerChannel;
         _isEqualizerVisible = saved.EqualizerVisible;
         UpdateEqualizerCurve();
 
@@ -116,11 +142,50 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
 
     public AudioBuffer Buffer => _editor.Buffer;
 
-    /// <summary>Der Live-Equalizer: wirkt sofort auf jede Wiedergabe.</summary>
+    /// <summary>
+    /// Der Live-Equalizer: wirkt sofort auf jede Wiedergabe. Im Pro-Kanal-Modus ist das der EQ
+    /// für den linken Kanal, sonst der gemeinsame EQ für beide Kanäle.
+    /// </summary>
     public EqualizerViewModel Equalizer { get; }
 
+    /// <summary>EQ für den rechten Kanal (nur im Pro-Kanal-Modus wirksam).</summary>
+    public EqualizerViewModel EqualizerRight { get; }
+
+    /// <summary>Der EQ, dessen Regler gerade im Panel angezeigt werden.</summary>
+    public EqualizerViewModel CurrentEqualizer => UsesPerChannelEqualizer && EqualizerEditsRight ? EqualizerRight : Equalizer;
+
+    /// <summary>Beschriftung über den Reglern: Für welchen Kanal gelten sie gerade?</summary>
+    public string EqualizerTargetText => !UsesPerChannelEqualizer
+        ? (IsStereo ? "Regler gelten für beide Kanäle" : string.Empty)
+        : EqualizerEditsRight ? "Regler gelten für: RECHTS" : "Regler gelten für: LINKS";
+
+    /// <summary>Pro-Kanal-EQ ist eingeschaltet und die Datei ist Stereo.</summary>
+    public bool UsesPerChannelEqualizer => IsEqualizerPerChannel && IsStereo;
+
+    /// <summary>Linker EQ wird gerade bearbeitet (für die Auswahlknöpfe L/R im Panel).</summary>
+    public bool EqualizerEditsLeft
+    {
+        get => !EqualizerEditsRight;
+        set
+        {
+            if (value)
+            {
+                EqualizerEditsRight = false;
+            }
+        }
+    }
+
     /// <summary>Hinweis in der Statusleiste, solange der Live-EQ den Klang verändert.</summary>
-    public string EqualizerIndicator => Equalizer.IsActive ? "EQ aktiv" : string.Empty;
+    public string EqualizerIndicator => !IsEqualizerActive
+        ? string.Empty
+        : UsesPerChannelEqualizer ? "EQ aktiv (L/R getrennt)" : "EQ aktiv";
+
+    /// <summary>True, wenn der EQ eingeschaltet ist und den Klang tatsächlich verändert.</summary>
+    private bool IsEqualizerActive => IsEqualizerEnabled &&
+        (!Equalizer.IsNeutral || (UsesPerChannelEqualizer && !EqualizerRight.IsNeutral));
+
+    /// <summary>Welche EQ-Kurve hervorgehoben wird (0 = links/gemeinsam, 1 = rechts).</summary>
+    public int ActiveEqualizerCurve => UsesPerChannelEqualizer && EqualizerEditsRight ? 1 : 0;
 
     /// <summary>Stereo-Datei geladen – dann sind die Kanal-Werkzeuge verfügbar.</summary>
     public bool IsStereo => HasAudio && Buffer.Channels == 2;
@@ -282,13 +347,13 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
 
         // Live-EQ einrechnen? (Er verändert sonst nur die Wiedergabe, nicht die Datei.)
         EqualizerEffect? equalizer = null;
-        if (Equalizer.IsActive && _dialogs.Confirm(
+        if (IsEqualizerActive && _dialogs.Confirm(
                 "Der Live-Equalizer ist eingeschaltet, aber noch nicht in das Audio übernommen.\n\n" +
                 "Soll er in die exportierte Datei eingerechnet werden?\n\n" +
                 "Ja = mit Equalizer exportieren\nNein = ohne Equalizer exportieren",
                 "Equalizer beim Export"))
         {
-            equalizer = new EqualizerEffect(Equalizer.ToSettings(), Equalizer.PreventClipping);
+            equalizer = CreateEqualizerEffectForAllChannels();
         }
 
         StopPlayback();
@@ -339,11 +404,11 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         }
 
         EqualizerEffect? equalizer = null;
-        if (Equalizer.IsActive && _dialogs.Confirm(
+        if (IsEqualizerActive && _dialogs.Confirm(
                 "Der Live-Equalizer ist eingeschaltet. Soll er in die exportierten Dateien eingerechnet werden?",
                 "Equalizer beim Export"))
         {
-            equalizer = new EqualizerEffect(Equalizer.ToSettings(), Equalizer.PreventClipping);
+            equalizer = CreateEqualizerEffectForAllChannels();
         }
 
         StopPlayback();
@@ -517,18 +582,62 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     private void ToggleEqualizer() => IsEqualizerVisible = !IsEqualizerVisible;
 
     /// <summary>
-    /// Rechnet den Live-EQ fest in das Audio ein (Auswahl oder ganze Datei) und stellt die Regler
-    /// danach auf neutral – sonst würde der EQ beim Abspielen ein zweites Mal wirken.
+    /// Rechnet den Live-EQ fest in das Audio ein (Auswahl oder ganze Datei; je nach „Bearbeiten L/R“
+    /// nur in einen Kanal) und stellt die übernommenen Regler danach auf neutral – sonst würde der EQ
+    /// beim Abspielen ein zweites Mal wirken.
     /// </summary>
     [RelayCommand(CanExecute = nameof(CanApplyEqualizer))]
     private async Task ApplyEqualizerAsync()
     {
-        var effect = new EqualizerEffect(Equalizer.ToSettings(), Equalizer.PreventClipping);
-        if (await ApplyEffectAsync(effect))
+        var effect = CreateEqualizerEffectForTarget();
+        if (effect is null || !await ApplyEffectAsync(effect))
         {
+            return;
+        }
+
+        bool left = !IsStereo || EditLeft;
+        bool right = IsStereo && EditRight;
+
+        if (!UsesPerChannelEqualizer && left && (right || !IsStereo))
+        {
+            // Gemeinsamer EQ für alle Kanäle übernommen.
             Equalizer.LoadSettings(EqualizerSettings.Neutral);
             StatusText = "Equalizer in das Audio übernommen – die Regler stehen wieder auf 0 dB.";
+            return;
         }
+
+        if (!UsesPerChannelEqualizer)
+        {
+            // Gemeinsamer EQ, aber nur in einen Kanal eingerechnet: Für den anderen Kanal soll er
+            // weiter hörbar bleiben → auf Pro-Kanal-EQ umschalten und nur die übernommene Seite nullen.
+            EqualizerRight.LoadSettings(Equalizer.ToSettings());
+            IsEqualizerPerChannel = true;
+        }
+
+        if (left)
+        {
+            Equalizer.LoadSettings(EqualizerSettings.Neutral);
+        }
+
+        if (right)
+        {
+            EqualizerRight.LoadSettings(EqualizerSettings.Neutral);
+        }
+
+        StatusText = left && right
+            ? "Equalizer (L/R) in das Audio übernommen – die Regler stehen wieder auf 0 dB."
+            : $"Equalizer in den {(left ? "linken" : "rechten")} Kanal übernommen – dessen Regler stehen wieder auf 0 dB.";
+    }
+
+    /// <summary>Überträgt die gerade angezeigte EQ-Einstellung auf den anderen Kanal.</summary>
+    [RelayCommand]
+    private void CopyEqualizerToOtherChannel()
+    {
+        var (source, target, name) = EqualizerEditsRight
+            ? (EqualizerRight, Equalizer, "linken")
+            : (Equalizer, EqualizerRight, "rechten");
+        target.LoadSettings(source.ToSettings());
+        StatusText = $"EQ-Einstellung auf den {name} Kanal kopiert.";
     }
 
     [RelayCommand(CanExecute = nameof(CanChangeTempo))]
@@ -562,6 +671,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     {
         SaveEqualizerSettings();
         Equalizer.SettingsChanged -= OnEqualizerSettingsChanged;
+        EqualizerRight.SettingsChanged -= OnEqualizerSettingsChanged;
         StopPlayback();
         _playback.PlaybackEnded -= OnPlaybackEnded;
         _playback.Dispose();
@@ -571,7 +681,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
 
     private bool CanOpen() => !IsBusy;
 
-    private bool CanApplyEqualizer() => HasAudio && !IsBusy && Equalizer.IsActive;
+    private bool CanApplyEqualizer() => HasAudio && !IsBusy && CreateEqualizerEffectForTarget() is not null;
 
     private bool CanUseStereo() => IsStereo && !IsBusy;
 
@@ -619,7 +729,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     private ISampleProvider AttachLiveEqualizer(ISampleProvider source)
     {
         var processor = new EqualizerProcessor(
-            source.WaveFormat.SampleRate, source.WaveFormat.Channels, Equalizer.EffectiveSettings);
+            source.WaveFormat.SampleRate, source.WaveFormat.Channels, EffectiveEqualizerSettings());
         _liveEqualizer = processor;
 
         // Stereo: ein Analysator pro Kanal, sonst einer für die Summe.
@@ -666,16 +776,82 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     private void UpdateEqualizerCurve()
     {
         int sampleRate = HasAudio ? Buffer.SampleRate : 44100;
-        EqualizerCurve = Equalizer.EffectiveSettings.ResponseDb(sampleRate, CurveFrequencies);
+        var settings = EffectiveEqualizerSettings();
+        EqualizerCurve = settings[0].ResponseDb(sampleRate, CurveFrequencies);
+        EqualizerCurveRight = settings.Length > 1 ? settings[1].ResponseDb(sampleRate, CurveFrequencies) : null;
     }
 
-    private void OnEqualizerSettingsChanged(object? sender, EventArgs e)
+    /// <summary>
+    /// Was gerade zu hören sein soll: eine Einstellung für alle Kanäle oder (Pro-Kanal-EQ) links und
+    /// rechts getrennt; neutral, wenn der EQ ausgeschaltet ist.
+    /// </summary>
+    private EqualizerSettings[] EffectiveEqualizerSettings()
+    {
+        if (!IsEqualizerEnabled)
+        {
+            return [EqualizerSettings.Neutral];
+        }
+
+        return UsesPerChannelEqualizer
+            ? [Equalizer.ToSettings(), EqualizerRight.ToSettings()]
+            : [Equalizer.ToSettings()];
+    }
+
+    /// <summary>EQ-Effekt für Export: alle Kanäle, jeder mit seiner Einstellung.</summary>
+    private EqualizerEffect? CreateEqualizerEffectForAllChannels() =>
+        IsEqualizerActive ? new EqualizerEffect(EffectiveEqualizerSettings(), EqualizerPreventClipping) : null;
+
+    /// <summary>
+    /// EQ-Effekt für „In Audio übernehmen“ unter Berücksichtigung von „Bearbeiten L/R“
+    /// (wird in <see cref="ApplyEffectAsync"/> bei Bedarf auf einen Kanal beschränkt).
+    /// Null, wenn sich nichts ändern würde.
+    /// </summary>
+    private EqualizerEffect? CreateEqualizerEffectForTarget()
+    {
+        if (!IsEqualizerEnabled)
+        {
+            return null;
+        }
+
+        if (EditsAllChannels)
+        {
+            return CreateEqualizerEffectForAllChannels();
+        }
+
+        // Nur ein Kanal: dessen Einstellung verwenden (gemeinsamer EQ oder die passende Seite).
+        var settings = UsesPerChannelEqualizer && !EditLeft ? EqualizerRight.ToSettings() : Equalizer.ToSettings();
+        return settings.IsNeutral ? null : new EqualizerEffect(settings, EqualizerPreventClipping);
+    }
+
+    private static EqualizerSettings LoadEqualizerSettings(double[]? gains, double preampDb) =>
+        gains is { Length: var n } && n == EqualizerSettings.BandFrequencies.Count
+            ? new EqualizerSettings(gains, preampDb)
+            : EqualizerSettings.Neutral;
+
+    private void OnEqualizerSettingsChanged(object? sender, EventArgs e) => RefreshEqualizer();
+
+    /// <summary>Überträgt den aktuellen EQ-Zustand sofort in Wiedergabe, Kurven und Anzeigen.</summary>
+    private void RefreshEqualizer()
     {
         // Sofort hörbar: der laufende Filter übernimmt die neuen Werte ohne Neustart.
-        _liveEqualizer?.Update(Equalizer.EffectiveSettings);
+        _liveEqualizer?.Update(EffectiveEqualizerSettings());
         UpdateEqualizerCurve();
         OnPropertyChanged(nameof(EqualizerIndicator));
         ApplyEqualizerCommand.NotifyCanExecuteChanged();
+    }
+
+    partial void OnIsEqualizerEnabledChanged(bool value) => RefreshEqualizer();
+
+    partial void OnIsEqualizerPerChannelChanged(bool value)
+    {
+        if (value && EqualizerRight.IsNeutral && !Equalizer.IsNeutral)
+        {
+            // Beim Einschalten übernimmt rechts zunächst die bisherige Einstellung – es ändert sich nichts Hörbares.
+            EqualizerRight.LoadSettings(Equalizer.ToSettings());
+        }
+
+        OnPropertyChanged(nameof(ActiveEqualizerCurve));
+        RefreshEqualizer();
     }
 
     partial void OnEditLeftChanged(bool value)
@@ -686,6 +862,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         }
 
         TempoPitchCommand.NotifyCanExecuteChanged();
+        ApplyEqualizerCommand.NotifyCanExecuteChanged();
     }
 
     partial void OnEditRightChanged(bool value)
@@ -696,6 +873,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         }
 
         TempoPitchCommand.NotifyCanExecuteChanged();
+        ApplyEqualizerCommand.NotifyCanExecuteChanged();
     }
 
     partial void OnHearLeftChanged(bool value)
@@ -724,10 +902,14 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     {
         var saved = _settings.Settings;
         var settings = Equalizer.ToSettings();
+        var right = EqualizerRight.ToSettings();
         saved.EqualizerGainsDb = settings.GainsDb.ToArray();
         saved.EqualizerPreampDb = settings.PreampDb;
-        saved.EqualizerEnabled = Equalizer.IsEnabled;
-        saved.EqualizerPreventClipping = Equalizer.PreventClipping;
+        saved.EqualizerRightGainsDb = right.GainsDb.ToArray();
+        saved.EqualizerRightPreampDb = right.PreampDb;
+        saved.EqualizerEnabled = IsEqualizerEnabled;
+        saved.EqualizerPreventClipping = EqualizerPreventClipping;
+        saved.EqualizerPerChannel = IsEqualizerPerChannel;
         _settings.Save();
     }
 
@@ -881,6 +1063,11 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         OnPropertyChanged(nameof(PositionText));
         OnPropertyChanged(nameof(FormatText));
         OnPropertyChanged(nameof(IsStereo));
+        OnPropertyChanged(nameof(UsesPerChannelEqualizer));
+        OnPropertyChanged(nameof(CurrentEqualizer));
+        OnPropertyChanged(nameof(EqualizerTargetText));
+        OnPropertyChanged(nameof(ActiveEqualizerCurve));
+        _liveEqualizer?.Update(EffectiveEqualizerSettings());
         OnPropertyChanged(nameof(ActiveChannels));
         OnPropertyChanged(nameof(MutedChannels));
         OnPropertyChanged(nameof(ChannelTargetText));

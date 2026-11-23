@@ -16,6 +16,13 @@ public sealed class AppSettings
 
     public bool EqualizerEnabled { get; set; } = true;
 
+    /// <summary>Pro-Kanal-EQ: links und rechts getrennt einstellbar.</summary>
+    public bool EqualizerPerChannel { get; set; }
+
+    public double[]? EqualizerRightGainsDb { get; set; }
+
+    public double EqualizerRightPreampDb { get; set; }
+
     public bool EqualizerVisible { get; set; }
 }
 
