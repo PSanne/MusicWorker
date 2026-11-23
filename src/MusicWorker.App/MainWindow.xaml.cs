@@ -20,6 +20,7 @@ public partial class MainWindow : Window
         viewModel.DocumentLoaded += (_, _) => Waveform.ZoomToFit();
         viewModel.Mixer.PropertyChanged += OnMixerPropertyChanged;
         Loaded += (_, _) => Waveform.Focus();
+        Deactivated += (_, _) => viewModel.Notes.ReleaseAllKeys(); // keine „hängenden“ Töne beim Fensterwechsel
         Closed += (_, _) =>
         {
             viewModel.Mixer.PropertyChanged -= OnMixerPropertyChanged;
@@ -45,6 +46,12 @@ public partial class MainWindow : Window
     {
         base.OnPreviewKeyDown(e);
         bool typing = Keyboard.FocusedElement is TextBoxBase;
+        if (_viewModel.IsNotesTab && !typing)
+        {
+            HandleNotesKey(e);
+            return;
+        }
+
         if (!_viewModel.IsMixerTab || typing || Keyboard.Modifiers != ModifierKeys.Control)
         {
             return;
@@ -76,6 +83,73 @@ public partial class MainWindow : Window
             {
                 command.Execute(null);
             }
+        }
+    }
+
+    protected override void OnPreviewKeyUp(KeyEventArgs e)
+    {
+        base.OnPreviewKeyUp(e);
+        if (_viewModel.IsNotesTab && _viewModel.Notes.PitchForKey(e.Key.ToString()) is int pitch and >= 0)
+        {
+            _viewModel.Notes.KeyUp(pitch);
+        }
+    }
+
+    /// <summary>
+    /// Noten-Reiter: Strg+Z/Y/A/C/X/V gelten für die Noten, Pfeil hoch/runter transponiert die Auswahl
+    /// (mit Umschalt um eine Oktave), die Buchstabentasten spielen die Bildschirmtastatur.
+    /// </summary>
+    private void HandleNotesKey(KeyEventArgs e)
+    {
+        var notes = _viewModel.Notes;
+        if (Keyboard.Modifiers == ModifierKeys.Control)
+        {
+            switch (e.Key)
+            {
+                case Key.Z:
+                    notes.Undo();
+                    break;
+                case Key.Y:
+                    notes.Redo();
+                    break;
+                case Key.A:
+                    notes.SelectAllCommand.Execute(null);
+                    break;
+                case Key.C:
+                    notes.Copy();
+                    break;
+                case Key.X:
+                    notes.Cut();
+                    break;
+                case Key.V:
+                    notes.Paste();
+                    break;
+                case Key.T or Key.E:
+                    break; // Editor-Kürzel hier nicht weitergeben
+                default:
+                    return;
+            }
+
+            e.Handled = true;
+            return;
+        }
+
+        if (e.Key is Key.Up or Key.Down && notes.Selection.Count > 0 && Keyboard.Modifiers is ModifierKeys.None or ModifierKeys.Shift)
+        {
+            int step = (Keyboard.Modifiers == ModifierKeys.Shift ? 12 : 1) * (e.Key == Key.Up ? 1 : -1);
+            notes.TransposeCommand.Execute(step.ToString(System.Globalization.CultureInfo.InvariantCulture));
+            e.Handled = true;
+            return;
+        }
+
+        if (Keyboard.Modifiers == ModifierKeys.None && notes.PitchForKey(e.Key.ToString()) is int pitch and >= 0)
+        {
+            if (!e.IsRepeat)
+            {
+                notes.KeyDown(pitch);
+            }
+
+            e.Handled = true;
         }
     }
 
@@ -118,6 +192,12 @@ public partial class MainWindow : Window
     private void OnTimelineZoomOutClick(object sender, RoutedEventArgs e) => Timeline.ZoomOut();
 
     private void OnTimelineZoomFitClick(object sender, RoutedEventArgs e) => Timeline.ZoomToFit();
+
+    private void OnPianoRollZoomInClick(object sender, RoutedEventArgs e) => PianoRoll.ZoomIn();
+
+    private void OnPianoRollZoomOutClick(object sender, RoutedEventArgs e) => PianoRoll.ZoomOut();
+
+    private void OnPianoRollZoomFitClick(object sender, RoutedEventArgs e) => PianoRoll.ZoomToFit();
 
     /// <summary>Doppelklick auf einen Regler/Fader setzt ihn auf 0 (dB).</summary>
     private void OnEqSliderDoubleClick(object sender, MouseButtonEventArgs e)

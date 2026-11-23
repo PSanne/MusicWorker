@@ -3,7 +3,7 @@
 **MusicWorker** ist eine Windows-Anwendung zum Bearbeiten von Musik, geschrieben in C# mit WPF und .NET 8.
 
 Langfristig soll MusicWorker **Audio-Editor, Mehrspur-Mixer und Noten-Editor** in einem Programm vereinen.
-Version 0.3 bietet einen vollständigen Audio-Editor mit Live-Effekten **und ein Mehrspur-Mischpult** mit Fadern, Panorama, Sends, Effekt-Bussen, Gruppen und Projekten – seit 0.3.2 auch mit **Schnitt-Werkzeugen, Takt-Raster, Loop-Bereich und Rückgängig**, seit 0.4 mit **Hüllkurven (Automation) und Auto-Absenkung**.
+Version 0.3 bietet einen vollständigen Audio-Editor mit Live-Effekten **und ein Mehrspur-Mischpult** mit Fadern, Panorama, Sends, Effekt-Bussen, Gruppen und Projekten – seit 0.3.2 auch mit **Schnitt-Werkzeugen, Takt-Raster, Loop-Bereich und Rückgängig**, seit 0.4 mit **Hüllkurven (Automation) und Auto-Absenkung**, seit 0.5 mit **Noten-Editor, Instrumenten und MIDI**.
 
 ## Mischpult (Version 0.3)
 
@@ -23,6 +23,21 @@ Die Registerkarte **„Mischpult“** macht aus MusicWorker eine kleine Mehrspur
 | **Mixdown** | Als WAV/MP3 exportieren oder im Editor öffnen (mit Ausklingen der Effekt-Busse; bei Übersteuerung automatisch auf -1 dB) |
 | **Projekte** | Speichern/Öffnen als `Name.mwproj` mit Audio-Ordner `Name-Audio` (verlustfreie 32-Bit-WAVs) |
 | **Editor-Brücke** | Doppelklick auf einen Clip öffnet ihn im Editor – nach dem Bearbeiten „In Spur übernehmen“ |
+
+## Noten-Editor (Version 0.5)
+
+Die Registerkarte **„Noten“** bearbeitet Notenclips aus dem Mischpult. Notenspuren spielen ihre Noten mit einem Instrument;
+im Mischpult verhalten sie sich wie Audiospuren (Fader, Effekte, Hüllkurven, Mixdown).
+
+| Bereich | Funktionen |
+|---|---|
+| **Notenspuren** | „+ Notenspur“ im Mischpult · Doppelklick auf eine freie Stelle einer Notenspur legt einen neuen Clip an · Doppelklick auf einen Notenclip öffnet ihn · Notenclips lassen sich teilen, verbinden, zuschneiden und verschieben |
+| **Piano-Roll** | Klick setzt eine Note (Ziehen = Länge) · Note ziehen = verschieben (Zeit und Tonhöhe) · rechten Rand ziehen = Länge · Doppel-/Rechtsklick löscht · Umschalt+Ziehen = Auswahlrahmen, Strg+Klick ergänzt · Raster 1/4 … 1/32, Triolen, Einrasten · Klaviatur links zum Vorhören |
+| **Anschlag** | Anschlag-Feld unter den Noten: Balken ziehen · „Setzen …“, Crescendo, Decrescendo |
+| **Werkzeuge** | **Quantisieren** (mit Stärke) · **Humanisieren** · **Transponieren** (±Halbton, ±Oktave, beliebig; auch Pfeil hoch/runter) · **Notenlängen** (×½, ×2, = Raster, Legato) · **Stimmen aufteilen** (auf mehrere Spuren) · Kopieren/Einfügen · eigenes Rückgängig |
+| **Instrumente** | 10 eingebaute Klänge ohne Zusatzdateien: Klavier, E-Piano, Orgel, Streicher, Flächenklang, Synth-Bass, Synth-Lead, Gitarre, Glocken, Schlagzeug (General-MIDI-Belegung) · zusätzlich **SoundFonts (.sf2)** laden, z. B. „GeneralUser GS“ oder „FluidR3 GM“ |
+| **Spielen** | **Bildschirmtastatur** (3 Oktaven, Maus) · **Computertastatur** als Klaviatur (Y–M und Q–U, Zahlen = schwarze Tasten) · **MIDI-Keyboard** als Eingang · **Schritt-Aufnahme**: gespielte Töne/Akkorde werden am grünen Cursor eingefügt |
+| **MIDI** | MIDI-Dateien importieren (Spuren, Tempo, Taktart, Klänge) und alle Notenspuren als MIDI exportieren |
 
 ## Editor (Funktionen)
 
@@ -61,6 +76,9 @@ Die Registerkarte **„Mischpult“** macht aus MusicWorker eine kleine Mehrspur
 | Loop-Bereich festlegen (Mischpult) | Umschalt + Ziehen in der Spuransicht |
 | Rückgängig im Mischpult | Strg+Z / Strg+Y (gilt für die sichtbare Ansicht) |
 | Hüllkurven-Punkt setzen / löschen | Knopf „Hüllkurven“ an, dann Klick / Doppel- oder Rechtsklick |
+| Noten spielen (Noten-Reiter) | Computertastatur: Y S X D C V G B H N J M (untere Oktave), Q 2 W 3 E R 5 T 6 Z 7 U (obere) |
+| Noten: Rückgängig, Auswahl, Kopieren | Strg+Z / Strg+Y, Strg+A, Strg+C / Strg+X / Strg+V, Entf |
+| Noten transponieren | Pfeil hoch/runter (mit Umschalt: Oktave) |
 | Position verschieben | roten Griff ▼ in der Zeitleiste ziehen oder in die Zeitleiste klicken |
 | 5 Sekunden vor / zurück | Strg+→ / Strg+← |
 | Schleife (Loop) ein/aus | Strg+L oder 🔁 in der Werkzeugleiste |
@@ -139,13 +157,15 @@ MusicWorker.sln
 │  ├─ MusicWorker.Core/          Plattformunabhängiger Kern (ohne UI, voll testbar)
 │  │  ├─ Audio/                  AudioBuffer (unveränderlich), Dezibel-Umrechnung
 │  │  ├─ Editing/                AudioEditor, Auswahl, Rückgängig/Wiederholen (Command-Pattern)
+│  │  ├─ Notes/                  Noten (Ticks), Quantisieren, Humanisieren, Transponieren, Stimmaufteilung, MIDI-Dateien lesen/schreiben
+│  │  ├─ Synthesis/              Eingebauter Synthesizer (10 Instrumente), SoundFont-Wiedergabe, Noten → Audio
 │  │  ├─ Mixing/                 Misch-Engine: Spuren, Panorama, Fader, Gruppen, Sends, Effekt-Busse, Inserts, Hüllkurven, Auto-Absenkung, Master, Mixdown
 │  │  ├─ Dsp/                    Biquad-Filter, 15-Band-Equalizer, Kompressor, Echo, Hall (Freeverb), FFT & Spektrumanalyse, Zeitstreckung (WSOLA), Resampler
 │  │  ├─ Effects/                Lautstärke, Normalisieren, Fades, Equalizer, Tempo/Tonhöhe, Umkehren
 │  │  └─ Visualization/          Berechnung der Wellenform-Spitzen
 │  └─ MusicWorker.App/           WPF-Anwendung (MVVM)
 │     ├─ Audio/                  Laden, Wiedergabe, Export und Live-Equalizer mit NAudio
-│     ├─ Controls/               Wellenform, Spuransicht (Timeline), Live-Spektrum mit EQ-Kurve, Drehregler
+│     ├─ Controls/               Wellenform, Spuransicht (Timeline), Piano-Roll, Bildschirmtastatur, Live-Spektrum, Drehregler
 │     ├─ ViewModels/             MainViewModel, MixerViewModel, Spuren/Gruppen/Busse (CommunityToolkit.Mvvm)
 │     ├─ Services/               Dialoge, gespeicherte Einstellungen, Projektdateien
 │     └─ Views/                  Equalizer, Tempo & Tonhöhe, Eingabedialoge
@@ -166,7 +186,7 @@ die Oberfläche nur in `MusicWorker.App`. So können Mehrspur- und Noten-Editor 
 - [x] **v0.3.1 – Effekte & Komfort:** Chorus, Flanger, Verzerrung (Overdrive, Fuzz, Bitcrusher), Hochpass/Tiefpass-Filter, Wiedergabegerät wählen, Loop-Wiedergabe
 - [x] **v0.3.2 – Schnitt im Mischpult:** Trenner hinzufügen / Clip-Trennung, Clip-Zusammenführung, Clip-Mischung, Crossfade zwischen Clips, Auto-Zuschnitt (Stille an Anfang/Ende entfernen), Rasterlinien mit Tempo/Takt und Einrasten, Loop-Bereich, Mixtape (Songs automatisch mit Überblendung aneinanderreihen), Insert- und Master-Effekte, Rückgängig im Mischpult, Clips zwischen Spuren verschieben
 - [x] **v0.4 – Automation & Dynamik:** Hüllkurven für Lautstärke, Panorama und Effektparameter (Hall-/Echo-Send, Hochpass); Auto-Absenkung (Musik wird leiser, sobald die Stimme einsetzt)
-- [ ] **v0.5 – Noten, MIDI & Instrumente:** Piano-Roll, Bildschirmtastatur, Notenlängen-Anpassung, Quantisieren, Humanisierung, Anschlagstärke-Panel, Transponieren, Stimmaufteilung (Noten auf Stimmen verteilen), frei verfügbare SoundFont-Instrumente
+- [x] **v0.5 – Noten, MIDI & Instrumente:** Piano-Roll, Bildschirmtastatur, Notenlängen-Anpassung, Quantisieren, Humanisierung, Anschlagstärke-Panel, Transponieren, Stimmaufteilung (Noten auf Stimmen verteilen), frei verfügbare SoundFont-Instrumente
 - [ ] **v0.6 – Aufnahme:** Record, Neuaufnahme (Punch-In), Metronom, Takes mit Comping-Tool (inkl. Clear-Comp)
 - [ ] **v0.7 – Tonhöhe & Spektrum:** Autotune, Tonhöhen-Korrektur, parametrische Tonhöhe, Stimmeffekte, Spektrogramm (Wasserfall-Ansicht der Fourier-Transformation), spektrale Rauschentfernung
 
@@ -210,7 +230,40 @@ was bewusst so gebaut ist und was sich später leicht ändern lässt.
 - **Die Absenkung wird aus der Quellspur nach deren Fader berechnet.** Grund: Ist die Quellspur stumm oder
   heruntergezogen, soll sie auch nichts absenken.
 
+### v0.5 – Noten, MIDI & Instrumente
+- **Eingebauter Synthesizer statt mitgelieferter Klangdateien.** Grund: SoundFonts sind 30–150 MB groß und haben
+  teils unklare Lizenzen. Die zehn eingebauten Klänge (Klavier, E-Piano, Orgel …) funktionieren sofort, ohne
+  Download, und klingen auf jedem Rechner gleich. Für realistischere Klänge kann man **zusätzlich eigene SoundFonts
+  (.sf2)** laden (über die freie Bibliothek MeltySynth, MIT-Lizenz); fehlt eine SoundFont später, wird automatisch
+  das eingebaute Instrument verwendet.
+- **Noten werden in musikalischer Zeit gespeichert** (480 Ticks pro Viertelnote, wie in MIDI). Grund: Ändert man
+  das Tempo, bleiben die Noten auf ihren Schlägen – nur die Clip-Startpunkte im Mischpult bleiben in Sekunden.
+- **Notenclips werden im Hintergrund in Audio umgerechnet** statt live synthetisiert. Grund: So funktionieren
+  Fader, Effekte, Hüllkurven, Auto-Absenkung, Zusammenmischen und Mixdown ohne jede Sonderbehandlung, und die
+  Wiedergabe ruckelt nie. Nach einer Änderung dauert es etwa 0,2 Sekunden, bis sie zu hören ist; vor Mixdown und
+  Export wird immer auf den aktuellen Stand gewartet.
+- **Das Instrument gehört zur Spur, nicht zum Clip** – wie in gängigen Musikprogrammen. Notenclips lassen sich
+  daher nur auf Notenspuren ziehen, Audioclips nur auf Audiospuren.
+- **Notenclips werden beim Überlappen nicht übergeblendet**, und der Ausklang eines Instruments darf über das
+  Clip-Ende hinausklingen. Grund: Bei Noten wäre eine Überblendung hörbar falsch (abgeschnittener Nachhall).
+- **Piano-Roll statt klassischer Notenschrift.** Grund: Notensatz (Pausen, Balken, Vorzeichen, Bindebögen) ist sehr
+  aufwendig und für das Bearbeiten weniger direkt; die Piano-Roll ist der Standard in Musikprogrammen. Eine
+  Notenschrift-Ansicht wäre eine mögliche spätere Erweiterung.
+- **Computertastatur wie bei „Trackern“:** untere Buchstabenreihe Y–M = eine Oktave, obere Reihe Q–U = die nächste,
+  Zahlen = schwarze Tasten (für QWERTZ ausgelegt). Grund: zwei spielbare Oktaven ganz ohne MIDI-Keyboard.
+- **Schritt-Aufnahme jetzt, Echtzeit-Aufnahme mit v0.6.** Grund: Schritt für Schritt eingeben braucht kein
+  Timing-Gefühl und passt zum Editor; Aufnehmen in Echtzeit gehört zum Thema „Aufnahme“.
+- **Stimmaufteilung erzeugt neue Spuren**, die ursprüngliche Spur wird nur stummgeschaltet. Grund: Jede Stimme
+  lässt sich so einzeln mischen oder umbesetzen, und nichts geht verloren (Strg+Z).
+- **Rückgängig im Noten-Editor ist fein (jede Änderung), im Mischpult zählt eine Notenbearbeitung als ein Schritt.**
+  Grund: Beim Komponieren braucht man kleine Schritte, im Mischpult bleibt die Liste übersichtlich.
+- **MIDI-Import:** Ein leeres Projekt übernimmt Tempo und Taktart der Datei; General-MIDI-Klänge werden dem
+  passenden eingebauten Instrument zugeordnet. Tempowechsel innerhalb der Datei werden (noch) nicht übernommen –
+  es gilt das erste Tempo.
+- **„Neues Projekt“ setzt Tempo und Taktart auf 120 BPM, 4/4 zurück** (bisher blieben die alten Werte stehen).
+
 ## Verwendete Bibliotheken
 
 - [NAudio](https://github.com/naudio/NAudio): Audio-Ein-/Ausgabe und Dateiformate (MIT-Lizenz)
 - [CommunityToolkit.Mvvm](https://github.com/CommunityToolkit/dotnet): MVVM-Grundbausteine (MIT-Lizenz)
+- [MeltySynth](https://github.com/sinshu/meltysynth): SoundFont-Synthesizer in reinem C# (MIT-Lizenz)

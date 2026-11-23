@@ -59,6 +59,9 @@ public sealed class TimelineView : FrameworkElement
     public static readonly DependencyProperty SetLoopCommandProperty = DependencyProperty.Register(
         nameof(SetLoopCommand), typeof(ICommand), typeof(TimelineView), new PropertyMetadata(null));
 
+    public static readonly DependencyProperty CreateClipCommandProperty = DependencyProperty.Register(
+        nameof(CreateClipCommand), typeof(ICommand), typeof(TimelineView), new PropertyMetadata(null));
+
     public static readonly DependencyProperty EditAutomationCommandProperty = DependencyProperty.Register(
         nameof(EditAutomationCommand), typeof(ICommand), typeof(TimelineView), new PropertyMetadata(null));
 
@@ -205,6 +208,13 @@ public sealed class TimelineView : FrameworkElement
     {
         get => (ICommand?)GetValue(OpenClipCommandProperty);
         set => SetValue(OpenClipCommandProperty, value);
+    }
+
+    /// <summary>Parameter: <see cref="LanePosition"/> (Doppelklick auf eine freie Stelle einer Notenspur).</summary>
+    public ICommand? CreateClipCommand
+    {
+        get => (ICommand?)GetValue(CreateClipCommandProperty);
+        set => SetValue(CreateClipCommandProperty, value);
     }
 
     /// <summary>Parameter: <see cref="AutomationEdit"/>.</summary>
@@ -392,7 +402,15 @@ public sealed class TimelineView : FrameworkElement
                 dc.DrawRoundedRectangle(fill, ReferenceEquals(clip, SelectedClip) ? SelectedPen : edge, rect, 4, 4);
 
                 dc.PushClip(new RectangleGeometry(rect));
-                dc.DrawGeometry(null, wavePen, GetWaveform(clip, rect, width));
+                if (clip.Notes is { } notes)
+                {
+                    DrawNoteClip(dc, clip, notes, rect, wavePen.Brush);
+                }
+                else
+                {
+                    dc.DrawGeometry(null, wavePen, GetWaveform(clip, rect, width));
+                }
+
                 var label = Text(tracks[t].Name, 11, ClipTextBrush, pixelsPerDip);
                 dc.DrawText(label, new Point(Math.Max(rect.Left, 0) + 6, rect.Top + 3));
                 dc.Pop();
@@ -414,6 +432,45 @@ public sealed class TimelineView : FrameworkElement
         }
 
         DrawPlayhead(dc, width, height);
+    }
+
+    /// <summary>Notenclip als Mini-Piano-Roll: jede Note ein kleiner Balken (Höhe = Tonhöhe).</summary>
+    private void DrawNoteClip(DrawingContext dc, ClipViewModel clip, IReadOnlyList<Core.Notes.Note> notes, Rect rect, Brush brush)
+    {
+        if (notes.Count == 0)
+        {
+            return;
+        }
+
+        int low = notes.Min(n => n.Pitch);
+        int high = notes.Max(n => n.Pitch);
+        if (high - low < 12)
+        {
+            low -= (12 - (high - low)) / 2;
+            high = low + 12;
+        }
+
+        double framesPerTick = Core.Notes.MusicalTime.FramesPerTick(Bpm, SampleRate);
+        double top = rect.Top + 16;
+        double area = Math.Max(4, rect.Height - 20);
+        double barHeight = Math.Clamp(area / (high - low + 1), 1.5, 5);
+        foreach (var note in notes)
+        {
+            if (note.Start >= clip.LengthTicks)
+            {
+                continue;
+            }
+
+            double x0 = FrameToX(clip.StartFrame + note.Start * framesPerTick);
+            double x1 = FrameToX(clip.StartFrame + Math.Min(note.End, clip.LengthTicks) * framesPerTick);
+            if (x1 < rect.Left || x0 > rect.Right)
+            {
+                continue;
+            }
+
+            double y = top + (high - note.Pitch) / (double)(high - low) * (area - barHeight);
+            dc.DrawRectangle(brush, null, new Rect(x0, y, Math.Max(1.5, x1 - x0 - 1), barHeight));
+        }
     }
 
     private Geometry GetWaveform(ClipViewModel clip, Rect rect, double width)
@@ -777,6 +834,13 @@ public sealed class TimelineView : FrameworkElement
         }
 
         var clip = HitClip(position);
+        if (clip is null && e.ClickCount == 2 && LaneUnder(position.Y) is var (laneTrack, _) && laneTrack.IsNoteTrack)
+        {
+            Execute(CreateClipCommand, new LanePosition(laneTrack, frame));
+            e.Handled = true;
+            return;
+        }
+
         if (clip is null)
         {
             Execute(SelectClipCommand, null);

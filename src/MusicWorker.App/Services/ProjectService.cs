@@ -80,6 +80,17 @@ public sealed class ProjectTrack
 
     public List<ProjectAutomation> Automation { get; set; } = [];
 
+    /// <summary>Eingebautes Instrument einer Notenspur (z. B. „Piano“); null = Audiospur.</summary>
+    public string? Instrument { get; set; }
+
+    public string? SoundFont { get; set; }
+
+    public int Bank { get; set; }
+
+    public int Preset { get; set; }
+
+    public string? PresetName { get; set; }
+
     public List<ProjectClip> Clips { get; set; } = [];
 }
 
@@ -99,6 +110,11 @@ public sealed class ProjectClip
     public string File { get; set; } = string.Empty;
 
     public long Start { get; set; }
+
+    /// <summary>Noten eines Notenclips: je Note [Tonhöhe, Beginn, Länge, Anschlag, Stimme]; null = Audioclip.</summary>
+    public List<long[]>? Notes { get; set; }
+
+    public long LengthTicks { get; set; }
 }
 
 public sealed class ProjectGroup

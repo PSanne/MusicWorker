@@ -4,10 +4,15 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using MusicWorker.Core.Audio;
 using MusicWorker.Core.Dsp;
 using MusicWorker.Core.Mixing;
+using MusicWorker.Core.Notes;
+using MusicWorker.Core.Synthesis;
 
 namespace MusicWorker.App.ViewModels;
 
-/// <summary>Ein Clip auf einer Spur: Audio plus Startposition auf der Zeitleiste.</summary>
+/// <summary>
+/// Ein Clip auf einer Spur: Audio plus Startposition auf der Zeitleiste. Ein Notenclip enthält Noten;
+/// sein <see cref="Audio"/> ist dann die (im Hintergrund) berechnete Wiedergabe mit dem Instrument der Spur.
+/// </summary>
 public sealed partial class ClipViewModel : ObservableObject
 {
     [ObservableProperty]
@@ -16,6 +21,14 @@ public sealed partial class ClipViewModel : ObservableObject
     [ObservableProperty]
     private long _startFrame;
 
+    /// <summary>Noten (Ticks relativ zum Clip-Anfang) – nur bei Notenclips, sonst null.</summary>
+    [ObservableProperty]
+    private IReadOnlyList<Note>? _notes;
+
+    /// <summary>Länge eines Notenclips in Ticks.</summary>
+    [ObservableProperty]
+    private long _lengthTicks;
+
     public ClipViewModel(TrackViewModel track, AudioBuffer audio, long startFrame)
     {
         Track = track;
@@ -23,9 +36,34 @@ public sealed partial class ClipViewModel : ObservableObject
         _startFrame = startFrame;
     }
 
+    /// <summary>Erzeugt einen Notenclip (das Audio wird später berechnet).</summary>
+    public ClipViewModel(TrackViewModel track, IReadOnlyList<Note> notes, long lengthTicks, long startFrame, long lengthFrames, int sampleRate)
+        : this(track, new AudioBuffer(new float[2], sampleRate, 2), startFrame)
+    {
+        _notes = notes;
+        _lengthTicks = lengthTicks;
+        NoteLengthFrames = lengthFrames;
+    }
+
     public TrackViewModel Track { get; set; }
 
-    public long EndFrame => StartFrame + Audio.FrameCount;
+    public bool IsNoteClip => Notes is not null;
+
+    /// <summary>Länge auf der Zeitleiste: bei Notenclips die musikalische Länge (ohne Ausklang).</summary>
+    public long LengthFrames => IsNoteClip ? NoteLengthFrames : Audio.FrameCount;
+
+    public long EndFrame => StartFrame + LengthFrames;
+
+    /// <summary>Länge eines Notenclips in Frames (hängt vom Tempo ab; vom Mischpult gesetzt).</summary>
+    internal long NoteLengthFrames { get; set; }
+
+    /// <summary>Zähler der Berechnungsaufträge (verhindert, dass ein veraltetes Ergebnis gewinnt).</summary>
+    internal int RenderVersion { get; set; }
+
+    /// <summary>Zu welchem Auftrag das aktuelle Audio gehört.</summary>
+    internal int RenderedVersion { get; set; } = -1;
+
+    internal bool NeedsRender => IsNoteClip && RenderedVersion != RenderVersion;
 
     // Für schnelles Speichern: Welche Datei gehört zu diesem (unveränderten) Audio?
     internal string? SavedFileName { get; set; }
@@ -41,6 +79,9 @@ public sealed partial class ClipViewModel : ObservableObject
 /// <param name="TargetTrack">Zielspur (null = bleibt auf seiner Spur).</param>
 /// <param name="DragStarted">True beim ersten Schritt eines Ziehvorgangs (für „Rückgängig“).</param>
 public sealed record ClipMove(ClipViewModel Clip, long NewStart, TrackViewModel? TargetTrack = null, bool DragStarted = false);
+
+/// <summary>Eine Stelle auf einer Spur (z. B. Doppelklick in eine freie Fläche).</summary>
+public sealed record LanePosition(TrackViewModel Track, long Frame);
 
 /// <summary>Ein Loop-Bereich auf der Zeitleiste.</summary>
 public sealed record LoopRange(long Start, long End);
@@ -141,6 +182,11 @@ public sealed partial class TrackViewModel : ObservableObject
     [ObservableProperty]
     private double _compression;
 
+    /// <summary>Instrument einer Notenspur (null = Audiospur).</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsNoteTrack), nameof(InstrumentName))]
+    private InstrumentSpec? _instrument;
+
     /// <summary>Hüllkurven der Spur (nur nicht leere; unveränderlich, wird bei jeder Bearbeitung ersetzt).</summary>
     [ObservableProperty]
     private IReadOnlyList<AutomationLane> _automation = [];
@@ -189,6 +235,13 @@ public sealed partial class TrackViewModel : ObservableObject
 
     public IReadOnlyList<AutomationChoice> AutomationChoices => AutomationChoice.All;
 
+    public bool IsNoteTrack => Instrument is not null;
+
+    public string InstrumentName => Instrument?.DisplayName ?? string.Empty;
+
+    /// <summary>Wird aufgerufen, wenn das Instrument wechselt (Notenclips neu berechnen).</summary>
+    internal Action<TrackViewModel>? InstrumentChanged { get; set; }
+
     public string DuckAmountText => string.Format(CultureInfo.CurrentCulture, "-{0:0} dB", DuckAmount);
 
     public string DuckThresholdText => string.Format(CultureInfo.CurrentCulture, "{0:0} dB", DuckThreshold);
@@ -215,6 +268,7 @@ public sealed partial class TrackViewModel : ObservableObject
         ShownAutomation = template.ShownAutomation;
         DuckAmount = template.DuckAmount;
         DuckThreshold = template.DuckThreshold;
+        Instrument = template.Instrument;
     }
 
     /// <summary>Die Hüllkurve für ein Ziel (leer, wenn es keine gibt).</summary>
@@ -239,7 +293,9 @@ public sealed partial class TrackViewModel : ObservableObject
     /// <param name="groupIndex">Index der Gruppe (-1 = keine).</param>
     /// <param name="duckSourceIndex">Index der Spur, die diese Spur absenkt (-1 = keine).</param>
     public MixTrack ToMixTrack(int groupIndex, int duckSourceIndex = -1) => new(
-        ClipTools.WithCrossfades(Clips.Select(c => new MixClip(c.Audio, c.StartFrame))),
+        ClipTools.WithCrossfades(Clips.Where(c => !c.IsNoteClip).Select(c => new MixClip(c.Audio, c.StartFrame)))
+            .Concat(Clips.Where(c => c.IsNoteClip).Select(c => new MixClip(c.Audio, c.StartFrame))) // Notenclips klingen ohne Überblendung aus
+            .ToArray(),
         VolumeDb,
         Pan / 100,
         Mute,
@@ -281,6 +337,8 @@ public sealed partial class TrackViewModel : ObservableObject
     partial void OnCompressionChanged(double value) => _changed();
 
     partial void OnAutomationChanged(IReadOnlyList<AutomationLane> value) => _changed();
+
+    partial void OnInstrumentChanged(InstrumentSpec? value) => InstrumentChanged?.Invoke(this);
 
     partial void OnShownAutomationChanged(AutomationTarget value) => Redraw?.Invoke();
 

@@ -53,9 +53,9 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     [NotifyPropertyChangedFor(nameof(FileName), nameof(WindowTitle))]
     private string? _documentName;
 
-    /// <summary>Haupt-Registerkarte: 0 = Editor, 1 = Mischpult.</summary>
+    /// <summary>Haupt-Registerkarte: 0 = Editor, 1 = Mischpult, 2 = Noten.</summary>
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(IsEditorTab), nameof(IsMixerTab))]
+    [NotifyPropertyChangedFor(nameof(IsEditorTab), nameof(IsMixerTab), nameof(IsNotesTab), nameof(UsesMixerTransport))]
     private int _selectedMainTab;
 
     /// <summary>Clip aus dem Mischpult, der gerade im Editor bearbeitet wird.</summary>
@@ -304,7 +304,9 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         RefreshRecentFiles();
 
         Mixer = new MixerViewModel(dialogs, files, new ProjectService(files));
+        Notes = new NoteEditorViewModel(Mixer, dialogs, settings);
         Mixer.OpenClipInEditorRequested += OnOpenClipInEditorRequested;
+        Mixer.OpenNoteClipRequested += OnOpenNoteClipRequested;
         Mixer.PlaybackStarting += (_, _) => StopPlayback();
         Mixer.PropertyChanged += (_, e) =>
         {
@@ -580,6 +582,14 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
 
     public bool IsMixerTab => SelectedMainTab == 1;
 
+    public bool IsNotesTab => SelectedMainTab == 2;
+
+    /// <summary>Mischpult oder Noten-Editor: beide nutzen die Wiedergabe des Mischpults.</summary>
+    public bool UsesMixerTransport => SelectedMainTab is 1 or 2;
+
+    /// <summary>Noten-Editor (Piano-Roll, Bildschirmtastatur).</summary>
+    public NoteEditorViewModel Notes { get; }
+
     public bool HasLinkedClip => LinkedClip is not null;
 
     public string LinkedClipText => LinkedClip is { } clip
@@ -851,6 +861,14 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
 
     private bool CanOpenMixdown() => !IsBusy && Mixer.HasTracks && !Mixer.IsBusy;
 
+    /// <summary>Notenclip im Noten-Editor öffnen und zur Registerkarte „Noten“ wechseln.</summary>
+    private void OnOpenNoteClipRequested(object? sender, ClipViewModel clip)
+    {
+        Notes.Open(clip);
+        SelectedMainTab = 2;
+        Mixer.StatusText = "Noten-Editor: Klick setzt eine Note, Ziehen verschiebt, Doppelklick löscht. Die Computertastatur (Y–M, Q–U) spielt die Bildschirmtastatur.";
+    }
+
     private void OnOpenClipInEditorRequested(object? sender, ClipViewModel clip)
     {
         if (!ConfirmDiscardChanges())
@@ -872,7 +890,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     /// <summary>Dateien aus Drag &amp; Drop: im Mischpult als Spuren, im Editor als Datei öffnen.</summary>
     public async Task HandleDroppedFilesAsync(IReadOnlyList<string> files)
     {
-        if (IsMixerTab)
+        if (UsesMixerTransport)
         {
             await Mixer.AddFilesAsync(files);
         }
@@ -887,7 +905,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     [RelayCommand]
     private void TransportToggle()
     {
-        if (IsMixerTab)
+        if (UsesMixerTransport)
         {
             Mixer.TogglePlayPause();
         }
@@ -900,7 +918,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     [RelayCommand]
     private void TransportStop()
     {
-        if (IsMixerTab)
+        if (UsesMixerTransport)
         {
             Mixer.Stop();
         }
@@ -913,7 +931,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     [RelayCommand]
     private void TransportSkipForward()
     {
-        if (IsMixerTab)
+        if (UsesMixerTransport)
         {
             Mixer.SkipBy(TimeSpan.FromSeconds(5));
         }
@@ -926,7 +944,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     [RelayCommand]
     private void TransportSkipBack()
     {
-        if (IsMixerTab)
+        if (UsesMixerTransport)
         {
             Mixer.SkipBy(TimeSpan.FromSeconds(-5));
         }
@@ -940,7 +958,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     [RelayCommand]
     private async Task SaveKeyAsync()
     {
-        if (IsMixerTab)
+        if (UsesMixerTransport)
         {
             if (Mixer.SaveProjectCommand.CanExecute(null))
             {
@@ -957,7 +975,11 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     [RelayCommand]
     private void DeleteKey()
     {
-        if (IsMixerTab)
+        if (IsNotesTab)
+        {
+            Notes.DeleteSelected();
+        }
+        else if (IsMixerTab)
         {
             if (Mixer.DeleteSelectedClipCommand.CanExecute(null))
             {
@@ -973,8 +995,17 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     partial void OnSelectedMainTabChanged(int value)
     {
         // Beim Wechseln der Ansicht hält alles an – so spielt nie etwas „unsichtbar“ weiter.
+        // Zwischen Mischpult und Noten-Editor läuft die Wiedergabe weiter (beide gehören zum Projekt).
         StopPlayback();
-        Mixer.StopPlayback();
+        if (value == 0)
+        {
+            Mixer.StopPlayback();
+        }
+
+        if (value != 2)
+        {
+            Notes.ReleaseAllKeys();
+        }
     }
 
     partial void OnLinkedClipChanged(ClipViewModel? value) => ApplyToLinkedClipCommand.NotifyCanExecuteChanged();
@@ -1334,6 +1365,8 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         _playback.PlaybackEnded -= OnPlaybackEnded;
         _playback.Dispose();
         Mixer.OpenClipInEditorRequested -= OnOpenClipInEditorRequested;
+        Mixer.OpenNoteClipRequested -= OnOpenNoteClipRequested;
+        Notes.Dispose();
         Mixer.Dispose();
     }
 
@@ -2012,7 +2045,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     [RelayCommand]
     private void ToggleLoop()
     {
-        if (IsMixerTab)
+        if (UsesMixerTransport)
         {
             Mixer.ToggleLoop();
             return;
@@ -2038,6 +2071,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         StopPlayback();
         _playback.DeviceNumber = device.Number;
         Mixer.SetOutputDevice(device.Number);
+        Notes.SetOutputDevice(device.Number);
         foreach (var item in OutputDevices)
         {
             item.IsSelected = ReferenceEquals(item, device);
@@ -2064,6 +2098,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         selected.IsSelected = true;
         _playback.DeviceNumber = selected.Number;
         Mixer?.SetOutputDevice(selected.Number);
+        Notes?.SetOutputDevice(selected.Number);
     }
 
     partial void OnIsCompressorEnabledChanged(bool value) => RefreshCompressor();

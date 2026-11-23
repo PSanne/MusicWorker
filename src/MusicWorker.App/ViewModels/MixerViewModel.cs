@@ -1,3 +1,5 @@
+using MusicWorker.Core.Notes;
+using MusicWorker.Core.Synthesis;
 using System.Collections.ObjectModel;
 using System.IO;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -149,6 +151,9 @@ public sealed partial class MixerViewModel : ObservableObject, IDisposable
 
     /// <summary>Ein Clip soll im Editor bearbeitet werden (das Hauptfenster übernimmt das).</summary>
     public event EventHandler<ClipViewModel>? OpenClipInEditorRequested;
+
+    /// <summary>Ein Notenclip soll im Noten-Editor bearbeitet werden.</summary>
+    public event EventHandler<ClipViewModel>? OpenNoteClipRequested;
 
     /// <summary>Die Mischpult-Wiedergabe startet gleich – andere Wiedergaben sollen anhalten.</summary>
     public event EventHandler? PlaybackStarting;
@@ -316,11 +321,20 @@ public sealed partial class MixerViewModel : ObservableObject, IDisposable
     [RelayCommand]
     private void OpenClipInEditor(ClipViewModel? clip)
     {
-        if (clip is not null)
+        if (clip is null)
         {
-            StopPlayback();
-            OpenClipInEditorRequested?.Invoke(this, clip);
+            return;
         }
+
+        if (clip.IsNoteClip)
+        {
+            SelectedClip = clip;
+            OpenNoteClipRequested?.Invoke(this, clip);
+            return;
+        }
+
+        StopPlayback();
+        OpenClipInEditorRequested?.Invoke(this, clip);
     }
 
     [RelayCommand]
@@ -347,7 +361,8 @@ public sealed partial class MixerViewModel : ObservableObject, IDisposable
 
         var clip = move.Clip;
         clip.StartFrame = start;
-        if (move.TargetTrack is { } target && !ReferenceEquals(target, clip.Track) && Tracks.Contains(target))
+        if (move.TargetTrack is { } target && !ReferenceEquals(target, clip.Track) && Tracks.Contains(target) &&
+            target.IsNoteTrack == clip.IsNoteClip) // Notenclips nur auf Notenspuren, Audio nur auf Audiospuren
         {
             clip.Track.Clips.Remove(clip);
             clip.Track = target;
@@ -391,9 +406,21 @@ public sealed partial class MixerViewModel : ObservableObject, IDisposable
 
         StopPlayback();
         RecordUndo();
-        int cut = (int)(at - clip.StartFrame);
-        var right = new ClipViewModel(clip.Track, clip.Audio.Slice(cut, clip.Audio.FrameCount - cut), at);
-        clip.Audio = clip.Audio.Slice(0, cut);
+        ClipViewModel right;
+        if (clip.Notes is { } notes)
+        {
+            long tick = Math.Clamp(FramesToTicks(at - clip.StartFrame), 1, Math.Max(1, clip.LengthTicks - 1));
+            var (leftNotes, rightNotes) = NoteTools.Split(notes, tick);
+            right = CreateNoteClip(clip.Track, rightNotes, Math.Max(1, clip.LengthTicks - tick), clip.StartFrame + TicksToFrames(tick));
+            UpdateNoteClip(clip, leftNotes, tick);
+        }
+        else
+        {
+            int cut = (int)(at - clip.StartFrame);
+            right = new ClipViewModel(clip.Track, clip.Audio.Slice(cut, clip.Audio.FrameCount - cut), at);
+            clip.Audio = clip.Audio.Slice(0, cut);
+        }
+
         clip.Track.Clips.Insert(clip.Track.Clips.IndexOf(clip) + 1, right);
         SelectedClip = right;
         OnStructureChanged();
@@ -419,11 +446,26 @@ public sealed partial class MixerViewModel : ObservableObject, IDisposable
             return;
         }
 
+        if (clip.IsNoteClip != next.IsNoteClip)
+        {
+            StatusText = "Ein Notenclip und ein Audioclip lassen sich nicht verbinden.";
+            return;
+        }
+
         StopPlayback();
         RecordUndo();
-        var (audio, start) = ClipTools.Merge([new MixClip(clip.Audio, clip.StartFrame), new MixClip(next.Audio, next.StartFrame)]);
-        clip.Audio = Conform(audio);
-        clip.StartFrame = start;
+        if (clip.Notes is { } notes && next.Notes is { } nextNotes)
+        {
+            long offset = FramesToTicks(next.StartFrame - clip.StartFrame);
+            UpdateNoteClip(clip, NoteTools.Merge(notes, nextNotes, offset), Math.Max(clip.LengthTicks, offset + next.LengthTicks));
+        }
+        else
+        {
+            var (audio, start) = ClipTools.Merge([new MixClip(clip.Audio, clip.StartFrame), new MixClip(next.Audio, next.StartFrame)]);
+            clip.Audio = Conform(audio);
+            clip.StartFrame = start;
+        }
+
         clip.Track.Clips.Remove(next);
         OnStructureChanged();
         StatusText = "Clips zu einem Clip verbunden (Lücken als Stille, Überlappungen überblendet).";
@@ -435,6 +477,12 @@ public sealed partial class MixerViewModel : ObservableObject, IDisposable
     {
         if (SelectedClip is not { } clip)
         {
+            return;
+        }
+
+        if (clip.Notes is { } notes)
+        {
+            TrimNoteClip(clip, notes);
             return;
         }
 
@@ -492,8 +540,10 @@ public sealed partial class MixerViewModel : ObservableObject, IDisposable
         {
             var clip = ordered[i];
             clip.StartFrame = position;
-            long next = i + 1 < ordered.Length ? ordered[i + 1].Audio.FrameCount : long.MaxValue;
-            long fade = Math.Min(overlap, Math.Min(clip.Audio.FrameCount, next) / 2); // höchstens die halbe Clip-Länge
+            long next = i + 1 < ordered.Length ? ordered[i + 1].LengthFrames : long.MaxValue;
+            long fade = clip.IsNoteClip || (i + 1 < ordered.Length && ordered[i + 1].IsNoteClip)
+                ? 0 // Notenclips werden nicht übergeblendet, sondern lückenlos aneinandergelegt
+                : Math.Min(overlap, Math.Min(clip.LengthFrames, next) / 2); // höchstens die halbe Clip-Länge
             position = Math.Max(position + 1, clip.EndFrame - fade);
         }
 
@@ -519,6 +569,7 @@ public sealed partial class MixerViewModel : ObservableObject, IDisposable
         StatusText = "Spuren werden zusammengemischt …";
         try
         {
+            await EnsureNotesRenderedAsync();
             var snapshot = BuildSnapshot() with { MasterDb = 0, MasterInserts = null, MasterLimiter = false };
             var mix = await Task.Run(() => MixEngine.Mixdown(snapshot, TailFrames() / (double)SampleRate));
             RecordUndo();
@@ -538,6 +589,310 @@ public sealed partial class MixerViewModel : ObservableObject, IDisposable
         finally
         {
             IsBusy = false;
+        }
+    }
+
+    // ───────────── Notenspuren ─────────────
+
+    /// <summary>Neue Notenspur (Klavier) mit einem leeren Clip von 4 Takten an der Abspielposition.</summary>
+    [RelayCommand(CanExecute = nameof(CanEdit))]
+    private void AddNoteTrack()
+    {
+        StopPlayback();
+        RecordUndo();
+        var track = CreateTrack($"Noten {Tracks.Count(t => t.IsNoteTrack) + 1}", Palette[_nextColor++ % Palette.Length]);
+        track.Instrument = new InstrumentSpec(BuiltInInstrument.Piano);
+        var clip = CreateNoteClip(track, [], MusicalTime.TicksPerBar(BeatsPerBar) * 4, BarStart(PlayheadFrame));
+        track.Clips.Add(clip);
+        Tracks.Add(track);
+        SelectedClip = clip;
+        OnStructureChanged();
+        StatusText = "Notenspur angelegt – im Noten-Editor Noten zeichnen oder auf der Tastatur spielen.";
+        OpenNoteClipRequested?.Invoke(this, clip);
+    }
+
+    /// <summary>Doppelklick auf eine freie Stelle einer Notenspur: neuer leerer Notenclip (4 Takte).</summary>
+    [RelayCommand]
+    private void CreateClipAt(LanePosition? position)
+    {
+        if (position is null || !position.Track.IsNoteTrack || !Tracks.Contains(position.Track))
+        {
+            return;
+        }
+
+        RecordUndo();
+        var clip = CreateNoteClip(position.Track, [], MusicalTime.TicksPerBar(BeatsPerBar) * 4, BarStart(position.Frame));
+        position.Track.Clips.Add(clip);
+        SelectedClip = clip;
+        OnStructureChanged();
+        OpenNoteClipRequested?.Invoke(this, clip);
+    }
+
+    /// <summary>Erzeugt einen Notenclip und berechnet seinen Klang im Hintergrund.</summary>
+    public ClipViewModel CreateNoteClip(TrackViewModel track, IReadOnlyList<Note> notes, long lengthTicks, long startFrame)
+    {
+        var clip = new ClipViewModel(track, notes, lengthTicks, Math.Max(0, startFrame), TicksToFrames(lengthTicks), SampleRate);
+        RequestRender(clip, immediate: true);
+        return clip;
+    }
+
+    /// <summary>Noten bzw. Länge eines Notenclips ändern (vom Noten-Editor) – der Klang wird kurz danach neu berechnet.</summary>
+    public void UpdateNoteClip(ClipViewModel clip, IReadOnlyList<Note> notes, long lengthTicks)
+    {
+        clip.Notes = notes;
+        clip.LengthTicks = Math.Max(1, lengthTicks);
+        clip.NoteLengthFrames = TicksToFrames(clip.LengthTicks);
+        IsModified = true;
+        TimelineVersion++;
+        OnPropertyChanged(nameof(PositionText));
+        RequestRender(clip);
+    }
+
+    /// <summary>Für die Undo-Aufzeichnung aus dem Noten-Editor.</summary>
+    public void RecordNoteUndo() => RecordUndo();
+
+    public long TicksToFrames(long ticks) => MusicalTime.TicksToFrames(ticks, Bpm, SampleRate);
+
+    public long FramesToTicks(long frames) => MusicalTime.FramesToTicks(frames, Bpm, SampleRate);
+
+    /// <summary>Anfang des Takts, in dem <paramref name="frame"/> liegt.</summary>
+    public long BarStart(long frame)
+    {
+        long bar = MusicalTime.TicksPerBar(BeatsPerBar);
+        return TicksToFrames(FramesToTicks(Math.Max(0, frame)) / bar * bar);
+    }
+
+    /// <summary>Wartet, bis alle Notenclips berechnet sind (vor Mixdown und Export).</summary>
+    public async Task EnsureNotesRenderedAsync()
+    {
+        foreach (var clip in Tracks.SelectMany(t => t.Clips).Where(c => c.NeedsRender).ToArray())
+        {
+            int version = clip.RenderVersion;
+            var (notes, spec, bpm, rate, length) = (clip.Notes!, clip.Track.Instrument ?? new InstrumentSpec(), Bpm, SampleRate, clip.NoteLengthFrames);
+            var audio = await Task.Run(() => NoteRenderer.Render(notes, spec, bpm, rate, length));
+            if (clip.RenderVersion == version)
+            {
+                clip.Audio = audio;
+                clip.RenderedVersion = version;
+            }
+        }
+
+        _engine?.Update(BuildSnapshot());
+    }
+
+    private void RequestRender(ClipViewModel clip, bool immediate = false)
+    {
+        if (clip.IsNoteClip)
+        {
+            _ = RenderAsync(clip, ++clip.RenderVersion, immediate);
+        }
+    }
+
+    private async Task RenderAsync(ClipViewModel clip, int version, bool immediate)
+    {
+        try
+        {
+            if (!immediate)
+            {
+                await Task.Delay(150); // beim Ziehen nicht jede Zwischenstellung berechnen
+            }
+
+            if (clip.RenderVersion != version || clip.Notes is not { } notes)
+            {
+                return;
+            }
+
+            var spec = clip.Track.Instrument ?? new InstrumentSpec();
+            double bpm = Bpm;
+            int rate = SampleRate;
+            long length = clip.NoteLengthFrames;
+            var audio = await Task.Run(() => NoteRenderer.Render(notes, spec, bpm, rate, length));
+            if (clip.RenderVersion != version)
+            {
+                return;
+            }
+
+            clip.Audio = audio;
+            clip.RenderedVersion = version;
+            _engine?.Update(BuildSnapshot());
+            TimelineVersion++;
+        }
+        catch (Exception ex)
+        {
+            StatusText = $"Die Noten konnten nicht in Klang umgerechnet werden: {ex.Message}";
+        }
+    }
+
+    /// <summary>Notenclips neu berechnen (Tempo, Abtastrate oder Instrument geändert).</summary>
+    private void RenderNoteClips(TrackViewModel? only = null)
+    {
+        foreach (var clip in Tracks.Where(t => only is null || ReferenceEquals(t, only)).SelectMany(t => t.Clips).Where(c => c.IsNoteClip))
+        {
+            clip.NoteLengthFrames = TicksToFrames(clip.LengthTicks);
+            RequestRender(clip, immediate: true);
+        }
+
+        TimelineVersion++;
+    }
+
+    /// <summary>Auto-Zuschnitt für Notenclips: Clip beginnt am Schlag der ersten Note und endet nach der letzten.</summary>
+    private void TrimNoteClip(ClipViewModel clip, IReadOnlyList<Note> notes)
+    {
+        if (notes.Count == 0)
+        {
+            StatusText = "Der Notenclip enthält keine Noten – nichts zum Zuschneiden.";
+            return;
+        }
+
+        long beat = MusicalTime.TicksPerQuarter;
+        long first = notes.Min(n => n.Start) / beat * beat;
+        long last = (NoteTools.EndOf(notes) + beat - 1) / beat * beat;
+        if (first == 0 && last == clip.LengthTicks)
+        {
+            StatusText = "Der Notenclip ist schon genau so lang wie seine Noten.";
+            return;
+        }
+
+        StopPlayback();
+        RecordUndo();
+        clip.StartFrame += TicksToFrames(first);
+        UpdateNoteClip(clip, NoteTools.Move(notes, -first), last - first);
+        OnStructureChanged();
+        StatusText = "Auto-Zuschnitt: Der Notenclip reicht jetzt genau von der ersten bis zur letzten Note.";
+    }
+
+    /// <summary>
+    /// Stimmaufteilung: Jede Stimme eines Notenclips wird eine eigene Notenspur (gleiches Instrument, gleiche
+    /// Position). Die ursprüngliche Spur wird stummgeschaltet – so bleibt alles mit Strg+Z umkehrbar.
+    /// </summary>
+    public void SplitVoicesToTracks(ClipViewModel clip, IReadOnlyList<Note> notes, int voices)
+    {
+        if (!clip.IsNoteClip || !Tracks.Contains(clip.Track))
+        {
+            return;
+        }
+
+        StopPlayback();
+        RecordUndo();
+        var source = clip.Track;
+        int insertAt = Tracks.IndexOf(source) + 1;
+        int created = 0;
+        for (int voice = 0; voice < voices; voice++)
+        {
+            var voiceNotes = notes.Where(n => n.Voice == voice).Select(n => n with { Voice = 0 }).ToArray();
+            if (voiceNotes.Length == 0)
+            {
+                continue;
+            }
+
+            var track = CreateTrack($"{source.Name} – Stimme {voice + 1}", Palette[_nextColor++ % Palette.Length]);
+            track.Apply(source);
+            track.Mute = false;
+            track.Clips.Add(CreateNoteClip(track, voiceNotes, clip.LengthTicks, clip.StartFrame));
+            Tracks.Insert(insertAt + created++, track);
+        }
+
+        source.Mute = true;
+        OnStructureChanged();
+        StatusText = $"Noten auf {created} Spuren verteilt – die ursprüngliche Spur „{source.Name}“ ist stummgeschaltet.";
+    }
+
+    // ───────────── MIDI ─────────────
+
+    /// <summary>MIDI-Datei als Notenspuren importieren (Klänge nach General MIDI zugeordnet).</summary>
+    [RelayCommand(CanExecute = nameof(CanEdit))]
+    private void ImportMidi()
+    {
+        if (_dialogs.ShowOpenFileDialog("MIDI-Dateien (*.mid;*.midi)|*.mid;*.midi|Alle Dateien (*.*)|*.*") is not { } path)
+        {
+            return;
+        }
+
+        MidiSong song;
+        try
+        {
+            song = MidiFile.Read(path);
+        }
+        catch (Exception ex)
+        {
+            _dialogs.ShowError($"Die MIDI-Datei konnte nicht gelesen werden.\n\n{ex.Message}");
+            return;
+        }
+
+        var tracks = song.Tracks.Where(t => t.Notes.Count > 0).ToArray();
+        if (tracks.Length == 0)
+        {
+            StatusText = "Die MIDI-Datei enthält keine Noten.";
+            return;
+        }
+
+        StopPlayback();
+        RecordUndo();
+        if (Tracks.Count == 0)
+        {
+            Bpm = song.Bpm; // leeres Projekt übernimmt Tempo und Taktart
+            BeatsPerBar = song.BeatsPerBar;
+        }
+
+        long bar = MusicalTime.TicksPerBar(BeatsPerBar);
+        long start = BarStart(PlayheadFrame);
+        foreach (var data in tracks)
+        {
+            var track = CreateTrack(data.Name, Palette[_nextColor++ % Palette.Length]);
+            track.Instrument = new InstrumentSpec(Instruments.FromGeneralMidi(data.Program, data.Channel));
+            long length = Math.Max(bar, (NoteTools.EndOf(data.Notes) + bar - 1) / bar * bar);
+            track.Clips.Add(CreateNoteClip(track, data.Notes, length, start));
+            Tracks.Add(track);
+        }
+
+        OnStructureChanged();
+        StatusText = $"MIDI „{Path.GetFileName(path)}“ importiert: {tracks.Length} Notenspur(en), {tracks.Sum(t => t.Notes.Count)} Noten.";
+    }
+
+    /// <summary>Alle Notenspuren als MIDI-Datei exportieren.</summary>
+    [RelayCommand(CanExecute = nameof(CanEditWithTracks))]
+    private void ExportMidi()
+    {
+        var noteTracks = Tracks.Where(t => t.IsNoteTrack && t.Clips.Any(c => c.Notes is { Count: > 0 })).ToArray();
+        if (noteTracks.Length == 0)
+        {
+            StatusText = "Es gibt keine Notenspur mit Noten zum Exportieren.";
+            return;
+        }
+
+        string name = ProjectPath is null ? "Noten" : Path.GetFileNameWithoutExtension(ProjectPath);
+        if (_dialogs.ShowSaveFileDialog("MIDI-Datei (*.mid)|*.mid", name + ".mid", "Als MIDI exportieren") is not { } path)
+        {
+            return;
+        }
+
+        int channel = 0;
+        var data = noteTracks.Select(track =>
+        {
+            int ch = 9; // Schlagzeug liegt nach General MIDI auf Kanal 10
+            if (!track.Instrument!.IsDrums)
+            {
+                ch = channel++ % 15;
+                if (ch >= 9)
+                {
+                    ch++;
+                }
+            }
+
+            var notes = track.Clips.Where(c => c.Notes is not null)
+                .SelectMany(c => NoteTools.Move(c.Notes!.Where(n => n.Start < c.LengthTicks), FramesToTicks(c.StartFrame)));
+            int program = track.Instrument.IsSoundFont ? track.Instrument.Preset : Instruments.ToGeneralMidi(track.Instrument.BuiltIn);
+            return new MidiTrackData(track.Name, ch, program, NoteTools.Sorted(notes));
+        }).ToArray();
+
+        try
+        {
+            MidiFile.Write(path, new MidiSong(Bpm, BeatsPerBar, data));
+            StatusText = $"{data.Length} Notenspur(en) als MIDI exportiert nach „{Path.GetFileName(path)}“.";
+        }
+        catch (Exception ex)
+        {
+            _dialogs.ShowError($"Die MIDI-Datei konnte nicht geschrieben werden.\n\n{ex.Message}");
         }
     }
 
@@ -626,7 +981,18 @@ public sealed partial class MixerViewModel : ObservableObject, IDisposable
 
     /// <summary>Neue Spur mit Standardeinstellungen.</summary>
     private TrackViewModel CreateTrack(string name, string color) =>
-        new(name, color, OnMixChanged) { Group = NoGroup, DuckSource = NoTrack, Redraw = () => TimelineVersion++ };
+        new(name, color, OnMixChanged)
+        {
+            Group = NoGroup,
+            DuckSource = NoTrack,
+            Redraw = () => TimelineVersion++,
+            InstrumentChanged = track =>
+            {
+                IsModified = true;
+                OnPropertyChanged(nameof(Tracks));
+                RenderNoteClips(track);
+            },
+        };
 
     /// <summary>Index der Spur, die <paramref name="track"/> absenkt (-1 = keine).</summary>
     private int DuckIndex(TrackViewModel track) =>
@@ -906,6 +1272,7 @@ public sealed partial class MixerViewModel : ObservableObject, IDisposable
         StatusText = "Mixdown wird berechnet …";
         try
         {
+            await EnsureNotesRenderedAsync();
             await Task.Run(() => _files.Export(RenderMixdown(), path));
             StatusText = $"Mixdown exportiert nach „{Path.GetFileName(path)}“.";
         }
@@ -1008,11 +1375,22 @@ public sealed partial class MixerViewModel : ObservableObject, IDisposable
                             a.Frames.Zip(a.Values, (f, v) => new AutomationPoint(f, v)).OrderBy(p => p.Frame).ToArray()))
                         .Where(l => !l.IsEmpty)
                         .ToArray(),
+                    Instrument = t.Instrument is null ? null : new InstrumentSpec(
+                        Enum.TryParse<BuiltInInstrument>(t.Instrument, out var builtIn) ? builtIn : BuiltInInstrument.Piano,
+                        t.SoundFont, t.Bank, t.Preset, t.PresetName),
                 });
                 duckSources.Add((track, t.DuckSource));
 
                 foreach (var c in t.Clips)
                 {
+                    if (c.Notes is { } projectNotes)
+                    {
+                        var notes = NoteTools.Sorted(projectNotes.Where(n => n.Length >= 4).Select(n =>
+                            new Note((int)n[0], n[1], Math.Max(1, n[2]), (int)n[3], n.Length > 4 ? (int)n[4] : 0)));
+                        track.Clips.Add(new ClipViewModel(track, notes, Math.Max(1, c.LengthTicks), c.Start, 0, SampleRate));
+                        continue;
+                    }
+
                     if (!_projects.ClipExists(path, c.File))
                     {
                         missing.Add($"{t.Name}: {c.File}");
@@ -1035,6 +1413,8 @@ public sealed partial class MixerViewModel : ObservableObject, IDisposable
             {
                 track.DuckSource = source >= 0 && source < Tracks.Count ? Tracks[source] : NoTrack;
             }
+
+            RenderNoteClips();
 
             ProjectPath = path;
             ClearUndo();
@@ -1115,7 +1495,12 @@ public sealed partial class MixerViewModel : ObservableObject, IDisposable
             seconds = Math.Max(seconds, EchoBus.TailSeconds);
         }
 
-        return (long)(seconds * SampleRate);
+        long noteTail = Tracks.SelectMany(t => t.Clips)
+            .Where(c => c.IsNoteClip)
+            .Select(c => c.StartFrame + c.Audio.FrameCount - ProjectLength) // Ausklang der Instrumente
+            .DefaultIfEmpty(0)
+            .Max();
+        return Math.Max((long)(seconds * SampleRate), noteTail);
     }
 
     /// <summary>Erzeugt den aktuellen Zustand für die Misch-Engine.</summary>
@@ -1182,6 +1567,8 @@ public sealed partial class MixerViewModel : ObservableObject, IDisposable
         MasterLimiter = true;
         IsLooping = false;
         LoopStart = LoopEnd = 0;
+        Bpm = 120;
+        BeatsPerBar = 4;
         ClearUndo();
         PlayheadFrame = 0;
         _playStart = 0;
@@ -1268,6 +1655,11 @@ public sealed partial class MixerViewModel : ObservableObject, IDisposable
                 DuckAmount = track.DuckAmount,
                 DuckThreshold = track.DuckThreshold,
                 ShownAutomation = track.ShownAutomation.ToString(),
+                Instrument = track.Instrument?.BuiltIn.ToString(),
+                SoundFont = track.Instrument?.SoundFontPath,
+                Bank = track.Instrument?.Bank ?? 0,
+                Preset = track.Instrument?.Preset ?? 0,
+                PresetName = track.Instrument?.PresetName,
                 Automation = track.Automation.Select(l => new ProjectAutomation
                 {
                     Target = l.Target.ToString(),
@@ -1279,6 +1671,17 @@ public sealed partial class MixerViewModel : ObservableObject, IDisposable
             for (int c = 0; c < track.Clips.Count; c++)
             {
                 var clip = track.Clips[c];
+                if (clip.Notes is { } clipNotes)
+                {
+                    data.Clips.Add(new ProjectClip
+                    {
+                        Start = clip.StartFrame,
+                        LengthTicks = clip.LengthTicks,
+                        Notes = clipNotes.Select(n => new long[] { n.Pitch, n.Start, n.Length, n.Velocity, n.Voice }).ToList(),
+                    });
+                    continue;
+                }
+
                 bool unchanged = clip.SavedFileName is not null &&
                     ReferenceEquals(clip.SavedAudio, clip.Audio) &&
                     string.Equals(clip.SavedProjectPath, path, StringComparison.OrdinalIgnoreCase) &&
@@ -1343,12 +1746,13 @@ public sealed partial class MixerViewModel : ObservableObject, IDisposable
 
     // ───────────── Rückgängig: Zustand sichern und wiederherstellen ─────────────
 
-    private sealed record ClipState(AudioBuffer Audio, long Start, string? SavedFile, AudioBuffer? SavedAudio, string? SavedPath);
+    private sealed record ClipState(AudioBuffer Audio, long Start, string? SavedFile, AudioBuffer? SavedAudio, string? SavedPath, IReadOnlyList<Note>? Notes = null, long LengthTicks = 0);
 
     private sealed record TrackState(
         string Name, string Color, double VolumeDb, double Pan, bool Mute, bool Solo, double SendHall, double SendEcho,
         int GroupIndex, double EqLow, double EqMid, double EqHigh, double HighPassHz, double Compression, ClipState[] Clips,
-        IReadOnlyList<AutomationLane> Automation, AutomationTarget ShownAutomation, int DuckSource, double DuckAmount, double DuckThreshold);
+        IReadOnlyList<AutomationLane> Automation, AutomationTarget ShownAutomation, int DuckSource, double DuckAmount, double DuckThreshold,
+        InstrumentSpec? Instrument);
 
     private sealed record GroupState(string Name, double VolumeDb, bool Mute);
 
@@ -1391,8 +1795,8 @@ public sealed partial class MixerViewModel : ObservableObject, IDisposable
                 t.Name, t.Color, t.VolumeDb, t.Pan, t.Mute, t.Solo, t.SendHall, t.SendEcho,
                 t.Group is null || t.Group.IsNone ? -1 : Groups.IndexOf(t.Group),
                 t.EqLow, t.EqMid, t.EqHigh, t.HighPassHz, t.Compression,
-                t.Clips.Select(c => new ClipState(c.Audio, c.StartFrame, c.SavedFileName, c.SavedAudio, c.SavedProjectPath)).ToArray(),
-                t.Automation, t.ShownAutomation, DuckIndex(t), t.DuckAmount, t.DuckThreshold))
+                t.Clips.Select(c => new ClipState(c.Audio, c.StartFrame, c.SavedFileName, c.SavedAudio, c.SavedProjectPath, c.Notes, c.LengthTicks)).ToArray(),
+                t.Automation, t.ShownAutomation, DuckIndex(t), t.DuckAmount, t.DuckThreshold, t.Instrument))
                 .ToArray(),
             Groups.Select(g => new GroupState(g.Name, g.VolumeDb, g.Mute)).ToArray(),
             selectedTrack,
@@ -1438,9 +1842,18 @@ public sealed partial class MixerViewModel : ObservableObject, IDisposable
                 ShownAutomation = t.ShownAutomation,
                 DuckAmount = t.DuckAmount,
                 DuckThreshold = t.DuckThreshold,
+                Instrument = t.Instrument,
             });
             foreach (var c in t.Clips)
             {
+                if (c.Notes is { } notes)
+                {
+                    var noteClip = new ClipViewModel(track, notes, c.LengthTicks, c.Start, TicksToFrames(c.LengthTicks), SampleRate) { Audio = c.Audio };
+                    track.Clips.Add(noteClip);
+                    RequestRender(noteClip, immediate: true);
+                    continue;
+                }
+
                 track.Clips.Add(new ClipViewModel(track, c.Audio, c.Start)
                 {
                     SavedFileName = c.SavedFile,
@@ -1480,9 +1893,12 @@ public sealed partial class MixerViewModel : ObservableObject, IDisposable
 
     partial void OnMasterLimiterChanged(bool value) => OnMixChanged();
 
+    partial void OnSampleRateChanged(int value) => RenderNoteClips();
+
     partial void OnBpmChanged(double value)
     {
         IsModified = true;
+        RenderNoteClips();
         TimelineVersion++;
     }
 
@@ -1606,6 +2022,7 @@ public sealed partial class MixerViewModel : ObservableObject, IDisposable
         [
             AddTrackFromFileCommand, DeleteSelectedClipCommand, OpenSelectedClipInEditorCommand,
             SplitClipCommand, MergeWithNextClipCommand, AutoTrimClipCommand, ArrangeClipsCommand, BounceCommand,
+            AddNoteTrackCommand, ImportMidiCommand, ExportMidiCommand,
             LoopSelectedClipCommand,
             PlayCommand, TogglePlayPauseCommand, ExportMixdownCommand, NewProjectCommand,
             OpenProjectCommand, SaveProjectCommand, SaveProjectAsCommand,

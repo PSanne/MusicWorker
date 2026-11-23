@@ -110,6 +110,9 @@ public sealed class AppSettings
     /// <summary>Name des gewählten Wiedergabegeräts (null = Windows-Standard).</summary>
     public string? OutputDeviceName { get; set; }
 
+    /// <summary>Zuletzt geladene SoundFont-Datei (.sf2).</summary>
+    public string? LastSoundFont { get; set; }
+
     public bool EqualizerVisible { get; set; }
 }
 

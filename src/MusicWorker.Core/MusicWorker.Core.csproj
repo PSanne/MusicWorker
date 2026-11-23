@@ -9,4 +9,9 @@
     <NoWarn>$(NoWarn);CS1591</NoWarn>
   </PropertyGroup>
 
+  <ItemGroup>
+    <!-- SoundFont-Synthesizer (reines C#, plattformunabhängig, MIT-Lizenz) -->
+    <PackageReference Include="MeltySynth" Version="2.4.1" />
+  </ItemGroup>
+
 </Project>

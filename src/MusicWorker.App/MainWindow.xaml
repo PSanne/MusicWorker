@@ -20,6 +20,7 @@
     <Window.Resources>
         <BooleanToVisibilityConverter x:Key="BoolToVisibility" />
         <local:InverseBoolToVisibilityConverter x:Key="InverseBoolToVisibility" />
+        <local:InstrumentNameConverter x:Key="InstrumentName" />
 
         <!-- Symbole aus der Windows-Schrift „Segoe MDL2 Assets“ -->
         <Style x:Key="Glyph" TargetType="TextBlock">
@@ -456,7 +457,7 @@
                     <TextBlock Text="{Binding StatusText}" TextTrimming="CharacterEllipsis"
                                Visibility="{Binding IsEditorTab, Converter={StaticResource BoolToVisibility}}" />
                     <TextBlock Text="{Binding Mixer.StatusText}" TextTrimming="CharacterEllipsis"
-                               Visibility="{Binding IsMixerTab, Converter={StaticResource BoolToVisibility}}" />
+                               Visibility="{Binding UsesMixerTransport, Converter={StaticResource BoolToVisibility}}" />
                 </Grid>
             </StatusBarItem>
         </StatusBar>
@@ -1037,6 +1038,12 @@
                                     ToolTip="Gewählten Clip im Editor bearbeiten (oder Doppelklick auf den Clip)" />
                             <Button Style="{StaticResource ToolButton}" Command="{Binding Mixer.DeleteSelectedClipCommand}" Content="Clip löschen"
                                     ToolTip="Gewählten Clip löschen (Entf)" />
+                            <Button Style="{StaticResource ToolButton}" Command="{Binding Mixer.AddNoteTrackCommand}" Content="+ Notenspur"
+                                    ToolTip="Neue Notenspur (Instrument) mit einem leeren Clip – öffnet den Noten-Editor" />
+                            <Button Style="{StaticResource ToolButton}" Command="{Binding Mixer.ImportMidiCommand}" Content="MIDI importieren …"
+                                    ToolTip="MIDI-Datei (.mid) als Notenspuren laden – Klänge werden passend zugeordnet" />
+                            <Button Style="{StaticResource ToolButton}" Command="{Binding Mixer.ExportMidiCommand}" Content="MIDI exportieren …"
+                                    ToolTip="Alle Notenspuren als MIDI-Datei speichern" />
                             <Button Style="{StaticResource ToolButton}" Command="{Binding Mixer.AddGroupCommand}" Content="+ Gruppe"
                                     ToolTip="Neue Gruppe anlegen – Spuren im Kanalzug zuordnen" />
                         </ToolBar>
@@ -1343,7 +1350,8 @@
                                                     <DockPanel>
                                                         <Rectangle DockPanel.Dock="Left" Width="4" Fill="{Binding Color}" RadiusX="2" RadiusY="2" />
                                                         <StackPanel Margin="8,0,0,0">
-                                                            <TextBlock Foreground="White" FontWeight="SemiBold" Text="{Binding Name}" TextTrimming="CharacterEllipsis" />
+                                                            <TextBlock Foreground="White" FontWeight="SemiBold" Text="{Binding Name}" TextTrimming="CharacterEllipsis"
+                                                                       ToolTip="{Binding InstrumentName}" />
                                                             <StackPanel Margin="0,6,0,0" Orientation="Horizontal">
                                                                 <ToggleButton Style="{StaticResource StripToggle}" Content="M" IsChecked="{Binding Mute}" ToolTip="Stumm (Mute)" />
                                                                 <ToggleButton Style="{StaticResource StripToggle}" Margin="4,0,0,0" Content="S" IsChecked="{Binding Solo}" ToolTip="Solo" />
@@ -1382,7 +1390,8 @@
                                                        LoopStart="{Binding Mixer.LoopStart}"
                                                        LoopEnd="{Binding Mixer.LoopEnd}"
                                                        IsEnvelopeMode="{Binding Mixer.IsEnvelopeMode}"
-                                                       EditAutomationCommand="{Binding Mixer.EditAutomationCommand}" />
+                                                       EditAutomationCommand="{Binding Mixer.EditAutomationCommand}"
+                                                       CreateClipCommand="{Binding Mixer.CreateClipAtCommand}" />
                             </Grid>
                         </ScrollViewer>
 
@@ -1390,6 +1399,163 @@
                             <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
                                 <ProgressBar Width="260" Height="6" IsIndeterminate="True" />
                                 <TextBlock Margin="0,10,0,0" HorizontalAlignment="Center" Foreground="White" Text="{Binding Mixer.StatusText}" />
+                            </StackPanel>
+                        </Border>
+                    </Grid>
+                </DockPanel>
+            </TabItem>
+            <TabItem Header="  Noten  ">
+                <DockPanel>
+                    <ToolBarTray DockPanel.Dock="Top" IsLocked="True">
+                        <ToolBar>
+                            <Button Style="{StaticResource ToolButton}" Command="{Binding Mixer.PlayCommand}" ToolTip="Projekt ab der Abspielposition abspielen (Leertaste)">
+                                <TextBlock Style="{StaticResource Glyph}" Text="&#xE768;" />
+                            </Button>
+                            <Button Style="{StaticResource ToolButton}" Command="{Binding Mixer.PauseCommand}" ToolTip="Pause (Leertaste)">
+                                <TextBlock Style="{StaticResource Glyph}" Text="&#xE769;" />
+                            </Button>
+                            <Button Style="{StaticResource ToolButton}" Command="{Binding Mixer.StopCommand}" ToolTip="Stopp (Esc)">
+                                <TextBlock Style="{StaticResource Glyph}" Text="&#xE71A;" />
+                            </Button>
+                            <TextBlock Margin="8,0" VerticalAlignment="Center" FontWeight="SemiBold" Text="{Binding Notes.Title}" />
+                        </ToolBar>
+                        <ToolBar>
+                            <TextBlock Margin="4,0" VerticalAlignment="Center" Text="Instrument" />
+                            <ComboBox Width="140" VerticalAlignment="Center" ItemsSource="{Binding Notes.BuiltInChoices}" SelectedItem="{Binding Notes.SelectedBuiltIn}"
+                                      IsEnabled="{Binding Notes.HasClip}" ToolTip="Eingebautes Instrument der Spur (braucht keine Dateien)">
+                                <ComboBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text="{Binding Converter={StaticResource InstrumentName}}" />
+                                    </DataTemplate>
+                                </ComboBox.ItemTemplate>
+                            </ComboBox>
+                            <Button Style="{StaticResource ToolButton}" Command="{Binding Notes.LoadSoundFontCommand}" Content="SoundFont …" IsEnabled="{Binding Notes.HasClip}"
+                                    ToolTip="Eigene Klänge aus einer SoundFont-Datei (.sf2) laden – z. B. „GeneralUser GS“ oder „FluidR3 GM“" />
+                            <ComboBox Width="200" VerticalAlignment="Center" ItemsSource="{Binding Notes.Presets}" SelectedItem="{Binding Notes.SelectedPreset}"
+                                      Visibility="{Binding Notes.HasSoundFont, Converter={StaticResource BoolToVisibility}}"
+                                      ToolTip="{Binding Notes.SoundFontName}" />
+                            <Button Style="{StaticResource ToolButton}" Command="{Binding Notes.UseBuiltInCommand}" Content="Eingebaut"
+                                    Visibility="{Binding Notes.HasSoundFont, Converter={StaticResource BoolToVisibility}}"
+                                    ToolTip="Zurück zum eingebauten Instrument" />
+                            <Separator />
+                            <TextBlock Margin="4,0" VerticalAlignment="Center" Text="MIDI-Eingang" />
+                            <ComboBox Width="150" VerticalAlignment="Center" ItemsSource="{Binding Notes.MidiInputs}" SelectedItem="{Binding Notes.SelectedMidiInput}"
+                                      ToolTip="Angeschlossenes MIDI-Keyboard zum Spielen und für die Schritt-Aufnahme" />
+                            <Button Style="{StaticResource ToolButton}" Command="{Binding Notes.RefreshMidiInputsCommand}" ToolTip="Liste der MIDI-Geräte aktualisieren">
+                                <TextBlock Style="{StaticResource Glyph}" Text="&#xE72C;" />
+                            </Button>
+                        </ToolBar>
+                        <ToolBar Band="1">
+                            <TextBlock Margin="4,0" VerticalAlignment="Center" Text="Raster" />
+                            <ComboBox Width="58" VerticalAlignment="Center" ItemsSource="{Binding Notes.GridChoices}" DisplayMemberPath="Name" SelectedItem="{Binding Notes.Grid}"
+                                      ToolTip="Notenwert für neue Noten, Einrasten und Quantisieren" />
+                            <ToggleButton Style="{StaticResource ChannelToggle}" Margin="4,0,0,0" Content="Triole" IsChecked="{Binding Notes.IsTriplet}" ToolTip="Triolen-Raster (drei Noten im Platz von zwei)" />
+                            <ToggleButton Style="{StaticResource ChannelToggle}" Margin="4,0,0,0" Content="Einrasten" IsChecked="{Binding Notes.IsSnapEnabled}" ToolTip="Noten rasten beim Setzen und Verschieben auf das Raster ein" />
+                            <TextBlock Margin="10,0,4,0" VerticalAlignment="Center" Text="Länge" />
+                            <TextBox Width="40" VerticalAlignment="Center" HorizontalContentAlignment="Right" Text="{Binding Notes.LengthBarsText, UpdateSourceTrigger=LostFocus}"
+                                     KeyDown="OnCommitTextBoxKeyDown" IsEnabled="{Binding Notes.HasClip}" ToolTip="Länge des Notenclips in Takten (mit Eingabetaste übernehmen)" />
+                            <TextBlock Margin="4,0,8,0" VerticalAlignment="Center" Text="Takte" />
+                            <ToggleButton Style="{StaticResource ChannelToggle}" IsChecked="{Binding Notes.IsStepRecording}" IsEnabled="{Binding Notes.HasClip}"
+                                          ToolTip="Schritt-Aufnahme: Gespielte Töne (Bildschirmtastatur, Computertastatur oder MIDI-Keyboard) werden am grünen Cursor eingefügt, danach rückt er einen Rasterschritt weiter. Klick ins Taktlineal setzt den Cursor.">
+                                <StackPanel Orientation="Horizontal">
+                                    <Ellipse Width="10" Height="10" Fill="#E53935" />
+                                    <TextBlock Margin="4,0,0,0" Text="Schritt-Aufnahme" />
+                                </StackPanel>
+                            </ToggleButton>
+                            <Separator />
+                            <Button Style="{StaticResource ToolButton}" Command="{Binding Notes.UndoCommand}" ToolTip="Notenbearbeitung rückgängig (Strg+Z)">
+                                <TextBlock Style="{StaticResource Glyph}" Text="&#xE7A7;" />
+                            </Button>
+                            <Button Style="{StaticResource ToolButton}" Command="{Binding Notes.RedoCommand}" ToolTip="Wiederholen (Strg+Y)">
+                                <TextBlock Style="{StaticResource Glyph}" Text="&#xE7A6;" />
+                            </Button>
+                            <Button Style="{StaticResource ToolButton}" Command="{Binding Notes.SelectAllCommand}" Content="Alle" ToolTip="Alle Noten auswählen (Strg+A)" />
+                            <Button Style="{StaticResource ToolButton}" Command="{Binding Notes.DeleteSelectedCommand}" ToolTip="Gewählte Noten löschen (Entf)">
+                                <TextBlock Style="{StaticResource Glyph}" Text="&#xE74D;" />
+                            </Button>
+                            <TextBlock Margin="8,0" VerticalAlignment="Center" Foreground="#80868F" Text="{Binding Notes.SelectionText}" />
+                        </ToolBar>
+                        <ToolBar Band="2">
+                            <Button Style="{StaticResource ToolButton}" Command="{Binding Notes.QuantizeCommand}" Content="Quantisieren …"
+                                    ToolTip="Notenanfänge auf das Raster rücken (wirkt auf die Auswahl, ohne Auswahl auf alle Noten)" />
+                            <Button Style="{StaticResource ToolButton}" Command="{Binding Notes.HumanizeCommand}" Content="Humanisieren …"
+                                    ToolTip="Timing und Anschlag leicht zufällig verändern – klingt lebendiger" />
+                            <Separator />
+                            <TextBlock Margin="4,0" VerticalAlignment="Center" Text="Transponieren" />
+                            <Button Style="{StaticResource ToolButton}" Command="{Binding Notes.TransposeCommand}" CommandParameter="1" Content="+1" ToolTip="Einen Halbton höher (Pfeil hoch)" />
+                            <Button Style="{StaticResource ToolButton}" Command="{Binding Notes.TransposeCommand}" CommandParameter="-1" Content="−1" ToolTip="Einen Halbton tiefer (Pfeil runter)" />
+                            <Button Style="{StaticResource ToolButton}" Command="{Binding Notes.TransposeCommand}" CommandParameter="12" Content="+Okt" ToolTip="Eine Oktave höher (Umschalt+Pfeil hoch)" />
+                            <Button Style="{StaticResource ToolButton}" Command="{Binding Notes.TransposeCommand}" CommandParameter="-12" Content="−Okt" ToolTip="Eine Oktave tiefer (Umschalt+Pfeil runter)" />
+                            <Button Style="{StaticResource ToolButton}" Command="{Binding Notes.TransposeByCommand}" Content="…" ToolTip="Um beliebig viele Halbtöne transponieren" />
+                            <Separator />
+                            <TextBlock Margin="4,0" VerticalAlignment="Center" Text="Länge" />
+                            <Button Style="{StaticResource ToolButton}" Command="{Binding Notes.ScaleLengthCommand}" CommandParameter="0.5" Content="×½" ToolTip="Notenlängen halbieren (kürzer, staccato)" />
+                            <Button Style="{StaticResource ToolButton}" Command="{Binding Notes.ScaleLengthCommand}" CommandParameter="2" Content="×2" ToolTip="Notenlängen verdoppeln" />
+                            <Button Style="{StaticResource ToolButton}" Command="{Binding Notes.LengthToGridCommand}" Content="= Raster" ToolTip="Alle Längen auf den Rasterwert setzen" />
+                            <Button Style="{StaticResource ToolButton}" Command="{Binding Notes.LegatoCommand}" Content="Legato" ToolTip="Jede Note klingt bis zur nächsten (gebunden)" />
+                            <Separator />
+                            <TextBlock Margin="4,0" VerticalAlignment="Center" Text="Anschlag" />
+                            <Button Style="{StaticResource ToolButton}" Command="{Binding Notes.SetVelocityToCommand}" Content="Setzen …" ToolTip="Anschlagstärke festlegen (einzelne Noten im Anschlag-Feld unten ziehen)" />
+                            <Button Style="{StaticResource ToolButton}" Command="{Binding Notes.CrescendoCommand}" CommandParameter="up" Content="Cresc." ToolTip="Crescendo: allmählich lauter" />
+                            <Button Style="{StaticResource ToolButton}" Command="{Binding Notes.CrescendoCommand}" CommandParameter="down" Content="Decresc." ToolTip="Decrescendo: allmählich leiser" />
+                            <Separator />
+                            <Button Style="{StaticResource ToolButton}" Command="{Binding Notes.SplitVoicesCommand}" Content="Stimmen aufteilen …"
+                                    ToolTip="Gleichzeitige Noten auf mehrere Spuren verteilen (z. B. Melodie und Begleitung)" />
+                            <Separator />
+                            <Button Style="{StaticResource ToolButton}" Click="OnPianoRollZoomInClick" ToolTip="Vergrößern (Strg+Mausrad)">
+                                <TextBlock Style="{StaticResource Glyph}" Text="&#xE8A3;" />
+                            </Button>
+                            <Button Style="{StaticResource ToolButton}" Click="OnPianoRollZoomOutClick" ToolTip="Verkleinern (Strg+Mausrad)">
+                                <TextBlock Style="{StaticResource Glyph}" Text="&#xE71F;" />
+                            </Button>
+                            <Button Style="{StaticResource ToolButton}" Click="OnPianoRollZoomFitClick" ToolTip="Ganzen Clip anzeigen">
+                                <TextBlock Style="{StaticResource Glyph}" Text="&#xE9A6;" />
+                            </Button>
+                        </ToolBar>
+                    </ToolBarTray>
+
+                    <!-- Bildschirmtastatur -->
+                    <Border DockPanel.Dock="Bottom" Background="#1E2026" BorderBrush="#3A3E48" BorderThickness="0,1,0,0" Padding="8,6">
+                        <DockPanel>
+                            <StackPanel DockPanel.Dock="Left" Width="120" Margin="0,0,8,0" VerticalAlignment="Center">
+                                <TextBlock Foreground="#C8CCD4" FontWeight="SemiBold" Text="Tastatur" />
+                                <TextBlock Margin="0,2,0,6" Foreground="#9AA0AA" FontSize="11" Text="{Binding Notes.OctaveText}" />
+                                <StackPanel Orientation="Horizontal">
+                                    <Button Padding="8,2" Content="◀ Oktave" Command="{Binding Notes.OctaveDownCommand}" Focusable="False" />
+                                    <Button Margin="4,0,0,0" Padding="8,2" Content="▶" Command="{Binding Notes.OctaveUpCommand}" Focusable="False" ToolTip="Oktave höher" />
+                                </StackPanel>
+                                <TextBlock Margin="0,6,0,0" Foreground="#80868F" FontSize="10" TextWrapping="Wrap"
+                                           Text="Computertastatur: Y–M und Q–U spielen mit." />
+                            </StackPanel>
+                            <controls:PianoKeyboardView Height="96" LowestKey="{Binding Notes.LowestKey}" PressedKeys="{Binding Notes.PressedKeys}"
+                                                        PlayCommand="{Binding Notes.PlayKeyCommand}" ReleaseCommand="{Binding Notes.ReleaseKeyCommand}" />
+                        </DockPanel>
+                    </Border>
+
+                    <!-- Piano-Roll -->
+                    <Grid>
+                        <controls:PianoRollView x:Name="PianoRoll"
+                                                Document="{Binding Notes.Clip}"
+                                                Notes="{Binding Notes.Notes}"
+                                                Selection="{Binding Notes.Selection}"
+                                                LengthTicks="{Binding Notes.LengthTicks}"
+                                                GridTicks="{Binding Notes.GridTicks}"
+                                                BeatsPerBar="{Binding Notes.BeatsPerBar}"
+                                                PlayheadTick="{Binding Notes.PlayheadTick}"
+                                                StepCursorTick="{Binding Notes.StepCursorTick}"
+                                                ShowStepCursor="{Binding Notes.IsStepRecording}"
+                                                IsDrums="{Binding Notes.IsDrums}"
+                                                Version="{Binding Notes.Version}"
+                                                EditCommand="{Binding Notes.EditCommand}" />
+                        <Border Background="#E61B1D23" Visibility="{Binding Notes.HasClip, Converter={StaticResource InverseBoolToVisibility}}">
+                            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="520">
+                                <TextBlock Foreground="White" FontSize="16" FontWeight="SemiBold" HorizontalAlignment="Center" Text="Noch kein Notenclip geöffnet" />
+                                <TextBlock Margin="0,8,0,14" Foreground="#9AA0AA" TextAlignment="Center" TextWrapping="Wrap"
+                                           Text="Lege eine Notenspur an oder importiere eine MIDI-Datei. Einen vorhandenen Notenclip öffnest du im Mischpult per Doppelklick. Die Bildschirmtastatur unten spielt schon jetzt." />
+                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                                    <Button Padding="12,4" Content="+ Notenspur" Command="{Binding Mixer.AddNoteTrackCommand}" />
+                                    <Button Margin="8,0,0,0" Padding="12,4" Content="MIDI importieren …" Command="{Binding Mixer.ImportMidiCommand}" />
+                                </StackPanel>
                             </StackPanel>
                         </Border>
                     </Grid>
