@@ -3,7 +3,7 @@
 **MusicWorker** ist eine Windows-Anwendung zum Bearbeiten von Musik, geschrieben in C# mit WPF und .NET 8.
 
 Langfristig soll MusicWorker **Audio-Editor, Mehrspur-Mixer und Noten-Editor** in einem Programm vereinen.
-Version 0.3 bietet einen vollständigen Audio-Editor mit Live-Effekten **und ein Mehrspur-Mischpult** mit Fadern, Panorama, Sends, Effekt-Bussen, Gruppen und Projekten – seit 0.3.2 auch mit **Schnitt-Werkzeugen, Takt-Raster, Loop-Bereich und Rückgängig**, seit 0.4 mit **Hüllkurven (Automation) und Auto-Absenkung**, seit 0.5 mit **Noten-Editor, Instrumenten und MIDI**, seit 0.6 mit **Aufnahme, Metronom, Punch-In und Takes/Comping**.
+Version 0.3 bietet einen vollständigen Audio-Editor mit Live-Effekten **und ein Mehrspur-Mischpult** mit Fadern, Panorama, Sends, Effekt-Bussen, Gruppen und Projekten – seit 0.3.2 auch mit **Schnitt-Werkzeugen, Takt-Raster, Loop-Bereich und Rückgängig**, seit 0.4 mit **Hüllkurven (Automation) und Auto-Absenkung**, seit 0.5 mit **Noten-Editor, Instrumenten und MIDI**, seit 0.6 mit **Aufnahme, Metronom, Punch-In und Takes/Comping**, seit 0.7 mit **Autotune, Tonhöhen-Werkzeugen, Spektrogramm und Rauschentfernung**.
 
 ## Mischpult (Version 0.3)
 
@@ -40,6 +40,21 @@ im Mischpult verhalten sie sich wie Audiospuren (Fader, Effekte, Hüllkurven, Mi
 | **Instrumente** | 10 eingebaute Klänge ohne Zusatzdateien: Klavier, E-Piano, Orgel, Streicher, Flächenklang, Synth-Bass, Synth-Lead, Gitarre, Glocken, Schlagzeug (General-MIDI-Belegung) · zusätzlich **SoundFonts (.sf2)** laden, z. B. „GeneralUser GS“ oder „FluidR3 GM“ |
 | **Spielen** | **Bildschirmtastatur** (3 Oktaven, Maus) · **Computertastatur** als Klaviatur (Y–M und Q–U, Zahlen = schwarze Tasten) · **MIDI-Keyboard** als Eingang · **Schritt-Aufnahme**: gespielte Töne/Akkorde werden am grünen Cursor eingefügt |
 | **MIDI** | MIDI-Dateien importieren (Spuren, Tempo, Taktart, Klänge) und alle Notenspuren als MIDI exportieren |
+
+## Tonhöhe & Spektrum (Version 0.7)
+
+Im Editor gibt es dafür das Menü **„Tonhöhe & Spektrum“**. Alle Werkzeuge wirken auf die Auswahl (ohne Auswahl auf die
+ganze Datei), laufen im Hintergrund und lassen sich mit Strg+Z zurücknehmen.
+
+| Bereich | Funktionen |
+|---|---|
+| **Tonhöhe erkennen** | Zeigt die gesungene/gespielte Note der Auswahl, z. B. „A4 +12 ct (443,1 Hz)“ |
+| **Tonhöhe korrigieren** | Verschiebt um einen festen Wert in Cent – vorgeschlagen ist genau der Weg zum nächsten Halbton; die Länge bleibt gleich |
+| **Autotune** | Tonart und Tonleiter (chromatisch, Dur, Moll, Pentatonik), Geschwindigkeit (0 ms = Roboter-Effekt, 30–100 ms = natürlich) und Stärke |
+| **Tonhöhen-Verlauf** | Parametrische Tonhöhe: von einem Wert zum anderen über die Auswahl (gleichmäßig oder als Kurve), z. B. 0 → -12 Halbtöne als „Plattenspieler-Stopp“ |
+| **Stimmeffekte** | Roboter, Helium, Riese, Telefon, Megafon, Unterwasser – mit Mischregler |
+| **Spektrogramm** | Zuschaltbar unter der Wellenform: Zeit × Frequenz (logarithmisch), Helligkeit = Lautstärke; geht mit Zoom und Scrollen mit; Klick setzt die Position, Ziehen markiert |
+| **Rauschentfernung** | 1. Eine Stelle mit nur Rauschen markieren → „Rauschprofil aus Auswahl lernen“ · 2. „Rauschen entfernen …“ mit Absenkung (dB) und Empfindlichkeit |
 
 ## Editor (Funktionen)
 
@@ -164,9 +179,9 @@ MusicWorker.sln
 │  │  ├─ Notes/                  Noten (Ticks), Quantisieren, Humanisieren, Transponieren, Stimmaufteilung, MIDI-Dateien lesen/schreiben
 │  │  ├─ Synthesis/              Eingebauter Synthesizer (10 Instrumente), SoundFont-Wiedergabe, Noten → Audio
 │  │  ├─ Mixing/                 Misch-Engine: Spuren, Panorama, Fader, Gruppen, Sends, Effekt-Busse, Inserts, Hüllkurven, Auto-Absenkung, Master, Mixdown
-│  │  ├─ Dsp/                    Biquad-Filter, 15-Band-Equalizer, Kompressor, Echo, Hall (Freeverb), FFT & Spektrumanalyse, Zeitstreckung (WSOLA), Resampler
-│  │  ├─ Effects/                Lautstärke, Normalisieren, Fades, Equalizer, Tempo/Tonhöhe, Umkehren
-│  │  └─ Visualization/          Berechnung der Wellenform-Spitzen
+│  │  ├─ Dsp/                    Biquad-Filter, 15-Band-Equalizer, Kompressor, Echo, Hall (Freeverb), FFT/STFT & Spektrumanalyse, Zeitstreckung (WSOLA), Resampler, Tonhöhenerkennung (YIN), Pitch-Shifter, Rauschentfernung
+│  │  ├─ Effects/                Lautstärke, Normalisieren, Fades, Equalizer, Tempo/Tonhöhe, Umkehren, Autotune, Tonhöhen-Verlauf, Stimmeffekte
+│  │  └─ Visualization/          Wellenform-Spitzen, Spektrogramm
 │  └─ MusicWorker.App/           WPF-Anwendung (MVVM)
 │     ├─ Audio/                  Laden, Wiedergabe, Export und Live-Equalizer mit NAudio
 │     ├─ Controls/               Wellenform, Spuransicht (Timeline), Piano-Roll, Bildschirmtastatur, Live-Spektrum, Drehregler
@@ -192,7 +207,8 @@ die Oberfläche nur in `MusicWorker.App`. So können Mehrspur- und Noten-Editor 
 - [x] **v0.4 – Automation & Dynamik:** Hüllkurven für Lautstärke, Panorama und Effektparameter (Hall-/Echo-Send, Hochpass); Auto-Absenkung (Musik wird leiser, sobald die Stimme einsetzt)
 - [x] **v0.5 – Noten, MIDI & Instrumente:** Piano-Roll, Bildschirmtastatur, Notenlängen-Anpassung, Quantisieren, Humanisierung, Anschlagstärke-Panel, Transponieren, Stimmaufteilung (Noten auf Stimmen verteilen), frei verfügbare SoundFont-Instrumente
 - [x] **v0.6 – Aufnahme:** Record, Neuaufnahme (Punch-In), Metronom, Takes mit Comping-Tool (inkl. Clear-Comp)
-- [ ] **v0.7 – Tonhöhe & Spektrum:** Autotune, Tonhöhen-Korrektur, parametrische Tonhöhe, Stimmeffekte, Spektrogramm (Wasserfall-Ansicht der Fourier-Transformation), spektrale Rauschentfernung
+- [x] **v0.7 – Tonhöhe & Spektrum:** Autotune, Tonhöhen-Korrektur, parametrische Tonhöhe, Stimmeffekte, Spektrogramm (Wasserfall-Ansicht der Fourier-Transformation), spektrale Rauschentfernung
+- [ ] **Nächster Schritt – Aussehen:** Gestaltung der Oberfläche (übernimmt der Auftraggeber zum Schluss)
 
 ## Entscheidungen
 
@@ -296,6 +312,32 @@ was bewusst so gebaut ist und was sich später leicht ändern lässt.
   löscht man danach im Noten-Editor.
 - **Das Metronom klingt nur bei der Wiedergabe, nie im Mixdown**; der Vorzähler klickt immer (auch ohne Metronom).
 - **Strg+R im Editor-Reiter wechselt ins Mischpult** und startet dort die Aufnahme – aufgenommen wird immer ins Projekt.
+
+### v0.7 – Tonhöhe & Spektrum
+- **Tonhöhenerkennung nach dem YIN-Verfahren.** Grund: bewährt und robust gerade bei Gesang; zur Beschleunigung wird
+  auf etwa 11 kHz heruntergerechnet (Grundtöne 70 – 1000 Hz). Grenze: Erkannt wird eine Stimme bzw. ein einzelnes
+  Instrument – bei Akkorden oder einem ganzen Mix gibt es keine eindeutige Tonhöhe.
+- **Ein stufenlos steuerbarer Pitch-Shifter** (zwei überblendete Lesezeiger in einer Verzögerungsleitung) für
+  Autotune, Korrektur, Verläufe und Stimmeffekte. Grund: Er erlaubt eine sich laufend ändernde Tonhöhe ohne
+  Längenänderung und ist schnell. Die Klangfarbe wird mitverschoben: Korrekturen bis etwa ±3 Halbtöne klingen
+  natürlich, große Sprünge klingen nach „Micky Maus“ bzw. „Riese“ – bei den Stimmeffekten ist genau das gewollt.
+  Formant-erhaltende Verfahren wären eine mögliche spätere Verbesserung.
+- **Autotune wird auf die Auswahl angewendet, nicht live beim Abspielen.** Grund: Die Analyse ist so genauer, die
+  Wiedergabe bleibt leichtgängig, und das Ergebnis ist mit Strg+Z umkehrbar. Die Einstellungen werden bis zum
+  nächsten Aufruf gemerkt.
+- **„Parametrische Tonhöhe“ ist als Tonhöhen-Verlauf umgesetzt** (Anfangswert, Endwert, Kurvenform). Grund: Damit
+  sind die typischen Anwendungen (Stopp-Effekt, Hineingleiten, Sirene) mit drei verständlichen Einstellungen
+  abgedeckt. Eine frei zeichenbare Tonhöhenkurve wäre eine Erweiterung im Stil der Hüllkurven.
+- **Die Tonhöhen-Korrektur schlägt den Weg zum nächsten Halbton vor** (in Cent) – man kann ihn übernehmen oder ändern.
+- **Spektrogramm als Bereich unter der Wellenform** statt eines reinen Live-Wasserfalls. Grund: Zum Bearbeiten will
+  man sehen, *wo* im Stück etwas passiert (Brummen, Zischlaute, Störgeräusche) und es direkt markieren. Deshalb zeigt
+  es denselben Ausschnitt wie die Wellenform (Zoom und Scrollen gehen mit), mit logarithmischer Frequenzachse und
+  einer gut lesbaren Farbskala („Magma“). Das Live-Spektrum beim Abspielen bleibt zusätzlich erhalten.
+- **Rauschentfernung in zwei Schritten: erst Rauschprofil lernen, dann entfernen.** Grund: So weiß das Programm genau,
+  was Rauschen ist, statt es zu raten – das ist zuverlässiger und schont das Nutzsignal. Die Absenkung wird über Zeit
+  und Frequenz geglättet, damit kein „Zwitschern“ (Musical Noise) entsteht.
+- **Stimmeffekte als feste Voreinstellungen mit Mischregler.** Grund: Stimmfunktionen haben für dieses Projekt
+  geringere Priorität – deshalb bewusst einfach gehalten, aber sofort brauchbar.
 
 ## Verwendete Bibliotheken
 

@@ -18,6 +18,7 @@ public partial class MainWindow : Window
         DataContext = viewModel;
 
         viewModel.DocumentLoaded += (_, _) => Waveform.ZoomToFit();
+        Waveform.ViewChanged += (_, _) => Spectrogram.SetView(Waveform.VisibleStart, Waveform.VisibleLength); // gleicher Ausschnitt
         viewModel.Mixer.PropertyChanged += OnMixerPropertyChanged;
         Loaded += (_, _) => Waveform.Focus();
         Deactivated += (_, _) => viewModel.Notes.ReleaseAllKeys(); // keine „hängenden“ Töne beim Fensterwechsel

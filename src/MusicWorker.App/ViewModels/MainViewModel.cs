@@ -1423,6 +1423,169 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     private bool CanUseStereo() => IsStereo && !IsBusy;
 
 
+    // ───────────── Tonhöhe & Spektrum ─────────────
+
+    private NoiseProfile? _noiseProfile;
+    private (int Key, int Scale, double Speed, double Strength) _autotune = (0, 0, 40, 100);
+    private (double From, double To, int Curve) _pitchRamp = (0, -12, 0);
+    private (int Preset, double Mix) _voice = (0, 100);
+    private (double Reduction, double Sensitivity) _noise = (15, 1.5);
+
+    /// <summary>Spektrogramm unter der Wellenform anzeigen.</summary>
+    [ObservableProperty]
+    private bool _isSpectrogramVisible;
+
+    /// <summary>Erkennt die Tonhöhe der Auswahl (bzw. der Datei) und zeigt sie in der Statuszeile.</summary>
+    [RelayCommand(CanExecute = nameof(CanUseAudio))]
+    private async Task AnalyzePitchAsync()
+    {
+        var midi = await DetectPitchAsync();
+        StatusText = midi is { } m
+            ? $"Erkannte Tonhöhe: {Scales.Describe(m)} ({440 * Math.Pow(2, (m - 69) / 12):0.0} Hz)"
+            : "Keine eindeutige Tonhöhe erkannt – für die Erkennung eignen sich einstimmige Stellen (Gesang, Soloinstrument).";
+    }
+
+    /// <summary>Tonhöhen-Korrektur: verschiebt die Auswahl um einen festen Wert, vorgeschlagen ist der Weg zum nächsten Halbton.</summary>
+    [RelayCommand(CanExecute = nameof(CanUseAudio))]
+    private async Task CorrectPitchAsync()
+    {
+        var midi = await DetectPitchAsync();
+        double suggestion = midi is { } m ? Math.Round((Math.Round(m) - m) * 100) : 0;
+        string detected = midi is { } d ? $"Erkannt: {Scales.Describe(d)}. " : "Keine eindeutige Tonhöhe erkannt. ";
+        var request = new ValueRequest("Tonhöhe korrigieren", "Um wie viele Cent soll die Tonhöhe verschoben werden?",
+            detected + "Vorgeschlagen ist der Weg zum nächsten Halbton (100 Cent = 1 Halbton). Die Länge bleibt gleich.",
+            Minimum: -1200, Maximum: 1200, Value: suggestion, SmallChange: 1, Unit: "Cent");
+        if (_dialogs.AskValue(request) is { } cents && Math.Abs(cents) >= 1)
+        {
+            await ApplyEffectAsync(new PitchShiftEffect(cents / 100));
+        }
+    }
+
+    [RelayCommand(CanExecute = nameof(CanUseAudio))]
+    private async Task AutotuneAsync()
+    {
+        var request = new ParameterRequest("Autotune",
+            "Zieht gesungene oder gespielte Töne auf die nächste Note der Tonart. Wirkt auf die Auswahl (ohne Auswahl auf die ganze Datei) – am besten auf einer einzelnen Stimme.",
+            [
+                new ChoiceParameter("Tonart (Grundton)", Scales.KeyNames, _autotune.Key),
+                new ChoiceParameter("Tonleiter", Scales.All.Select(Scales.NameOf).ToArray(), _autotune.Scale,
+                    "„Chromatisch“ korrigiert auf jeden Halbton – passt immer, wenn man die Tonart nicht kennt."),
+                new SliderParameter("Geschwindigkeit", 0, 400, _autotune.Speed, 5, "ms",
+                    "0 ms = sofort (der bekannte Roboter-Effekt), 30 – 100 ms = natürliche Korrektur."),
+                new SliderParameter("Stärke", 0, 100, _autotune.Strength, 5, "%", "100 % = ganz auf die Note, 50 % = halber Weg."),
+            ]);
+        if (_dialogs.AskParameters(request) is not { } values)
+        {
+            return;
+        }
+
+        _autotune = ((int)values[0], (int)values[1], values[2], values[3]);
+        await ApplyEffectAsync(new AutotuneEffect(_autotune.Key, Scales.All[_autotune.Scale], _autotune.Speed, _autotune.Strength));
+    }
+
+    /// <summary>Parametrische Tonhöhe: Verlauf von einer Tonhöhe zu einer anderen über die Auswahl.</summary>
+    [RelayCommand(CanExecute = nameof(CanUseAudio))]
+    private async Task PitchRampAsync()
+    {
+        var request = new ParameterRequest("Tonhöhen-Verlauf",
+            "Die Tonhöhe ändert sich über die Auswahl stufenlos – z. B. von 0 nach -12 Halbtönen für einen „Plattenspieler-Stopp“, oder von -3 nach 0 für ein Hineingleiten.",
+            [
+                new SliderParameter("Am Anfang", -24, 24, _pitchRamp.From, 0.5, "Halbtöne"),
+                new SliderParameter("Am Ende", -24, 24, _pitchRamp.To, 0.5, "Halbtöne"),
+                new ChoiceParameter("Verlauf", ["Gleichmäßig", "Erst langsam, dann schnell", "Erst schnell, dann langsam"], _pitchRamp.Curve),
+            ]);
+        if (_dialogs.AskParameters(request) is not { } values)
+        {
+            return;
+        }
+
+        _pitchRamp = (values[0], values[1], (int)values[2]);
+        double curve = _pitchRamp.Curve switch { 1 => 2.5, 2 => 0.4, _ => 1 };
+        await ApplyEffectAsync(new PitchRampEffect(_pitchRamp.From, _pitchRamp.To, curve));
+    }
+
+    [RelayCommand(CanExecute = nameof(CanUseAudio))]
+    private async Task VoiceEffectAsync()
+    {
+        var request = new ParameterRequest("Stimmeffekte", "Fertige Effekte für Sprache und Gesang.",
+            [
+                new ChoiceParameter("Effekt", VoiceEffect.All.Select(VoiceEffect.NameOf).ToArray(), _voice.Preset),
+                new SliderParameter("Mischung", 0, 100, _voice.Mix, 5, "%", "100 % = nur Effekt, kleinere Werte mischen das Original dazu."),
+            ]);
+        if (_dialogs.AskParameters(request) is not { } values)
+        {
+            return;
+        }
+
+        _voice = ((int)values[0], values[1]);
+        await ApplyEffectAsync(new VoiceEffect(VoiceEffect.All[_voice.Preset], _voice.Mix));
+    }
+
+    /// <summary>Rauschprofil aus der Auswahl lernen (eine Stelle, an der nur Rauschen zu hören ist).</summary>
+    [RelayCommand(CanExecute = nameof(CanUseSelection))]
+    private async Task LearnNoiseProfileAsync()
+    {
+        var range = _editor.EffectRange;
+        var slice = Buffer.Slice(range.Start, range.Length);
+        try
+        {
+            _noiseProfile = await Task.Run(() => NoiseProfile.Learn(slice));
+            StatusText = $"Rauschprofil gelernt ({TimeFormatter.Format(slice.Duration)}). Jetzt alles (oder einen Bereich) markieren und „Rauschen entfernen …“ wählen.";
+            RemoveNoiseCommand.NotifyCanExecuteChanged();
+        }
+        catch (ArgumentException ex)
+        {
+            _dialogs.ShowError(ex.Message);
+        }
+    }
+
+    [RelayCommand(CanExecute = nameof(CanUseAudio))]
+    private async Task RemoveNoiseAsync()
+    {
+        if (_noiseProfile is not { } profile)
+        {
+            _dialogs.ShowError("Zuerst ein Rauschprofil lernen: eine Stelle markieren, an der nur das Rauschen zu hören ist (z. B. eine Pause), dann „Rauschprofil aus Auswahl lernen“ wählen.");
+            return;
+        }
+
+        if (profile.SampleRate != Buffer.SampleRate)
+        {
+            _dialogs.ShowError("Das Rauschprofil stammt aus einer Datei mit anderer Abtastrate. Bitte das Profil in dieser Datei neu lernen.");
+            return;
+        }
+
+        var request = new ParameterRequest("Rauschen entfernen",
+            "Senkt alle Anteile ab, die kaum lauter sind als das gelernte Rauschen. Wirkt auf die Auswahl, ohne Auswahl auf die ganze Datei.",
+            [
+                new SliderParameter("Absenkung", 3, 40, _noise.Reduction, 1, "dB", "Wie stark das Rauschen leiser wird. 10 – 20 dB klingen meist natürlich."),
+                new SliderParameter("Empfindlichkeit", 1, 4, _noise.Sensitivity, 0.1, "×",
+                    "Höher = mehr wird als Rauschen behandelt (gründlicher, aber leise Nutzanteile können dumpfer werden)."),
+            ]);
+        if (_dialogs.AskParameters(request) is not { } values)
+        {
+            return;
+        }
+
+        _noise = (values[0], values[1]);
+        await ApplyEffectAsync(new NoiseReductionEffect(profile, _noise.Reduction, _noise.Sensitivity));
+    }
+
+    private async Task<double?> DetectPitchAsync()
+    {
+        var range = _editor.EffectRange;
+        var slice = Buffer.Slice(range.Start, range.Length);
+        IsBusy = true;
+        StatusText = "Tonhöhe wird erkannt …";
+        try
+        {
+            return await Task.Run(() => PitchDetector.Track(slice).MedianMidi());
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+    }
+
     private bool CanUseAudio() => HasAudio && !IsBusy;
 
     private bool CanUseSelection() => HasSelection && !IsBusy;
@@ -2545,6 +2708,8 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             ChangeGainCommand, NormalizeCommand, ApplyEqualizerCommand, ApplyReverbCommand, ApplyCompressorCommand, ApplyDelayCommand, ApplyFilterCommand, ApplyDistortionCommand,
             ApplyChorusCommand, ApplyFlangerCommand, TempoPitchCommand,
             FadeInCommand, FadeOutCommand, ReverseCommand, MuteCommand,
+            AnalyzePitchCommand, CorrectPitchCommand, AutotuneCommand, PitchRampCommand, VoiceEffectCommand,
+            LearnNoiseProfileCommand, RemoveNoiseCommand,
         ];
         foreach (var command in commands)
         {

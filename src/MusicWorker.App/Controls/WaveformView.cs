@@ -242,7 +242,28 @@ public sealed class WaveformView : FrameworkElement
 
     // ───────────── Zeichnen ─────────────
 
+    /// <summary>Sichtbarer Bereich hat sich geändert (Zoom, Scrollen) – z. B. für das Spektrogramm darunter.</summary>
+    public event EventHandler? ViewChanged;
+
+    /// <summary>Erster sichtbarer Frame.</summary>
+    public double VisibleStart => _viewStart;
+
+    /// <summary>Anzahl sichtbarer Frames.</summary>
+    public double VisibleLength => _viewLength;
+
+    private (double Start, double Length) _reportedView;
+
     protected override void OnRender(DrawingContext dc)
+    {
+        OnRenderCore(dc);
+        if (_reportedView != (_viewStart, _viewLength))
+        {
+            _reportedView = (_viewStart, _viewLength);
+            Dispatcher.BeginInvoke(() => ViewChanged?.Invoke(this, EventArgs.Empty));
+        }
+    }
+
+    private void OnRenderCore(DrawingContext dc)
     {
         var size = RenderSize;
         dc.DrawRectangle(BackgroundBrush, null, new Rect(size));

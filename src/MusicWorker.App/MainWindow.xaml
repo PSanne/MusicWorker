@@ -328,6 +328,18 @@
                 <MenuItem Header="_Umkehren (rückwärts)" Command="{Binding ReverseCommand}" />
                 <MenuItem Header="_Stummschalten" Command="{Binding MuteCommand}" />
             </MenuItem>
+            <MenuItem Header="_Tonhöhe &amp; Spektrum">
+                <MenuItem Header="Tonhöhe _erkennen" Command="{Binding AnalyzePitchCommand}" />
+                <MenuItem Header="Tonhöhe _korrigieren …" Command="{Binding CorrectPitchCommand}" />
+                <MenuItem Header="_Autotune …" Command="{Binding AutotuneCommand}" />
+                <MenuItem Header="Tonhöhen-_Verlauf …" Command="{Binding PitchRampCommand}" />
+                <MenuItem Header="_Stimmeffekte …" Command="{Binding VoiceEffectCommand}" />
+                <Separator />
+                <MenuItem Header="_Rauschprofil aus Auswahl lernen" Command="{Binding LearnNoiseProfileCommand}" />
+                <MenuItem Header="Rauschen _entfernen …" Command="{Binding RemoveNoiseCommand}" />
+                <Separator />
+                <MenuItem Header="S_pektrogramm anzeigen" IsCheckable="True" IsChecked="{Binding IsSpectrogramVisible, Mode=TwoWay}" />
+            </MenuItem>
             <MenuItem Header="_Ansicht">
                 <MenuItem Header="_Vergrößern" Click="OnZoomInClick" InputGestureText="Strg+Mausrad" />
                 <MenuItem Header="V_erkleinern" Click="OnZoomOutClick" InputGestureText="Strg+Mausrad" />
@@ -983,14 +995,29 @@
                         </ScrollViewer>
                     </Border>
                     <Grid>
-                        <controls:WaveformView x:Name="Waveform"
-                                               Buffer="{Binding Buffer}"
-                                               Selection="{Binding Selection}"
-                                               PlayheadFrame="{Binding PlayheadFrame}"
-                                               SeekCommand="{Binding SeekCommand}"
-                                               ActiveChannels="{Binding ActiveChannels}"
-                                               MutedChannels="{Binding MutedChannels}"
-                                               FollowPlayhead="{Binding IsPlaying}" />
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="*" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
+                            <controls:WaveformView x:Name="Waveform"
+                                                   Buffer="{Binding Buffer}"
+                                                   Selection="{Binding Selection}"
+                                                   PlayheadFrame="{Binding PlayheadFrame}"
+                                                   SeekCommand="{Binding SeekCommand}"
+                                                   ActiveChannels="{Binding ActiveChannels}"
+                                                   MutedChannels="{Binding MutedChannels}"
+                                                   FollowPlayhead="{Binding IsPlaying}" />
+                            <Border Grid.Row="1" Height="220" BorderBrush="#3A3E48" BorderThickness="0,1,0,0"
+                                    Visibility="{Binding IsSpectrogramVisible, Converter={StaticResource BoolToVisibility}}">
+                                <controls:SpectrogramView x:Name="Spectrogram"
+                                                          Buffer="{Binding Buffer}"
+                                                          Selection="{Binding Selection}"
+                                                          PlayheadFrame="{Binding PlayheadFrame}"
+                                                          SeekCommand="{Binding SeekCommand}"
+                                                          ToolTip="Spektrogramm: Zeit waagerecht, Frequenz senkrecht, Helligkeit = Lautstärke" />
+                            </Border>
+                        </Grid>
 
                         <Border Background="#AA000000"
                                 Visibility="{Binding IsBusy, Converter={StaticResource BoolToVisibility}}">

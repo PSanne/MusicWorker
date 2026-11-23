@@ -41,6 +41,12 @@ public sealed class WpfDialogService : IDialogService
         return dialog.ShowDialog() == true ? dialog.Result : null;
     }
 
+    public double[]? AskParameters(ParameterRequest request)
+    {
+        var dialog = new ParametersDialog(request) { Owner = Owner };
+        return dialog.ShowDialog() == true ? dialog.Values : null;
+    }
+
     public TakesResult? EditTakes(TakesRequest request)
     {
         var dialog = new TakesDialog(request) { Owner = Owner };

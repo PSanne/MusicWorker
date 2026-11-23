@@ -26,6 +26,20 @@ public sealed record TempoPitchRequest(
 /// Abstraktion für Dialoge, damit das ViewModel nichts von WPF-Fenstern wissen muss
 /// (und sich so später auch automatisiert testen lässt).
 /// </summary>
+/// <summary>Ein Eintrag im Parameter-Dialog.</summary>
+public abstract record DialogParameter(string Label, string Hint);
+
+/// <summary>Schieberegler mit Zahlenfeld.</summary>
+public sealed record SliderParameter(string Label, double Minimum, double Maximum, double Value, double Step, string Unit, string Hint = "")
+    : DialogParameter(Label, Hint);
+
+/// <summary>Auswahlliste; der Wert ist der Index der Auswahl.</summary>
+public sealed record ChoiceParameter(string Label, IReadOnlyList<string> Options, int Selected, string Hint = "")
+    : DialogParameter(Label, Hint);
+
+/// <summary>Dialog mit mehreren Einstellungen (z. B. Autotune).</summary>
+public sealed record ParameterRequest(string Title, string Intro, IReadOnlyList<DialogParameter> Parameters);
+
 /// <summary>Takes eines Clips zum Bearbeiten im Comping-Fenster.</summary>
 public sealed record TakesRequest(
     string TrackName,
@@ -53,6 +67,9 @@ public interface IDialogService
 
     /// <summary>Fragt Tempo (in %) und Tonhöhe (in Halbtönen) ab – auf Wunsch pro Kanal; null = abgebrochen.</summary>
     TempoPitchRequest? AskTempoAndPitch(TempoPitchOptions options);
+
+    /// <summary>Mehrere Einstellungen abfragen; liefert je Parameter den Wert (bei Auswahllisten den Index) oder null.</summary>
+    double[]? AskParameters(ParameterRequest request);
 
     /// <summary>Takes &amp; Comping bearbeiten; null = abgebrochen.</summary>
     TakesResult? EditTakes(TakesRequest request);
