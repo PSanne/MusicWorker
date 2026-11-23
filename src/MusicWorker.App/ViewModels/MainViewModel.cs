@@ -377,14 +377,19 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     private async void StartPlayheadUpdates()
     {
         StopPlayheadUpdates();
-        var cts = new CancellationTokenSource();
+
+        // Diese Schleife "besitzt" ihre CancellationTokenSource und gibt sie erst am Ende selbst frei.
+        // StopPlayheadUpdates() bricht nur ab – sonst könnte ein bereits fälliger Timer-Schritt
+        // danach noch auf die freigegebene Quelle zugreifen (ObjectDisposedException).
+        using var cts = new CancellationTokenSource();
+        var token = cts.Token;
         _playheadUpdates = cts;
 
         // PeriodicTimer setzt im UI-Thread fort, weil "await" den SynchronizationContext beibehält.
         using var timer = new PeriodicTimer(PlayheadInterval);
         try
         {
-            while (await timer.WaitForNextTickAsync(cts.Token))
+            while (await timer.WaitForNextTickAsync(token) && !token.IsCancellationRequested)
             {
                 PlayheadFrame = _playback.CurrentFrame;
             }
@@ -393,12 +398,18 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         {
             // Wiedergabe beendet – nichts zu tun.
         }
+        finally
+        {
+            if (ReferenceEquals(_playheadUpdates, cts))
+            {
+                _playheadUpdates = null;
+            }
+        }
     }
 
     private void StopPlayheadUpdates()
     {
         _playheadUpdates?.Cancel();
-        _playheadUpdates?.Dispose();
         _playheadUpdates = null;
     }
 
