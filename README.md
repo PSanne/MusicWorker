@@ -137,7 +137,13 @@ ganze Datei), laufen im Hintergrund und lassen sich mit Strg+Z zurücknehmen.
 
 ### Fertige Version herunterladen
 Die aktuelle Version gibt es unter **[Releases](https://github.com/PSanne/MusicWorker/releases/latest)**:
-ZIP-Datei herunterladen, entpacken, `MusicWorker.exe` starten. Es muss kein .NET installiert sein.
+
+- **Setup (empfohlen):** `MusicWorker-Setup-….exe` herunterladen und starten. Installiert ohne Administratorrechte,
+  legt einen Startmenü-Eintrag (auf Wunsch auch eine Desktop-Verknüpfung) an und verknüpft Projekte (`.mwproj`),
+  sodass sie sich per Doppelklick öffnen. Deinstallieren über Windows-Einstellungen → Apps.
+- **Ohne Installation:** ZIP-Datei herunterladen, entpacken, `MusicWorker.exe` starten.
+
+Es muss kein .NET installiert sein. Warnt Windows SmartScreen: „Weitere Informationen“ → „Trotzdem ausführen“.
 
 Zwischenstände aus jedem Push findest du außerdem unter
 **Actions → „Build & Test“ → Lauf auswählen → Artifacts** (nur angemeldet sichtbar, 90 Tage aufbewahrt).
@@ -171,6 +177,7 @@ dotnet test
 
 ```
 MusicWorker.sln
+├─ installer/                    Setup-Skript (Inno Setup), wird beim Release automatisch gebaut
 ├─ src/
 │  ├─ MusicWorker.Core/          Plattformunabhängiger Kern (ohne UI, voll testbar)
 │  │  ├─ Audio/                  AudioBuffer (unveränderlich), Dezibel-Umrechnung
@@ -346,6 +353,17 @@ was bewusst so gebaut ist und was sich später leicht ändern lässt.
 - **Der Effektbereich nimmt höchstens 70 % der Höhe ein** (sonst scrollt er senkrecht). Grund: Die Wellenform bleibt
   auch auf kleineren Bildschirmen bedienbar. Ist das Spektrogramm eingeschaltet, teilen sich Wellenform und
   Spektrogramm den übrigen Platz zu gleichen Teilen.
+
+### v0.7.2 – Setup
+- **Das Setup wird mit Inno Setup gebaut** (kostenlos, seit vielen Jahren bewährt) – automatisch bei jedem Release,
+  neben dem ZIP. Grund: Ein klassisches Setup mit Startmenü-Eintrag und Deinstallation ist für Windows-Nutzer am
+  vertrautesten; MSI-Pakete wären aufwendiger und bringen für eine Einzelplatz-Anwendung keinen Vorteil.
+- **Installation ohne Administratorrechte** (in den eigenen Benutzerordner); wer möchte, kann im Setup „für alle
+  Benutzer“ wählen. Grund: Kein UAC-Dialog nötig, und Updates lassen sich einfach drüberinstallieren.
+- **Nur Projekte (`.mwproj`) werden mit MusicWorker verknüpft, keine Audioformate.** Grund: MP3 & Co. sollen weiter
+  mit dem gewohnten Player aufgehen; „Öffnen mit → MusicWorker“ funktioniert für Audiodateien trotzdem.
+- **Setup und Programm sind nicht digital signiert.** Grund: Ein Code-Signing-Zertifikat kostet jährlich Geld;
+  deshalb kann Windows SmartScreen beim ersten Start warnen.
 
 ## Verwendete Bibliotheken
 

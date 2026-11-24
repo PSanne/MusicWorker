@@ -670,6 +670,20 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     }
 
     /// <summary>Öffnet eine Datei direkt (z. B. per Drag &amp; Drop oder Kommandozeile).</summary>
+    /// <summary>Datei aus der Kommandozeile bzw. per Doppelklick: Projekte ins Mischpult, Audio in den Editor.</summary>
+    public async Task OpenPathAsync(string path)
+    {
+        if (string.Equals(Path.GetExtension(path), ".mwproj", StringComparison.OrdinalIgnoreCase))
+        {
+            SelectedMainTab = 1;
+            await Mixer.OpenProjectFileAsync(path);
+        }
+        else
+        {
+            await OpenFileAsync(path);
+        }
+    }
+
     public async Task OpenFileAsync(string path)
     {
         if (CanOpen() && ConfirmDiscardChanges())

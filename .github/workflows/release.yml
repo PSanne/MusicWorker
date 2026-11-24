@@ -44,19 +44,37 @@ jobs:
             -p:Version=$version --output publish
           Compress-Archive -Path publish/* -DestinationPath "MusicWorker-$($env:TAG)-win-x64.zip"
 
+      - name: Setup bauen (Inno Setup)
+        shell: pwsh
+        run: |
+          $version = $env:TAG.TrimStart("v")
+          $iscc = Join-Path ${env:ProgramFiles(x86)} "Inno Setup 6\ISCC.exe"
+          if (-not (Test-Path $iscc)) {
+            choco install innosetup --no-progress -y
+          }
+          & $iscc "/DAppVersion=$version" "/DSourceDir=$((Resolve-Path publish).Path)" installer/MusicWorker.iss
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          Get-ChildItem dist
+
       - uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ env.TAG }}
           target_commitish: ${{ github.sha }}
           name: MusicWorker ${{ env.TAG }}
-          files: MusicWorker-${{ env.TAG }}-win-x64.zip
+          files: |
+            MusicWorker-${{ env.TAG }}-win-x64.zip
+            dist/MusicWorker-Setup-*.exe
           body: |
-            ## Installation
-            1. Unten bei **Assets** die Datei `MusicWorker-${{ env.TAG }}-win-x64.zip` herunterladen.
-            2. ZIP-Datei entpacken (Rechtsklick → „Alle extrahieren …“).
-            3. `MusicWorker.exe` starten – es muss kein .NET installiert sein.
+            ## Installation (empfohlen: Setup)
+            1. Unten bei **Assets** die Datei `MusicWorker-Setup-….exe` herunterladen und starten.
+            2. Den Schritten folgen – Administratorrechte sind nicht nötig. MusicWorker erscheint im Startmenü
+               (auf Wunsch auch auf dem Desktop), Projekte (`.mwproj`) lassen sich per Doppelklick öffnen.
+            3. Deinstallieren: Windows-Einstellungen → Apps → MusicWorker.
+
+            **Ohne Installation:** `MusicWorker-${{ env.TAG }}-win-x64.zip` herunterladen, entpacken und `MusicWorker.exe` starten.
+            Es muss kein .NET installiert sein.
 
             Falls Windows SmartScreen warnt: **„Weitere Informationen“ → „Trotzdem ausführen“**
-            (die Datei ist nicht digital signiert).
+            (die Dateien sind nicht digital signiert).
 
             Alle Funktionen und Tastenkürzel stehen in der [README](https://github.com/${{ github.repository }}#readme).

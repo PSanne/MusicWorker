@@ -1746,6 +1746,12 @@ public sealed partial class MixerViewModel : ObservableObject, IDisposable
             return;
         }
 
+        await OpenProjectFileAsync(path);
+    }
+
+    /// <summary>Öffnet ein Projekt (.mwproj) – auch per Doppelklick im Explorer.</summary>
+    public async Task OpenProjectFileAsync(string path)
+    {
         StopPlayback();
         IsBusy = true;
         StatusText = $"Öffne Projekt „{Path.GetFileNameWithoutExtension(path)}“ …";

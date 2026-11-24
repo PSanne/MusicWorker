@@ -31,10 +31,10 @@ public partial class App : Application
         MainWindow = window;
         window.Show();
 
-        // Datei aus der Kommandozeile öffnen (z. B. „Öffnen mit …“ im Explorer).
+        // Datei aus der Kommandozeile öffnen (Doppelklick auf ein Projekt, „Öffnen mit …“ im Explorer).
         if (e.Args.Length > 0 && File.Exists(e.Args[0]))
         {
-            _ = viewModel.OpenFileAsync(e.Args[0]);
+            _ = viewModel.OpenPathAsync(e.Args[0]);
         }
     }
 
