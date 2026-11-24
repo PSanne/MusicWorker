@@ -339,6 +339,14 @@ was bewusst so gebaut ist und was sich später leicht ändern lässt.
 - **Stimmeffekte als feste Voreinstellungen mit Mischregler.** Grund: Stimmfunktionen haben für dieses Projekt
   geringere Priorität – deshalb bewusst einfach gehalten, aber sofort brauchbar.
 
+### v0.7.1 – Anordnung der Effekte (auf Wunsch)
+- **Die Effektfelder stehen über dem Equalizer, alle gleich hoch, die Regler auf einer Linie.** Grund: So sind alle
+  Effekte ohne seitliches Scrollen sichtbar und wirken aufgeräumt. Auf schmalen Fenstern rutschen Felder in eine
+  zweite Reihe, statt abgeschnitten zu werden.
+- **Der Effektbereich nimmt höchstens 70 % der Höhe ein** (sonst scrollt er senkrecht). Grund: Die Wellenform bleibt
+  auch auf kleineren Bildschirmen bedienbar. Ist das Spektrogramm eingeschaltet, teilen sich Wellenform und
+  Spektrogramm den übrigen Platz zu gleichen Teilen.
+
 ## Verwendete Bibliotheken
 
 - [NAudio](https://github.com/naudio/NAudio): Audio-Ein-/Ausgabe und Dateiformate (MIT-Lizenz)
