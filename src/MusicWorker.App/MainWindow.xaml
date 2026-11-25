@@ -1261,6 +1261,9 @@
                             <Button Style="{StaticResource ToolButton}" Click="OnTimelineZoomFitClick" ToolTip="Ganzes Projekt anzeigen">
                                 <TextBlock Style="{StaticResource Glyph}" Text="&#xE9A6;" />
                             </Button>
+                            <TextBlock Margin="8,0,4,0" VerticalAlignment="Center" Text="Spurhöhe" />
+                            <Slider Width="80" VerticalAlignment="Center" Minimum="44" Maximum="220" Value="{Binding Mixer.TrackHeight}"
+                                    ToolTip="Höhe aller Spuren – einzelne Spuren per Rechtsklick auf den Spurnamen" />
                             <TextBlock Margin="8,0" VerticalAlignment="Center" FontWeight="SemiBold" Text="{Binding Mixer.ProjectTitle}" />
                         </ToolBar>
                         <ToolBar Band="1">
@@ -1569,7 +1572,40 @@
                                     <ItemsControl ItemsSource="{Binding Mixer.Tracks}" Focusable="False">
                                         <ItemsControl.ItemTemplate>
                                             <DataTemplate>
-                                                <Border Height="76" Padding="8,6" BorderBrush="#30343D" BorderThickness="0,0,1,1" Background="#22252C">
+                                                <Border Height="{Binding Height}" Padding="8,6" BorderBrush="#30343D" BorderThickness="0,0,1,1" Background="#22252C"
+                                                        AllowDrop="True" Cursor="Hand"
+                                                        PreviewMouseLeftButtonDown="OnTrackHeaderMouseDown" MouseMove="OnTrackHeaderMouseMove"
+                                                        DragOver="OnTrackHeaderDragOver" Drop="OnTrackHeaderDrop"
+                                                        ToolTip="Spur ziehen = Reihenfolge ändern · Rechtsklick = Farbe, Höhe, verschieben">
+                                                    <Border.ContextMenu>
+                                                        <ContextMenu>
+                                                            <MenuItem Header="Nach _oben" Command="{Binding MoveUpCommand}" />
+                                                            <MenuItem Header="Nach _unten" Command="{Binding MoveDownCommand}" />
+                                                            <Separator />
+                                                            <MenuItem Header="_Farbe" ItemsSource="{x:Static vm:TrackViewModel.ColorChoices}">
+                                                                <MenuItem.ItemTemplate>
+                                                                    <DataTemplate>
+                                                                        <StackPanel Orientation="Horizontal">
+                                                                            <Rectangle Width="16" Height="10" Margin="0,0,8,0" Fill="{Binding Color}" RadiusX="2" RadiusY="2" />
+                                                                            <TextBlock Text="{Binding Name}" />
+                                                                        </StackPanel>
+                                                                    </DataTemplate>
+                                                                </MenuItem.ItemTemplate>
+                                                                <MenuItem.ItemContainerStyle>
+                                                                    <Style TargetType="MenuItem">
+                                                                        <Setter Property="Command" Value="{Binding DataContext.SetColorCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
+                                                                        <Setter Property="CommandParameter" Value="{Binding Color}" />
+                                                                    </Style>
+                                                                </MenuItem.ItemContainerStyle>
+                                                            </MenuItem>
+                                                            <MenuItem Header="_Höhe">
+                                                                <MenuItem Header="_Klein" Command="{Binding SetHeightCommand}" CommandParameter="50" />
+                                                                <MenuItem Header="_Normal" Command="{Binding SetHeightCommand}" CommandParameter="76" />
+                                                                <MenuItem Header="_Groß" Command="{Binding SetHeightCommand}" CommandParameter="120" />
+                                                                <MenuItem Header="_Sehr groß" Command="{Binding SetHeightCommand}" CommandParameter="180" />
+                                                            </MenuItem>
+                                                        </ContextMenu>
+                                                    </Border.ContextMenu>
                                                     <DockPanel>
                                                         <Rectangle DockPanel.Dock="Left" Width="4" Fill="{Binding Color}" RadiusX="2" RadiusY="2" />
                                                         <StackPanel Margin="8,0,0,0">
@@ -1623,7 +1659,26 @@
                                                        CreateClipCommand="{Binding Mixer.CreateClipAtCommand}"
                                                        RecordingStartFrame="{Binding Mixer.RecordingStartFrame}"
                                                        Markers="{Binding Mixer.Markers}"
-                                                       MarkerCommand="{Binding Mixer.MixerMarkerCommand}" />
+                                                       MarkerCommand="{Binding Mixer.MixerMarkerCommand}"
+                                                       SelectedClips="{Binding Mixer.SelectedClips}"
+                                                       ToggleClipSelectionCommand="{Binding Mixer.ToggleClipSelectionCommand}"
+                                                       SelectClipsCommand="{Binding Mixer.SelectClipsCommand}"
+                                                       MoveClipsCommand="{Binding Mixer.MoveClipsCommand}"
+                                                       ClipFadeCommand="{Binding Mixer.SetClipFadeCommand}">
+                                    <controls:TimelineView.ContextMenu>
+                                        <ContextMenu>
+                                            <MenuItem Header="_Kopieren" Command="{Binding Mixer.CopyClipsCommand}" InputGestureText="Strg+C" />
+                                            <MenuItem Header="_Ausschneiden" Command="{Binding Mixer.CutClipsCommand}" InputGestureText="Strg+X" />
+                                            <MenuItem Header="_Einfügen an der Abspielposition" Command="{Binding Mixer.PasteClipsCommand}" InputGestureText="Strg+V" />
+                                            <MenuItem Header="_Duplizieren (direkt dahinter)" Command="{Binding Mixer.DuplicateClipsCommand}" InputGestureText="Strg+D" />
+                                            <Separator />
+                                            <MenuItem Header="Ein-/Ausblenden _zurücksetzen" Command="{Binding Mixer.ResetFadesCommand}" />
+                                            <MenuItem Header="Im _Editor öffnen" Command="{Binding Mixer.OpenSelectedClipInEditorCommand}" />
+                                            <Separator />
+                                            <MenuItem Header="_Löschen" Command="{Binding Mixer.DeleteSelectedClipCommand}" InputGestureText="Entf" />
+                                        </ContextMenu>
+                                    </controls:TimelineView.ContextMenu>
+                                </controls:TimelineView>
                             </Grid>
                         </ScrollViewer>
 

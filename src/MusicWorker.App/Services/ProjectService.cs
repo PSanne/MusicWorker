@@ -58,6 +58,12 @@ public sealed class ProjectTrack
 {
     public string Name { get; set; } = "Spur";
 
+    /// <summary>Farbe der Spur (null = automatisch).</summary>
+    public string? Color { get; set; }
+
+    /// <summary>Höhe in der Spuransicht (0 = Standard).</summary>
+    public double Height { get; set; }
+
     public double VolumeDb { get; set; }
 
     public double Pan { get; set; }
@@ -123,6 +129,12 @@ public sealed class ProjectClip
     public string File { get; set; } = string.Empty;
 
     public long Start { get; set; }
+
+    /// <summary>Einblenden am Anfang (Frames).</summary>
+    public long FadeIn { get; set; }
+
+    /// <summary>Ausblenden am Ende (Frames).</summary>
+    public long FadeOut { get; set; }
 
     /// <summary>Noten eines Notenclips: je Note [Tonhöhe, Beginn, Länge, Anschlag, Stimme]; null = Audioclip.</summary>
     public List<long[]>? Notes { get; set; }

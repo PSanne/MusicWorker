@@ -83,7 +83,27 @@ public partial class MainWindow : Window
                 Run(mixer.SplitClipCommand);
                 e.Handled = true;
                 break;
-            case Key.X or Key.C or Key.V or Key.A or Key.E:
+            case Key.C:
+                Run(mixer.CopyClipsCommand);
+                e.Handled = true;
+                break;
+            case Key.X:
+                Run(mixer.CutClipsCommand);
+                e.Handled = true;
+                break;
+            case Key.V:
+                Run(mixer.PasteClipsCommand);
+                e.Handled = true;
+                break;
+            case Key.A:
+                Run(mixer.SelectAllClipsCommand);
+                e.Handled = true;
+                break;
+            case Key.D:
+                Run(mixer.DuplicateClipsCommand);
+                e.Handled = true;
+                break;
+            case Key.E:
                 e.Handled = true;
                 break;
         }
@@ -241,6 +261,64 @@ public partial class MainWindow : Window
         {
             textBox.GetBindingExpression(TextBox.TextProperty)?.UpdateSource();
             textBox.SelectAll();
+            e.Handled = true;
+        }
+    }
+
+    // ───────────── Spuren per Ziehen umsortieren ─────────────
+
+    private Point? _trackDragStart;
+    private TrackViewModel? _trackDragTrack;
+
+    private void OnTrackHeaderMouseDown(object sender, MouseButtonEventArgs e)
+    {
+        if (sender is FrameworkElement { DataContext: TrackViewModel track } element && e.OriginalSource is not ToggleButton)
+        {
+            _trackDragStart = e.GetPosition(element);
+            _trackDragTrack = track;
+        }
+    }
+
+    private void OnTrackHeaderMouseMove(object sender, MouseEventArgs e)
+    {
+        if (_trackDragTrack is not { } track || _trackDragStart is not { } start || sender is not FrameworkElement element ||
+            e.LeftButton != MouseButtonState.Pressed)
+        {
+            _trackDragStart = null;
+            return;
+        }
+
+        var position = e.GetPosition(element);
+        if (Math.Abs(position.Y - start.Y) < 6 && Math.Abs(position.X - start.X) < 6)
+        {
+            return;
+        }
+
+        _trackDragStart = null;
+        DragDrop.DoDragDrop(element, new DataObject(typeof(TrackViewModel), track), DragDropEffects.Move);
+        _trackDragTrack = null;
+    }
+
+    private void OnTrackHeaderDragOver(object sender, DragEventArgs e)
+    {
+        if (e.Data.GetDataPresent(typeof(TrackViewModel)))
+        {
+            e.Effects = DragDropEffects.Move;
+            e.Handled = true;
+        }
+    }
+
+    private void OnTrackHeaderDrop(object sender, DragEventArgs e)
+    {
+        if (e.Data.GetData(typeof(TrackViewModel)) is TrackViewModel dragged && sender is FrameworkElement { DataContext: TrackViewModel target })
+        {
+            var command = _viewModel.Mixer.MoveTrackCommand;
+            var move = new TrackMove(dragged, _viewModel.Mixer.Tracks.IndexOf(target));
+            if (command.CanExecute(move))
+            {
+                command.Execute(move);
+            }
+
             e.Handled = true;
         }
     }

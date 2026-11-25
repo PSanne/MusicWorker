@@ -3,7 +3,16 @@
 **MusicWorker** ist eine Windows-Anwendung zum Bearbeiten von Musik, geschrieben in C# mit WPF und .NET 8.
 
 Langfristig soll MusicWorker **Audio-Editor, Mehrspur-Mixer und Noten-Editor** in einem Programm vereinen.
-Version 0.3 bietet einen vollständigen Audio-Editor mit Live-Effekten **und ein Mehrspur-Mischpult** mit Fadern, Panorama, Sends, Effekt-Bussen, Gruppen und Projekten – seit 0.3.2 auch mit **Schnitt-Werkzeugen, Takt-Raster, Loop-Bereich und Rückgängig**, seit 0.4 mit **Hüllkurven (Automation) und Auto-Absenkung**, seit 0.5 mit **Noten-Editor, Instrumenten und MIDI**, seit 0.6 mit **Aufnahme, Metronom, Punch-In und Takes/Comping**, seit 0.7 mit **Autotune, Tonhöhen-Werkzeugen, Spektrogramm und Rauschentfernung**, seit 0.8 mit **automatischer Sicherung, Markern, Handbuch und Update-Hinweis**, seit 0.9 mit **Lautheit in LUFS, FLAC/OGG/M4A, Einzelspuren und Ton aus Videos**.
+Version 0.3 bietet einen vollständigen Audio-Editor mit Live-Effekten **und ein Mehrspur-Mischpult** mit Fadern, Panorama, Sends, Effekt-Bussen, Gruppen und Projekten – seit 0.3.2 auch mit **Schnitt-Werkzeugen, Takt-Raster, Loop-Bereich und Rückgängig**, seit 0.4 mit **Hüllkurven (Automation) und Auto-Absenkung**, seit 0.5 mit **Noten-Editor, Instrumenten und MIDI**, seit 0.6 mit **Aufnahme, Metronom, Punch-In und Takes/Comping**, seit 0.7 mit **Autotune, Tonhöhen-Werkzeugen, Spektrogramm und Rauschentfernung**, seit 0.8 mit **automatischer Sicherung, Markern, Handbuch und Update-Hinweis**, seit 0.9 mit **Lautheit in LUFS, FLAC/OGG/M4A, Einzelspuren und Ton aus Videos**, seit 0.10 mit **Fade-Griffen, Mehrfachauswahl, Kopieren/Einfügen von Clips, Spurfarben, Spurhöhe und Umsortieren**.
+
+## Mischpult-Komfort (Version 0.10)
+
+| Bereich | Funktionen |
+|---|---|
+| **Fade-Griffe** | Jeder Audioclip hat oben links und rechts einen kleinen weißen Griff: nach innen ziehen = **ein- bzw. ausblenden** – die Kurve ist im Clip zu sehen und sofort hörbar |
+| **Mehrere Clips** | **Strg+Klick** wählt weitere Clips, **Ziehen in eine freie Fläche** zieht einen Auswahlrahmen, **Strg+A** wählt alle · gewählte Clips lassen sich **gemeinsam verschieben** und löschen |
+| **Kopieren & Einfügen** | **Strg+C / Strg+X / Strg+V**: Clips kopieren, ausschneiden und an der Abspielposition einfügen – jeweils auf ihre eigene Spur; mehrmals Strg+V reiht sie hintereinander · **Strg+D** wiederholt die Auswahl direkt dahinter · alles auch per **Rechtsklick auf einen Clip** |
+| **Spuren ordnen** | Spurnamen links **nach oben oder unten ziehen** · Rechtsklick auf den Spurnamen: **Farbe** (12 Farben), **Höhe** (klein bis sehr groß), nach oben/unten · Regler **„Spurhöhe“** für alle Spuren |
 
 ## Lautheit & Export (Version 0.9)
 
@@ -130,6 +139,10 @@ ganze Datei), laufen im Hintergrund und lassen sich mit Strg+Z zurücknehmen.
 | Löschen | Entf |
 | Alles auswählen / Zuschneiden | Strg+A / Strg+T |
 | Equalizer ein-/ausblenden | Strg+Umschalt+E |
+| Mehrere Clips wählen (Mischpult) | Strg+Klick oder Rahmen in einer freien Fläche aufziehen · Strg+A = alle |
+| Clips kopieren / ausschneiden / einfügen (Mischpult) | Strg+C / Strg+X / Strg+V (an der Abspielposition) · Strg+D = direkt dahinter wiederholen |
+| Ein-/Ausblenden (Mischpult) | weiße Griffe oben links/rechts am Clip ziehen |
+| Spuren sortieren, Farbe, Höhe (Mischpult) | Spurnamen ziehen · Rechtsklick auf den Spurnamen |
 | Marker setzen | M (Editor und Mischpult) |
 | Zum vorherigen / nächsten Marker | Bild↑ / Bild↓ |
 | Marker verschieben / umbenennen / löschen | Fähnchen ziehen / Doppelklick / Rechtsklick |
@@ -243,7 +256,7 @@ die Oberfläche nur in `MusicWorker.App`. So können Mehrspur- und Noten-Editor 
 - [x] **v0.7 – Tonhöhe & Spektrum:** Autotune, Tonhöhen-Korrektur, parametrische Tonhöhe, Stimmeffekte, Spektrogramm (Wasserfall-Ansicht der Fourier-Transformation), spektrale Rauschentfernung
 - [x] **v0.8 – Sicherheit & Hilfe (Sprint 1):** automatische Sicherung mit Wiederherstellung, Marker in Editor und Mischpult, Hilfe-Menü mit Handbuch (PDF) und Tastenkürzeln, Update-Hinweis
 - [x] **v0.9 – Lautheit & Export (Sprint 2):** LUFS-Messung und -Normalisierung, FLAC/OGG/M4A, Einzelspuren (Stems), Ton aus Videos
-- [ ] **v0.10 – Mischpult-Komfort (Sprint 3):** Fade-Griffe am Clip, Mehrfachauswahl, Kopieren/Einfügen von Clips, Spuren sortieren, Farben, Spurhöhe
+- [x] **v0.10 – Mischpult-Komfort (Sprint 3):** Fade-Griffe am Clip, Mehrfachauswahl, Kopieren/Einfügen von Clips, Spuren sortieren, Farben, Spurhöhe
 - [ ] **v0.11 – Presets & Effekte (Sprint 4):** eigene und fertige Presets, Noise-Gate, Tremolo, Phaser, Stereo-Verbreiterung, Bandsättigung
 - [ ] **v0.12 – Restaurierung (Sprint 5):** Knackser- und Klickentfernung, spektrale Reparatur
 - [ ] **v0.13 – Musik-Assistent (Sprint 6):** Tempo- und Tonart-Erkennung, Tempospur, Akkorde, Arpeggiator, Schlagzeug-Raster
@@ -466,6 +479,21 @@ was bewusst so gebaut ist und was sich später leicht ändern lässt.
   Auto-Absenkung). Stummgeschaltete Spuren werden übersprungen, weil sie bewusst nicht zum Stück gehören.
 - **Ton aus Videos über Windows Media Foundation.** Grund: MP4/MOV/WMV kann Windows von Haus aus; für MKV gibt es
   einen Hinweis auf die kostenlose Erweiterung, falls Windows das Format nicht kennt.
+
+### v0.10 – Mischpult-Komfort
+- **Fade-Griffe als kleine weiße Quadrate oben an den Clip-Ecken**, die Kurve als abgedunkelte Fläche. Grund: So
+  funktioniert es in den meisten Musikprogrammen; man sieht sofort, wie lang die Blende ist. Die Blende hat dieselbe
+  Form wie die automatische Überblendung (gleiche Leistung), damit beides gleich klingt. Notenclips haben keine
+  Griffe, weil ihr Klang am Ende bewusst ausklingt.
+- **Klick ins Leere setzt weiterhin die Abspielposition, Ziehen ins Leere zieht einen Auswahlrahmen.** Grund: Die
+  vertraute Bedienung bleibt, und der Rahmen braucht keine Zusatztaste.
+- **Eingefügte Clips landen auf ihrer ursprünglichen Spur** (fehlt sie, auf der Spur mit derselben Nummer), Noten
+  nur auf Notenspuren. Nach dem Einfügen steht die Abspielposition am Ende – so reiht mehrmaliges Strg+V Teile
+  lückenlos aneinander (z. B. einen Refrain wiederholen).
+- **Spurhöhe pro Spur plus ein Regler für alle.** Grund: Wichtige Spuren (z. B. Gesang) lassen sich groß anzeigen,
+  der Rest bleibt kompakt. Höhe und Farbe werden im Projekt gespeichert, zählen aber nicht als „Änderung am Klang“.
+- **Spuren werden durch Ziehen am Spurnamen umsortiert** (dazu „Nach oben/unten“ im Rechtsklick-Menü). Das
+  Umsortieren ist rückgängig machbar; Auto-Absenkung und Gruppen bleiben an der richtigen Spur.
 
 ## Verwendete Bibliotheken
 

@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Windows;
+using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
 using MusicWorker.App.Helpers;
@@ -20,7 +21,10 @@ namespace MusicWorker.App.Controls;
 public sealed class TimelineView : FrameworkElement
 {
     public const double RulerHeight = 22;
-    public const double LaneHeight = 76;
+    /// <summary>Höhe einer Spur, solange es keine Spuren gibt (sonst gilt die Höhe jeder Spur).</summary>
+    public const double DefaultLaneHeight = 76;
+
+    private const double FadeHandleSize = 8;
 
     public static readonly DependencyProperty TracksProperty = DependencyProperty.Register(
         nameof(Tracks), typeof(IList<TrackViewModel>), typeof(TimelineView),
@@ -98,6 +102,22 @@ public sealed class TimelineView : FrameworkElement
         nameof(LoopEnd), typeof(long), typeof(TimelineView),
         new FrameworkPropertyMetadata(0L, FrameworkPropertyMetadataOptions.AffectsRender));
 
+    public static readonly DependencyProperty SelectedClipsProperty = DependencyProperty.Register(
+        nameof(SelectedClips), typeof(IReadOnlyList<ClipViewModel>), typeof(TimelineView),
+        new FrameworkPropertyMetadata(null, FrameworkPropertyMetadataOptions.AffectsRender));
+
+    public static readonly DependencyProperty ToggleClipSelectionCommandProperty = DependencyProperty.Register(
+        nameof(ToggleClipSelectionCommand), typeof(ICommand), typeof(TimelineView), new PropertyMetadata(null));
+
+    public static readonly DependencyProperty SelectClipsCommandProperty = DependencyProperty.Register(
+        nameof(SelectClipsCommand), typeof(ICommand), typeof(TimelineView), new PropertyMetadata(null));
+
+    public static readonly DependencyProperty MoveClipsCommandProperty = DependencyProperty.Register(
+        nameof(MoveClipsCommand), typeof(ICommand), typeof(TimelineView), new PropertyMetadata(null));
+
+    public static readonly DependencyProperty ClipFadeCommandProperty = DependencyProperty.Register(
+        nameof(ClipFadeCommand), typeof(ICommand), typeof(TimelineView), new PropertyMetadata(null));
+
     public static readonly DependencyProperty MarkersProperty = DependencyProperty.Register(
         nameof(Markers), typeof(IReadOnlyList<Marker>), typeof(TimelineView),
         new FrameworkPropertyMetadata(null, FrameworkPropertyMetadataOptions.AffectsRender));
@@ -137,6 +157,19 @@ public sealed class TimelineView : FrameworkElement
 
     private readonly Dictionary<ClipViewModel, (ClipKey Key, Geometry Geometry)> _waveCache = [];
     private readonly MarkerOverlay _markers = new();
+    private static readonly Brush FadeShadeBrush = Frozen(new SolidColorBrush(Color.FromArgb(0x55, 0x00, 0x00, 0x00)));
+    private static readonly Pen FadeLinePen = Frozen(new Pen(Frozen(new SolidColorBrush(Color.FromArgb(0xE0, 0xFF, 0xFF, 0xFF))), 1.2));
+    private static readonly Brush FadeHandleBrush = Frozen(new SolidColorBrush(Color.FromRgb(0xF2, 0xF4, 0xF8)));
+    private static readonly Pen FadeHandlePen = Frozen(new Pen(Frozen(new SolidColorBrush(Color.FromRgb(0x30, 0x34, 0x3D))), 1));
+    private static readonly Brush RubberBandBrush = Frozen(new SolidColorBrush(Color.FromArgb(0x30, 0x4F, 0xC3, 0xF7)));
+    private static readonly Pen RubberBandPen = Frozen(new Pen(Frozen(new SolidColorBrush(Color.FromArgb(0xC0, 0x4F, 0xC3, 0xF7))), 1));
+    private ClipViewModel? _fadeClip;
+    private bool _fadeIn;
+    private bool _fadeMoved;
+    private bool _dragGroup;
+    private Point? _bandStart;
+    private Point _bandCurrent;
+    private bool _bandActive;
 
     private double _viewStart;
     private double _viewLength;
@@ -158,6 +191,41 @@ public sealed class TimelineView : FrameworkElement
         Focusable = true;
         ClipToBounds = true;
         FocusVisualStyle = null;
+    }
+
+    /// <summary>Alle gewählten Clips (weiß umrandet).</summary>
+    public IReadOnlyList<ClipViewModel>? SelectedClips
+    {
+        get => (IReadOnlyList<ClipViewModel>?)GetValue(SelectedClipsProperty);
+        set => SetValue(SelectedClipsProperty, value);
+    }
+
+    /// <summary>Strg+Klick auf einen Clip. Parameter: <see cref="ClipViewModel"/>.</summary>
+    public ICommand? ToggleClipSelectionCommand
+    {
+        get => (ICommand?)GetValue(ToggleClipSelectionCommandProperty);
+        set => SetValue(ToggleClipSelectionCommandProperty, value);
+    }
+
+    /// <summary>Rahmen aufgezogen. Parameter: Liste der Clips im Rahmen.</summary>
+    public ICommand? SelectClipsCommand
+    {
+        get => (ICommand?)GetValue(SelectClipsCommandProperty);
+        set => SetValue(SelectClipsCommandProperty, value);
+    }
+
+    /// <summary>Mehrere gewählte Clips ziehen. Parameter: <see cref="ClipsMove"/>.</summary>
+    public ICommand? MoveClipsCommand
+    {
+        get => (ICommand?)GetValue(MoveClipsCommandProperty);
+        set => SetValue(MoveClipsCommandProperty, value);
+    }
+
+    /// <summary>Ein-/Ausblend-Griff gezogen. Parameter: <see cref="ClipFade"/>.</summary>
+    public ICommand? ClipFadeCommand
+    {
+        get => (ICommand?)GetValue(ClipFadeCommandProperty);
+        set => SetValue(ClipFadeCommandProperty, value);
     }
 
     /// <summary>Marker des Projekts (gelbe Fähnchen).</summary>
@@ -311,6 +379,41 @@ public sealed class TimelineView : FrameworkElement
 
     private int TrackCount => Tracks?.Count ?? 0;
 
+    private double HeightOf(int track) => Tracks is { } tracks && track >= 0 && track < tracks.Count ? tracks[track].Height : DefaultLaneHeight;
+
+    /// <summary>Oberkante der Bahn einer Spur.</summary>
+    private double TopOf(int track)
+    {
+        double top = RulerHeight;
+        for (int i = 0; i < track; i++)
+        {
+            top += HeightOf(i);
+        }
+
+        return top;
+    }
+
+    /// <summary>Index der Spur unter <paramref name="y"/> (-1 = Zeitleiste oder unterhalb der letzten Spur).</summary>
+    private int LaneIndexAt(double y)
+    {
+        if (y < RulerHeight)
+        {
+            return -1;
+        }
+
+        double top = RulerHeight;
+        for (int i = 0; i < TrackCount; i++)
+        {
+            top += HeightOf(i);
+            if (y < top)
+            {
+                return i;
+            }
+        }
+
+        return -1;
+    }
+
     private long ProjectFrames => Tracks?.SelectMany(t => t.Clips).Select(c => c.EndFrame).DefaultIfEmpty(0).Max() ?? 0;
 
     // ───────────── Zoom ─────────────
@@ -373,7 +476,7 @@ public sealed class TimelineView : FrameworkElement
     protected override Size MeasureOverride(Size availableSize)
     {
         double width = double.IsInfinity(availableSize.Width) ? 800 : availableSize.Width;
-        return new Size(width, RulerHeight + Math.Max(1, TrackCount) * LaneHeight);
+        return new Size(width, TrackCount == 0 ? RulerHeight + DefaultLaneHeight : TopOf(TrackCount));
     }
 
     protected override void OnRender(DrawingContext dc)
@@ -394,7 +497,7 @@ public sealed class TimelineView : FrameworkElement
         if (tracks is null || tracks.Count == 0)
         {
             var hint = Text("Noch keine Spuren – Audiodateien hierher ziehen oder „Spur aus Datei …“ wählen.", 14, TextBrush, pixelsPerDip);
-            dc.DrawText(hint, new Point((width - hint.Width) / 2, RulerHeight + (LaneHeight - hint.Height) / 2));
+            dc.DrawText(hint, new Point((width - hint.Width) / 2, RulerHeight + (DefaultLaneHeight - hint.Height) / 2));
             _markers.Draw(dc, Markers, f => FrameToX(f), RulerHeight, height, width, pixelsPerDip);
             DrawPlayhead(dc, width, height);
             return;
@@ -402,23 +505,26 @@ public sealed class TimelineView : FrameworkElement
 
         for (int t = 0; t < tracks.Count; t++)
         {
-            double top = RulerHeight + t * LaneHeight;
-            dc.DrawRectangle(LaneBrushes[t % 2], null, new Rect(0, top, width, LaneHeight));
+            double top = TopOf(t);
+            double laneHeight = tracks[t].Height;
+            dc.DrawRectangle(LaneBrushes[t % 2], null, new Rect(0, top, width, laneHeight));
             if (tracks[t].IsArmed)
             {
-                dc.DrawRectangle(ArmedLaneBrush, null, new Rect(0, top, width, LaneHeight));
+                dc.DrawRectangle(ArmedLaneBrush, null, new Rect(0, top, width, laneHeight));
             }
 
-            dc.DrawLine(LaneLinePen, new Point(0, top + LaneHeight - 0.5), new Point(width, top + LaneHeight - 0.5));
+            dc.DrawLine(LaneLinePen, new Point(0, top + laneHeight - 0.5), new Point(width, top + laneHeight - 0.5));
         }
 
         DrawGrid(dc, width, height, pixelsPerDip);
         DrawLoopLanes(dc, height);
 
         var visibleClips = new HashSet<ClipViewModel>();
+        var selection = SelectedClips;
         for (int t = 0; t < tracks.Count; t++)
         {
-            double top = RulerHeight + t * LaneHeight;
+            double top = TopOf(t);
+            double laneHeight = tracks[t].Height;
 
             var color = ParseColor(tracks[t].Color);
             var fill = Frozen(new SolidColorBrush(Color.FromArgb(0x48, color.R, color.G, color.B)));
@@ -440,8 +546,9 @@ public sealed class TimelineView : FrameworkElement
                 }
 
                 visibleClips.Add(clip);
-                var rect = new Rect(Math.Max(x0, -2), top + 4, Math.Max(2, Math.Min(x1, width + 2) - Math.Max(x0, -2)), LaneHeight - 8);
-                dc.DrawRoundedRectangle(fill, ReferenceEquals(clip, SelectedClip) ? SelectedPen : edge, rect, 4, 4);
+                var rect = new Rect(Math.Max(x0, -2), top + 4, Math.Max(2, Math.Min(x1, width + 2) - Math.Max(x0, -2)), laneHeight - 8);
+                bool selected = ReferenceEquals(clip, SelectedClip) || (selection is not null && selection.Contains(clip));
+                dc.DrawRoundedRectangle(fill, selected ? SelectedPen : edge, rect, 4, 4);
 
                 dc.PushClip(new RectangleGeometry(rect));
                 if (clip.Notes is { } notes)
@@ -456,6 +563,10 @@ public sealed class TimelineView : FrameworkElement
                 var label = Text(clip.HasTakes ? $"{tracks[t].Name}  ·  {clip.Takes!.Count} Takes" : tracks[t].Name, 11, ClipTextBrush, pixelsPerDip);
                 dc.DrawText(label, new Point(Math.Max(rect.Left, 0) + 6, rect.Top + 3));
                 dc.Pop();
+                if (!clip.IsNoteClip && !IsEnvelopeMode)
+                {
+                    DrawFades(dc, clip, new Rect(x0, top + 4, x1 - x0, laneHeight - 8));
+                }
             }
 
             DrawCrossfades(dc, tracks[t], top, width);
@@ -473,7 +584,7 @@ public sealed class TimelineView : FrameworkElement
                 double x1 = Math.Min(width, FrameToX(PlayheadFrame));
                 if (x1 > x0)
                 {
-                    dc.DrawRectangle(RecordingBrush, null, new Rect(x0, top + 4, x1 - x0, LaneHeight - 8));
+                    dc.DrawRectangle(RecordingBrush, null, new Rect(x0, top + 4, x1 - x0, laneHeight - 8));
                 }
             }
         }
@@ -484,8 +595,124 @@ public sealed class TimelineView : FrameworkElement
             _waveCache.Remove(stale);
         }
 
+        if (_bandActive && _bandStart is { } bandStart)
+        {
+            dc.DrawRectangle(RubberBandBrush, RubberBandPen, new Rect(bandStart, _bandCurrent));
+        }
+
         _markers.Draw(dc, Markers, f => FrameToX(f), RulerHeight, height, width, pixelsPerDip);
         DrawPlayhead(dc, width, height);
+    }
+
+    /// <summary>Ein- und Ausblendung als abgedunkelte Fläche mit Kurve, dazu die Griffe oben an den Ecken.</summary>
+    private void DrawFades(DrawingContext dc, ClipViewModel clip, Rect rect)
+    {
+        if (rect.Width < 12 || rect.Height < 16)
+        {
+            return;
+        }
+
+        double fadeIn = Math.Min(rect.Width, FrameToX(clip.StartFrame + clip.FadeInFrames) - rect.Left);
+        double fadeOut = Math.Min(rect.Width, rect.Right - FrameToX(clip.EndFrame - clip.FadeOutFrames));
+        if (fadeIn > 1)
+        {
+            DrawFadeShape(dc, rect.Left, rect.Left + fadeIn, rect.Top, rect.Bottom, rising: true);
+        }
+
+        if (fadeOut > 1)
+        {
+            DrawFadeShape(dc, rect.Right - fadeOut, rect.Right, rect.Top, rect.Bottom, rising: false);
+        }
+
+        var (inHandle, outHandle) = FadeHandles(clip, rect);
+        dc.DrawRectangle(FadeHandleBrush, FadeHandlePen, inHandle);
+        dc.DrawRectangle(FadeHandleBrush, FadeHandlePen, outHandle);
+    }
+
+    private static void DrawFadeShape(DrawingContext dc, double x0, double x1, double top, double bottom, bool rising)
+    {
+        // Gleiche Leistung (Sinus/Kosinus) – so wie die Misch-Engine ein- und ausblendet.
+        var curve = new StreamGeometry();
+        var shade = new StreamGeometry();
+        const int steps = 16;
+        using (var c = curve.Open())
+        using (var sh = shade.Open())
+        {
+            sh.BeginFigure(new Point(x0, top), true, true);
+            for (int i = 0; i <= steps; i++)
+            {
+                double t = i / (double)steps;
+                double gain = rising ? Math.Sin(t * Math.PI / 2) : Math.Cos(t * Math.PI / 2);
+                var point = new Point(x0 + (x1 - x0) * t, bottom - (bottom - top) * gain);
+                if (i == 0)
+                {
+                    c.BeginFigure(point, false, false);
+                }
+                else
+                {
+                    c.LineTo(point, true, false);
+                }
+
+                sh.LineTo(point, false, false);
+            }
+
+            sh.LineTo(new Point(x1, top), false, false);
+        }
+
+        curve.Freeze();
+        shade.Freeze();
+        dc.DrawGeometry(FadeShadeBrush, null, shade);
+        dc.DrawGeometry(null, FadeLinePen, curve);
+    }
+
+    /// <summary>Lage der beiden Griffe (oben links: Einblenden, oben rechts: Ausblenden).</summary>
+    private (Rect In, Rect Out) FadeHandles(ClipViewModel clip, Rect rect)
+    {
+        double inX = Math.Clamp(FrameToX(clip.StartFrame + clip.FadeInFrames), rect.Left, rect.Right);
+        double outX = Math.Clamp(FrameToX(clip.EndFrame - clip.FadeOutFrames), rect.Left, rect.Right);
+        var inHandle = new Rect(inX - (clip.FadeInFrames == 0 ? 0 : FadeHandleSize / 2), rect.Top, FadeHandleSize, FadeHandleSize);
+        var outHandle = new Rect(outX - (clip.FadeOutFrames == 0 ? FadeHandleSize : FadeHandleSize / 2), rect.Top, FadeHandleSize, FadeHandleSize);
+        return (inHandle, outHandle);
+    }
+
+    /// <summary>Griff unter der Maus: Clip und ob Ein- (true) oder Ausblenden (false).</summary>
+    private (ClipViewModel Clip, bool FadeIn)? HitFadeHandle(Point position)
+    {
+        int lane = LaneIndexAt(position.Y);
+        if (lane < 0 || IsEnvelopeMode || Tracks is not { } tracks)
+        {
+            return null;
+        }
+
+        double top = TopOf(lane);
+        foreach (var clip in tracks[lane].Clips.Reverse())
+        {
+            if (clip.IsNoteClip)
+            {
+                continue;
+            }
+
+            var rect = new Rect(FrameToX(clip.StartFrame), top + 4, FrameToX(clip.EndFrame) - FrameToX(clip.StartFrame), tracks[lane].Height - 8);
+            if (rect.Width < 12)
+            {
+                continue;
+            }
+
+            var (inHandle, outHandle) = FadeHandles(clip, rect);
+            inHandle.Inflate(3, 3);
+            outHandle.Inflate(3, 3);
+            if (inHandle.Contains(position))
+            {
+                return (clip, true);
+            }
+
+            if (outHandle.Contains(position))
+            {
+                return (clip, false);
+            }
+        }
+
+        return null;
     }
 
     /// <summary>Notenclip als Mini-Piano-Roll: jede Note ein kleiner Balken (Höhe = Tonhöhe).</summary>
@@ -680,7 +907,7 @@ public sealed class TimelineView : FrameworkElement
             }
 
             double y0 = top + 6;
-            double y1 = top + LaneHeight - 6;
+            double y1 = top + track.Height - 6;
             dc.DrawLine(CrossfadePen, new Point(x0, y1), new Point(x1, y0)); // Einblenden
             dc.DrawLine(CrossfadePen, new Point(x0, y0), new Point(x1, y1)); // Ausblenden
         }
@@ -704,7 +931,7 @@ public sealed class TimelineView : FrameworkElement
         {
             pen.DashStyle = DashStyles.Dash;
             pen.Freeze();
-            double y = ValueToY(track.ShownAutomation, track.KnobValue(track.ShownAutomation), top);
+            double y = ValueToY(track.ShownAutomation, track.KnobValue(track.ShownAutomation), top, track.Height);
             dc.DrawLine(pen, new Point(0, y), new Point(width, y));
             return;
         }
@@ -714,13 +941,13 @@ public sealed class TimelineView : FrameworkElement
         using (var context = geometry.Open())
         {
             var points = lane.Points;
-            context.BeginFigure(new Point(Math.Min(0, FrameToX(points[0].Frame)), ValueToY(lane.Target, points[0].Value, top)), false, false);
+            context.BeginFigure(new Point(Math.Min(0, FrameToX(points[0].Frame)), ValueToY(lane.Target, points[0].Value, top, track.Height)), false, false);
             foreach (var point in points)
             {
-                context.LineTo(new Point(FrameToX(point.Frame), ValueToY(lane.Target, point.Value, top)), true, false);
+                context.LineTo(new Point(FrameToX(point.Frame), ValueToY(lane.Target, point.Value, top, track.Height)), true, false);
             }
 
-            context.LineTo(new Point(Math.Max(width, FrameToX(points[^1].Frame)), ValueToY(lane.Target, points[^1].Value, top)), true, false);
+            context.LineTo(new Point(Math.Max(width, FrameToX(points[^1].Frame)), ValueToY(lane.Target, points[^1].Value, top, track.Height)), true, false);
         }
 
         geometry.Freeze();
@@ -740,14 +967,14 @@ public sealed class TimelineView : FrameworkElement
                 continue;
             }
 
-            double y = ValueToY(lane.Target, point.Value, top);
+            double y = ValueToY(lane.Target, point.Value, top, track.Height);
             bool dragged = ReferenceEquals(track, _envelopeTrack) && i == _envelopeIndex;
             dc.DrawEllipse(dragged ? Brushes.White : fill, Frozen(new Pen(Brushes.Black, 1)), new Point(x, y), dragged ? 5.5 : 4, dragged ? 5.5 : 4);
             if (dragged)
             {
                 var label = Text(Automation.Format(lane.Target, point.Value), 11, Brushes.White, pixelsPerDip);
                 double lx = Math.Min(x + 8, width - label.Width - 6);
-                double ly = Math.Clamp(y - label.Height - 6, top + 2, top + LaneHeight - label.Height - 2);
+                double ly = Math.Clamp(y - label.Height - 6, top + 2, top + track.Height - label.Height - 2);
                 dc.DrawRoundedRectangle(EnvelopeLabelBackground, null, new Rect(lx - 3, ly - 1, label.Width + 6, label.Height + 2), 3, 3);
                 dc.DrawText(label, new Point(lx, ly));
             }
@@ -755,11 +982,11 @@ public sealed class TimelineView : FrameworkElement
     }
 
     /// <summary>Wert → senkrechte Position in der Spurbahn (oben = Maximum).</summary>
-    private static double ValueToY(AutomationTarget target, double value, double top) =>
-        top + 6 + (1 - Automation.RangeOf(target).Normalize(value)) * (LaneHeight - 12);
+    private static double ValueToY(AutomationTarget target, double value, double top, double height) =>
+        top + 6 + (1 - Automation.RangeOf(target).Normalize(value)) * (height - 12);
 
-    private static double YToValue(AutomationTarget target, double y, double top) =>
-        Automation.RangeOf(target).Denormalize(1 - (y - top - 6) / (LaneHeight - 12));
+    private static double YToValue(AutomationTarget target, double y, double top, double height) =>
+        Automation.RangeOf(target).Denormalize(1 - (y - top - 6) / (height - 12));
 
     /// <summary>Index des Hüllkurven-Punkts unter der Maus (oder -1).</summary>
     private int HitEnvelopePoint(TrackViewModel track, double top, Point position)
@@ -769,7 +996,7 @@ public sealed class TimelineView : FrameworkElement
         {
             var point = lane.Points[i];
             double dx = FrameToX(point.Frame) - position.X;
-            double dy = ValueToY(lane.Target, point.Value, top) - position.Y;
+            double dy = ValueToY(lane.Target, point.Value, top, track.Height) - position.Y;
             if (dx * dx + dy * dy <= 49)
             {
                 return i;
@@ -782,11 +1009,8 @@ public sealed class TimelineView : FrameworkElement
     /// <summary>Spur und Oberkante der Bahn unter der Maus (nur innerhalb der Spuren).</summary>
     private (TrackViewModel Track, double Top)? LaneUnder(double y)
     {
-        var tracks = Tracks;
-        int lane = (int)Math.Floor((y - RulerHeight) / LaneHeight);
-        return tracks is not null && y >= RulerHeight && lane >= 0 && lane < tracks.Count
-            ? (tracks[lane], RulerHeight + lane * LaneHeight)
-            : null;
+        int lane = LaneIndexAt(y);
+        return lane >= 0 && Tracks is { } tracks ? (tracks[lane], TopOf(lane)) : null;
     }
 
     private bool EnvelopeMouseDown(Point position, int clickCount)
@@ -806,7 +1030,7 @@ public sealed class TimelineView : FrameworkElement
         bool added = false;
         if (hit < 0)
         {
-            var edit = new AutomationEdit(track, AutomationEditKind.Add, -1, XToFrame(position.X), YToValue(track.ShownAutomation, position.Y, top));
+            var edit = new AutomationEdit(track, AutomationEditKind.Add, -1, XToFrame(position.X), YToValue(track.ShownAutomation, position.Y, top, track.Height));
             Execute(EditAutomationCommand, edit);
             hit = edit.ResultIndex;
             added = true;
@@ -894,6 +1118,16 @@ public sealed class TimelineView : FrameworkElement
             return;
         }
 
+        if (HitFadeHandle(position) is var (fadeClip, fadeIn))
+        {
+            _fadeClip = fadeClip;
+            _fadeIn = fadeIn;
+            _fadeMoved = false;
+            CaptureMouse();
+            e.Handled = true;
+            return;
+        }
+
         var clip = HitClip(position);
         if (clip is null && e.ClickCount == 2 && LaneUnder(position.Y) is var (laneTrack, _) && laneTrack.IsNoteTrack)
         {
@@ -907,6 +1141,19 @@ public sealed class TimelineView : FrameworkElement
             Execute(SelectClipCommand, null);
             _seekFrame = frame;
             SendSeek(force: true); // Klick ins Leere setzt die Abspielposition
+
+            // Ziehen ins Leere zieht einen Auswahlrahmen auf.
+            _bandStart = position;
+            _bandCurrent = position;
+            _bandActive = false;
+            CaptureMouse();
+            e.Handled = true;
+            return;
+        }
+
+        if ((Keyboard.Modifiers & ModifierKeys.Control) != 0)
+        {
+            Execute(ToggleClipSelectionCommand, clip);
             e.Handled = true;
             return;
         }
@@ -918,7 +1165,13 @@ public sealed class TimelineView : FrameworkElement
             return;
         }
 
-        Execute(SelectClipCommand, clip);
+        // Gehört der Clip zu einer Mehrfachauswahl, werden alle gewählten Clips gemeinsam gezogen.
+        _dragGroup = SelectedClips is { Count: > 1 } selection && selection.Contains(clip);
+        if (!_dragGroup)
+        {
+            Execute(SelectClipCommand, clip);
+        }
+
         _dragClip = clip;
         _dragOffset = frame - clip.StartFrame;
         _dragMoved = false;
@@ -955,13 +1208,35 @@ public sealed class TimelineView : FrameworkElement
             return;
         }
 
+        if (_fadeClip is { } fadeClip)
+        {
+            long at = XToFrame(Math.Clamp(position.X, 0, ActualWidth));
+            long frames = _fadeIn ? at - fadeClip.StartFrame : fadeClip.EndFrame - at;
+            Execute(ClipFadeCommand, new ClipFade(fadeClip, _fadeIn, Math.Max(0, frames), DragStarted: !_fadeMoved));
+            _fadeMoved = true;
+            return;
+        }
+
+        if (_bandStart is { } bandStart)
+        {
+            _bandCurrent = new Point(Math.Clamp(position.X, 0, ActualWidth), Math.Clamp(position.Y, RulerHeight, ActualHeight));
+            _bandActive |= Math.Abs(position.X - bandStart.X) > 4 || Math.Abs(position.Y - bandStart.Y) > 4;
+            if (_bandActive)
+            {
+                AutoScroll(position.X);
+                InvalidateVisual();
+            }
+
+            return;
+        }
+
         if (_envelopeTrack is { } envelopeTrack && Tracks is { } list && list.IndexOf(envelopeTrack) is int laneIndex and >= 0)
         {
             AutoScroll(position.X);
-            double top = RulerHeight + laneIndex * LaneHeight;
-            double y = Math.Clamp(position.Y, top + 6, top + LaneHeight - 6);
+            double top = TopOf(laneIndex);
+            double y = Math.Clamp(position.Y, top + 6, top + envelopeTrack.Height - 6);
             var edit = new AutomationEdit(envelopeTrack, AutomationEditKind.Move, _envelopeIndex,
-                XToFrame(Math.Clamp(position.X, 0, ActualWidth)), YToValue(envelopeTrack.ShownAutomation, y, top), dragStarted: !_envelopeMoved);
+                XToFrame(Math.Clamp(position.X, 0, ActualWidth)), YToValue(envelopeTrack.ShownAutomation, y, top, envelopeTrack.Height), dragStarted: !_envelopeMoved);
             Execute(EditAutomationCommand, edit);
             _envelopeMoved = true;
             return;
@@ -970,6 +1245,19 @@ public sealed class TimelineView : FrameworkElement
         if (IsEnvelopeMode && LaneUnder(position.Y) is var (hoverTrack, hoverTop))
         {
             Cursor = HitEnvelopePoint(hoverTrack, hoverTop, position) >= 0 ? Cursors.Hand : Cursors.Cross;
+            return;
+        }
+
+        if (_dragClip is { } groupAnchor && _dragGroup)
+        {
+            AutoScroll(position.X);
+            long groupStart = Math.Max(0, XToFrame(Math.Clamp(position.X, 0, ActualWidth)) - _dragOffset);
+            if (groupStart != groupAnchor.StartFrame)
+            {
+                Execute(MoveClipsCommand, new ClipsMove(groupAnchor, groupStart, DragStarted: !_dragMoved));
+                _dragMoved = true;
+            }
+
             return;
         }
 
@@ -988,7 +1276,7 @@ public sealed class TimelineView : FrameworkElement
             return;
         }
 
-        Cursor = _markers.HitTest(position) >= 0 ? Cursors.SizeWE
+        Cursor = _markers.HitTest(position) >= 0 || HitFadeHandle(position) is not null ? Cursors.SizeWE
             : (Keyboard.Modifiers & ModifierKeys.Shift) != 0 ? Cursors.IBeam
             : position.Y < RulerHeight ? Cursors.Hand
             : HitClip(position) is not null ? Cursors.SizeAll : Cursors.Arrow;
@@ -1015,6 +1303,11 @@ public sealed class TimelineView : FrameworkElement
             Execute(SetLoopCommand, new LoopRange(start, end));
         }
 
+        if (_bandActive && _bandStart is { } bandStart)
+        {
+            Execute(SelectClipsCommand, ClipsIn(new Rect(bandStart, _bandCurrent)));
+        }
+
         EndDrag();
         e.Handled = true;
     }
@@ -1024,6 +1317,13 @@ public sealed class TimelineView : FrameworkElement
     {
         base.OnMouseRightButtonDown(e);
         var position = e.GetPosition(this);
+
+        // Rechtsklick auf einen nicht gewählten Clip wählt ihn (für das Clip-Menü).
+        if (!IsEnvelopeMode && HitClip(position) is { } rightClip && !(SelectedClips?.Contains(rightClip) ?? false))
+        {
+            Execute(SelectClipCommand, rightClip);
+        }
+
         if (IsEnvelopeMode && LaneUnder(position.Y) is var (track, top) && HitEnvelopePoint(track, top, position) is int hit and >= 0)
         {
             Execute(EditAutomationCommand, new AutomationEdit(track, AutomationEditKind.Remove, hit, 0, 0));
@@ -1031,14 +1331,20 @@ public sealed class TimelineView : FrameworkElement
         }
     }
 
-    /// <summary>Rechtsklick auf ein Marker-Fähnchen: Menü zum Springen, Umbenennen und Löschen.</summary>
-    protected override void OnMouseRightButtonUp(MouseButtonEventArgs e)
+    /// <summary>
+    /// Rechtsklick: auf einem Marker-Fähnchen dessen Menü, auf einem Clip das Clip-Menü (aus dem Fenster),
+    /// sonst kein Menü.
+    /// </summary>
+    protected override void OnContextMenuOpening(ContextMenuEventArgs e)
     {
-        base.OnMouseRightButtonUp(e);
-        if (_markers.ShowMenu(e.GetPosition(this), Markers, MarkerCommand, this))
+        var position = Mouse.GetPosition(this);
+        if (_markers.ShowMenu(position, Markers, MarkerCommand, this) || IsEnvelopeMode || HitClip(position) is null)
         {
             e.Handled = true;
+            return;
         }
+
+        base.OnContextMenuOpening(e);
     }
 
     protected override void OnLostMouseCapture(MouseEventArgs e)
@@ -1050,6 +1356,10 @@ public sealed class TimelineView : FrameworkElement
         _envelopeTrack = null;
         _envelopeIndex = -1;
         _dragClip = null;
+        _dragGroup = false;
+        _fadeClip = null;
+        _bandStart = null;
+        _bandActive = false;
         InvalidateVisual();
     }
 
@@ -1078,8 +1388,8 @@ public sealed class TimelineView : FrameworkElement
             return null;
         }
 
-        int lane = (int)((position.Y - RulerHeight) / LaneHeight);
-        if (lane < 0 || lane >= tracks.Count)
+        int lane = LaneIndexAt(position.Y);
+        if (lane < 0)
         {
             return null;
         }
@@ -1097,8 +1407,8 @@ public sealed class TimelineView : FrameworkElement
             return null;
         }
 
-        int lane = (int)Math.Floor((y - RulerHeight) / LaneHeight);
-        return tracks[Math.Clamp(lane, 0, tracks.Count - 1)];
+        int lane = LaneIndexAt(y);
+        return lane >= 0 ? tracks[lane] : y < RulerHeight ? tracks[0] : tracks[^1];
     }
 
     private void AutoScroll(double x)
@@ -1113,6 +1423,31 @@ public sealed class TimelineView : FrameworkElement
         }
     }
 
+    /// <summary>Alle Clips, die den Rahmen berühren.</summary>
+    private List<ClipViewModel> ClipsIn(Rect band)
+    {
+        var result = new List<ClipViewModel>();
+        if (Tracks is not { } tracks)
+        {
+            return result;
+        }
+
+        long from = XToFrame(band.Left);
+        long to = XToFrame(band.Right);
+        for (int t = 0; t < tracks.Count; t++)
+        {
+            double top = TopOf(t);
+            if (top + tracks[t].Height < band.Top || top > band.Bottom)
+            {
+                continue;
+            }
+
+            result.AddRange(tracks[t].Clips.Where(c => c.EndFrame > from && c.StartFrame < to));
+        }
+
+        return result;
+    }
+
     private void EndDrag()
     {
         _isSeeking = false;
@@ -1120,6 +1455,10 @@ public sealed class TimelineView : FrameworkElement
         _envelopeTrack = null;
         _envelopeIndex = -1;
         _dragClip = null;
+        _dragGroup = false;
+        _fadeClip = null;
+        _bandStart = null;
+        _bandActive = false;
         if (IsMouseCaptured)
         {
             ReleaseMouseCapture();

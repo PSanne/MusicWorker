@@ -39,6 +39,14 @@ public sealed partial class ClipViewModel : ObservableObject
     [ObservableProperty]
     private IReadOnlyList<CompSegment>? _comp;
 
+    /// <summary>Einblenden am Clip-Anfang (Frames) – mit dem Griff oben links ziehbar.</summary>
+    [ObservableProperty]
+    private long _fadeInFrames;
+
+    /// <summary>Ausblenden am Clip-Ende (Frames) – mit dem Griff oben rechts ziehbar.</summary>
+    [ObservableProperty]
+    private long _fadeOutFrames;
+
     public ClipViewModel(TrackViewModel track, AudioBuffer audio, long startFrame)
     {
         Track = track;
@@ -99,6 +107,18 @@ public sealed partial class ClipViewModel : ObservableObject
 /// <param name="TargetTrack">Zielspur (null = bleibt auf seiner Spur).</param>
 /// <param name="DragStarted">True beim ersten Schritt eines Ziehvorgangs (für „Rückgängig“).</param>
 public sealed record ClipMove(ClipViewModel Clip, long NewStart, TrackViewModel? TargetTrack = null, bool DragStarted = false);
+
+/// <summary>Mehrere gewählte Clips gemeinsam verschieben: <paramref name="Anchor"/> landet bei <paramref name="NewStart"/>, die anderen behalten ihren Abstand.</summary>
+public sealed record ClipsMove(ClipViewModel Anchor, long NewStart, bool DragStarted = false);
+
+/// <summary>Ein- oder Ausblendung eines Clips mit dem Griff ändern.</summary>
+public sealed record ClipFade(ClipViewModel Clip, bool FadeIn, long Frames, bool DragStarted = false);
+
+/// <summary>Spur per Ziehen an eine neue Stelle setzen.</summary>
+public sealed record TrackMove(TrackViewModel Track, int NewIndex);
+
+/// <summary>Eintrag im Farbmenü einer Spur.</summary>
+public sealed record TrackColorChoice(string Name, string Color);
 
 /// <summary>Eine Stelle auf einer Spur (z. B. Doppelklick in eine freie Fläche).</summary>
 public sealed record LanePosition(TrackViewModel Track, long Frame);
@@ -206,6 +226,14 @@ public sealed partial class TrackViewModel : ObservableObject
     [ObservableProperty]
     private bool _isArmed;
 
+    /// <summary>Farbe der Spur (Clips und Kanalzug), z. B. „#4FC3F7“.</summary>
+    [ObservableProperty]
+    private string _color;
+
+    /// <summary>Höhe der Spur in der Spuransicht (Pixel).</summary>
+    [ObservableProperty]
+    private double _height = DefaultHeight;
+
     /// <summary>Instrument einer Notenspur (null = Audiospur).</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsNoteTrack), nameof(InstrumentName))]
@@ -233,15 +261,16 @@ public sealed partial class TrackViewModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(DuckThresholdText))]
     private double _duckThreshold = -40;
 
+    public const double DefaultHeight = 76;
+    public const double MinHeight = 44;
+    public const double MaxHeight = 220;
+
     public TrackViewModel(string name, string color, Action changed)
     {
         _name = name;
-        Color = color;
+        _color = color;
         _changed = changed;
     }
-
-    /// <summary>Farbe der Spur (Clips und Kanalzug), z. B. „#4FC3F7“.</summary>
-    public string Color { get; }
 
     public ObservableCollection<ClipViewModel> Clips { get; } = [];
 
@@ -320,7 +349,7 @@ public sealed partial class TrackViewModel : ObservableObject
     /// <param name="groupIndex">Index der Gruppe (-1 = keine).</param>
     /// <param name="duckSourceIndex">Index der Spur, die diese Spur absenkt (-1 = keine).</param>
     public MixTrack ToMixTrack(int groupIndex, int duckSourceIndex = -1) => new(
-        ClipTools.WithCrossfades(Clips.Where(c => !c.IsNoteClip).Select(c => new MixClip(c.Audio, c.StartFrame)))
+        ClipTools.WithCrossfades(Clips.Where(c => !c.IsNoteClip).Select(c => new MixClip(c.Audio, c.StartFrame, c.FadeInFrames, c.FadeOutFrames)))
             .Concat(Clips.Where(c => c.IsNoteClip).Select(c => new MixClip(c.Audio, c.StartFrame))) // Notenclips klingen ohne Überblendung aus
             .ToArray(),
         VolumeDb,
@@ -338,6 +367,50 @@ public sealed partial class TrackViewModel : ObservableObject
         : string.Format(CultureInfo.CurrentCulture, "{0:+0.0;-0.0;0.0} dB", db);
 
     partial void OnNameChanged(string value) => _changed();
+
+    partial void OnColorChanged(string value)
+    {
+        _changed();
+        Redraw?.Invoke();
+    }
+
+    partial void OnHeightChanged(double value) => Redraw?.Invoke();
+
+    /// <summary>Auswahl für das Menü „Farbe“ der Spur.</summary>
+    public static IReadOnlyList<TrackColorChoice> ColorChoices { get; } =
+    [
+        new("Hellblau", "#4FC3F7"), new("Blau", "#5C6BC0"), new("Türkis", "#4DB6AC"), new("Grün", "#81C784"),
+        new("Gelbgrün", "#D4E157"), new("Gelb", "#FFD54F"), new("Orange", "#FFB74D"), new("Rot", "#E57373"),
+        new("Pink", "#F06292"), new("Lila", "#BA68C8"), new("Braun", "#A1887F"), new("Grau", "#90A4AE"),
+    ];
+
+    /// <summary>Vom Mischpult gesetzt: Spur um <c>delta</c> Plätze verschieben.</summary>
+    internal Action<TrackViewModel, int>? MoveRequested { get; set; }
+
+    [CommunityToolkit.Mvvm.Input.RelayCommand]
+    private void SetColor(string? color)
+    {
+        if (!string.IsNullOrEmpty(color))
+        {
+            Color = color;
+        }
+    }
+
+    /// <summary>Höhe aus dem Kontextmenü (Parameter als Text, z. B. „120“).</summary>
+    [CommunityToolkit.Mvvm.Input.RelayCommand]
+    private void SetHeight(string? height)
+    {
+        if (double.TryParse(height, NumberStyles.Float, CultureInfo.InvariantCulture, out double value))
+        {
+            Height = Math.Clamp(value, MinHeight, MaxHeight);
+        }
+    }
+
+    [CommunityToolkit.Mvvm.Input.RelayCommand]
+    private void MoveUp() => MoveRequested?.Invoke(this, -1);
+
+    [CommunityToolkit.Mvvm.Input.RelayCommand]
+    private void MoveDown() => MoveRequested?.Invoke(this, 1);
 
     partial void OnVolumeDbChanged(double value) => _changed();
 

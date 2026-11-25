@@ -335,6 +335,13 @@ public sealed partial class MixerViewModel : ObservableObject, IDisposable
     [RelayCommand(CanExecute = nameof(HasSelectedClip))]
     private void DeleteSelectedClip()
     {
+        if (SelectedClips is { Count: > 1 } several)
+        {
+            RemoveClips(several);
+            StatusText = $"{several.Count} Clips gelöscht.";
+            return;
+        }
+
         if (SelectedClip is not { } clip)
         {
             return;
@@ -466,8 +473,13 @@ public sealed partial class MixerViewModel : ObservableObject, IDisposable
         else
         {
             int cut = (int)(at - clip.StartFrame);
-            right = new ClipViewModel(clip.Track, clip.Audio.Slice(cut, clip.Audio.FrameCount - cut), at);
+            right = new ClipViewModel(clip.Track, clip.Audio.Slice(cut, clip.Audio.FrameCount - cut), at)
+            {
+                FadeOutFrames = Math.Min(clip.FadeOutFrames, clip.Audio.FrameCount - cut), // Ausblenden bleibt am Ende
+            };
             clip.Audio = clip.Audio.Slice(0, cut);
+            clip.FadeOutFrames = 0;
+            clip.FadeInFrames = Math.Min(clip.FadeInFrames, cut);
         }
 
         clip.Track.Clips.Insert(clip.Track.Clips.IndexOf(clip) + 1, right);
@@ -515,6 +527,7 @@ public sealed partial class MixerViewModel : ObservableObject, IDisposable
             var (audio, start) = ClipTools.Merge([new MixClip(clip.Audio, clip.StartFrame), new MixClip(next.Audio, next.StartFrame)]);
             clip.Audio = Conform(audio);
             clip.StartFrame = start;
+            clip.FadeOutFrames = next.FadeOutFrames; // Einblenden vom ersten, Ausblenden vom zweiten Clip
         }
 
         clip.Track.Clips.Remove(next);
@@ -555,6 +568,8 @@ public sealed partial class MixerViewModel : ObservableObject, IDisposable
         Flatten(clip);
         long removed = clip.Audio.FrameCount - content.Length;
         clip.Audio = clip.Audio.Slice(content.Start, content.Length);
+        clip.FadeInFrames = Math.Min(clip.FadeInFrames, clip.Audio.FrameCount);
+        clip.FadeOutFrames = Math.Min(clip.FadeOutFrames, clip.Audio.FrameCount);
         clip.StartFrame += content.Start; // der hörbare Teil bleibt an seiner Stelle
         OnStructureChanged();
         StatusText = $"Auto-Zuschnitt: {TimeFormatter.Format(FrameToTime(removed))} Stille entfernt.";
@@ -1386,6 +1401,8 @@ public sealed partial class MixerViewModel : ObservableObject, IDisposable
             Group = NoGroup,
             DuckSource = NoTrack,
             Redraw = () => TimelineVersion++,
+            MoveRequested = MoveTrackBy,
+            Height = TrackHeight,
             ArmedChanged = _ =>
             {
                 TimelineVersion++;
@@ -1761,6 +1778,12 @@ public sealed partial class MixerViewModel : ObservableObject, IDisposable
             foreach (var t in project.Tracks)
             {
                 var track = CreateTrack(t.Name, Palette[_nextColor++ % Palette.Length]);
+                if (!string.IsNullOrEmpty(t.Color))
+                {
+                    track.Color = t.Color;
+                }
+
+                track.Height = t.Height > 0 ? Math.Clamp(t.Height, TrackViewModel.MinHeight, TrackViewModel.MaxHeight) : TrackHeight;
                 track.Apply(new TrackViewModel(t.Name, track.Color, static () => { })
                 {
                     VolumeDb = t.VolumeDb,
@@ -1822,6 +1845,8 @@ public sealed partial class MixerViewModel : ObservableObject, IDisposable
                             takeLength);
                         var takeClip = new ClipViewModel(track, TakeTools.Compose(takeAudio, takeComp), c.Start)
                         {
+                            FadeInFrames = c.FadeIn,
+                            FadeOutFrames = c.FadeOut,
                             Takes = takeAudio,
                             Comp = takeComp,
                             SavedTakeFiles = present.Length == takeFiles.Count ? takeFiles.ToArray() : null,
@@ -1841,6 +1866,8 @@ public sealed partial class MixerViewModel : ObservableObject, IDisposable
                     var audio = Conform(await Task.Run(() => _projects.LoadClip(path, c.File)));
                     track.Clips.Add(new ClipViewModel(track, audio, c.Start)
                     {
+                        FadeInFrames = c.FadeIn,
+                        FadeOutFrames = c.FadeOut,
                         SavedFileName = c.File,
                         SavedAudio = audio,
                         SavedProjectPath = path,
@@ -2104,6 +2131,8 @@ public sealed partial class MixerViewModel : ObservableObject, IDisposable
                     data.Clips.Add(new ProjectClip
                     {
                         Start = clip.StartFrame,
+                        FadeIn = clip.FadeInFrames,
+                        FadeOut = clip.FadeOutFrames,
                         Takes = files,
                         Comp = comp.Select(x => new long[] { x.Start, x.End, x.Take }).ToList(),
                     });
@@ -2123,7 +2152,7 @@ public sealed partial class MixerViewModel : ObservableObject, IDisposable
                 }
 
                 used.Add(file);
-                data.Clips.Add(new ProjectClip { File = file, Start = clip.StartFrame });
+                data.Clips.Add(new ProjectClip { File = file, Start = clip.StartFrame, FadeIn = clip.FadeInFrames, FadeOut = clip.FadeOutFrames });
             }
 
             project.Tracks.Add(data);
@@ -2214,6 +2243,8 @@ public sealed partial class MixerViewModel : ObservableObject, IDisposable
     private ProjectTrack CreateProjectTrack(TrackViewModel track) => new()
     {
         Name = track.Name,
+        Color = track.Color,
+        Height = track.Height,
         VolumeDb = track.VolumeDb,
         Pan = track.Pan,
         Mute = track.Mute,
@@ -2248,13 +2279,14 @@ public sealed partial class MixerViewModel : ObservableObject, IDisposable
     private sealed record ClipState(
         AudioBuffer Audio, long Start, string? SavedFile, AudioBuffer? SavedAudio, string? SavedPath,
         IReadOnlyList<Note>? Notes = null, long LengthTicks = 0,
-        IReadOnlyList<AudioBuffer>? Takes = null, IReadOnlyList<CompSegment>? Comp = null);
+        IReadOnlyList<AudioBuffer>? Takes = null, IReadOnlyList<CompSegment>? Comp = null,
+        long FadeIn = 0, long FadeOut = 0);
 
     private sealed record TrackState(
         string Name, string Color, double VolumeDb, double Pan, bool Mute, bool Solo, double SendHall, double SendEcho,
         int GroupIndex, double EqLow, double EqMid, double EqHigh, double HighPassHz, double Compression, ClipState[] Clips,
         IReadOnlyList<AutomationLane> Automation, AutomationTarget ShownAutomation, int DuckSource, double DuckAmount, double DuckThreshold,
-        InstrumentSpec? Instrument);
+        InstrumentSpec? Instrument, double Height = TrackViewModel.DefaultHeight);
 
     private sealed record GroupState(string Name, double VolumeDb, bool Mute);
 
@@ -2297,8 +2329,8 @@ public sealed partial class MixerViewModel : ObservableObject, IDisposable
                 t.Name, t.Color, t.VolumeDb, t.Pan, t.Mute, t.Solo, t.SendHall, t.SendEcho,
                 t.Group is null || t.Group.IsNone ? -1 : Groups.IndexOf(t.Group),
                 t.EqLow, t.EqMid, t.EqHigh, t.HighPassHz, t.Compression,
-                t.Clips.Select(c => new ClipState(c.Audio, c.StartFrame, c.SavedFileName, c.SavedAudio, c.SavedProjectPath, c.Notes, c.LengthTicks, c.Takes, c.Comp)).ToArray(),
-                t.Automation, t.ShownAutomation, DuckIndex(t), t.DuckAmount, t.DuckThreshold, t.Instrument))
+                t.Clips.Select(c => new ClipState(c.Audio, c.StartFrame, c.SavedFileName, c.SavedAudio, c.SavedProjectPath, c.Notes, c.LengthTicks, c.Takes, c.Comp, c.FadeInFrames, c.FadeOutFrames)).ToArray(),
+                t.Automation, t.ShownAutomation, DuckIndex(t), t.DuckAmount, t.DuckThreshold, t.Instrument, t.Height))
                 .ToArray(),
             Groups.Select(g => new GroupState(g.Name, g.VolumeDb, g.Mute)).ToArray(),
             selectedTrack,
@@ -2327,6 +2359,7 @@ public sealed partial class MixerViewModel : ObservableObject, IDisposable
         foreach (var t in state.Tracks)
         {
             var track = CreateTrack(t.Name, t.Color);
+            track.Height = t.Height;
             track.Apply(new TrackViewModel(t.Name, t.Color, static () => { })
             {
                 VolumeDb = t.VolumeDb,
@@ -2364,6 +2397,8 @@ public sealed partial class MixerViewModel : ObservableObject, IDisposable
                     SavedProjectPath = c.SavedPath,
                     Takes = c.Takes,
                     Comp = c.Comp,
+                    FadeInFrames = c.FadeIn,
+                    FadeOutFrames = c.FadeOut,
                 });
             }
 
@@ -2517,6 +2552,7 @@ public sealed partial class MixerViewModel : ObservableObject, IDisposable
 
     partial void OnSelectedClipChanged(ClipViewModel? value)
     {
+        SyncSelection(value);
         OnPropertyChanged(nameof(HasSelectedClip));
         DeleteSelectedClipCommand.NotifyCanExecuteChanged();
         OpenSelectedClipInEditorCommand.NotifyCanExecuteChanged();
