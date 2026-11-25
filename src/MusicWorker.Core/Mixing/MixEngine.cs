@@ -145,7 +145,8 @@ public sealed class MixEngine
         // 3. Summe, Pegel und Sends (nach dem Fader) in die Effekt-Busse
         for (int t = 0; t < tracks.Count; t++)
         {
-            if (!_active[t])
+            // Einzelspur-Export: alle Spuren werden berechnet (z. B. für die Auto-Absenkung), aber nur eine erklingt.
+            if (!_active[t] || (snapshot.IsolatedTrack >= 0 && snapshot.IsolatedTrack != t))
             {
                 Volatile.Write(ref peaks[t], 0f);
                 continue;
@@ -249,17 +250,17 @@ public sealed class MixEngine
     }
 
     /// <summary>Mischt das ganze Projekt am Stück (plus <paramref name="tailSeconds"/> zum Ausklingen).</summary>
-    public static AudioBuffer Mixdown(MixSnapshot snapshot, double tailSeconds = 0)
+    public static AudioBuffer Mixdown(MixSnapshot snapshot, double tailSeconds = 0, long? length = null)
     {
         ArgumentNullException.ThrowIfNull(snapshot);
-        long total = snapshot.Length + (long)Math.Round(Math.Max(0, tailSeconds) * snapshot.SampleRate);
+        long total = (length ?? snapshot.Length) + (long)Math.Round(Math.Max(0, tailSeconds) * snapshot.SampleRate);
         var output = new float[checked((int)(total * 2))];
         var engine = new MixEngine(snapshot);
         const int block = 4096;
         for (int offset = 0; offset < output.Length; offset += block * 2)
         {
-            int length = Math.Min(block * 2, output.Length - offset);
-            engine.Render(output.AsSpan(offset, length));
+            int count = Math.Min(block * 2, output.Length - offset);
+            engine.Render(output.AsSpan(offset, count));
         }
 
         return new AudioBuffer(output, snapshot.SampleRate, 2);

@@ -129,6 +129,18 @@ public sealed class AppSettings
 
     /// <summary>Zeitpunkt der letzten automatischen Update-Prüfung (UTC).</summary>
     public DateTime LastUpdateCheck { get; set; }
+
+    /// <summary>Zuletzt gewähltes Exportformat (wird im Speichern-Dialog vorausgewählt).</summary>
+    public string LastExportFormat { get; set; } = "Wav16";
+
+    /// <summary>Zuletzt gewähltes Lautheitsziel (Index in der Auswahlliste).</summary>
+    public int LastLoudnessChoice { get; set; }
+
+    /// <summary>Eigener Lautheitswert in LUFS.</summary>
+    public double CustomLoudnessLufs { get; set; } = -14;
+
+    /// <summary>Lautheit beim Mixdown-Export (0 = nicht verändern).</summary>
+    public int MixdownLoudnessChoice { get; set; }
 }
 
 /// <summary>Lädt und speichert <see cref="AppSettings"/> unter %APPDATA%\MusicWorker\settings.json.</summary>

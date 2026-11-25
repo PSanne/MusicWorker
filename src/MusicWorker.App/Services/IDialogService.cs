@@ -56,8 +56,17 @@ public sealed record TakesResult(
     IReadOnlyList<MusicWorker.Core.Recording.CompSegment> Comp,
     bool Flatten);
 
+/// <summary>Gewählte Zieldatei und Format aus dem Export-Dialog.</summary>
+public sealed record ExportTarget(string Path, MusicWorker.App.Audio.ExportFormat Format);
+
 public interface IDialogService
 {
+    /// <summary>Speichern-Dialog mit allen Exportformaten; das zuletzt gewählte Format ist vorausgewählt. null = abgebrochen.</summary>
+    ExportTarget? ShowExportDialog(string suggestedName, string title, MusicWorker.App.Audio.ExportFormat preferred);
+
+    /// <summary>Ordner auswählen; null = abgebrochen.</summary>
+    string? ShowFolderDialog(string title);
+
     string? ShowOpenFileDialog(string filter);
 
     string? ShowSaveFileDialog(string filter, string suggestedFileName, string title = "Exportieren");

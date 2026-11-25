@@ -129,7 +129,7 @@ public sealed partial class MainViewModel
     private void ShowAbout() => _dialogs.ShowInfo(
         $"MusicWorker {UpdateService.CurrentVersion.ToString(3)}\n\n" +
         "Musik und Sprache bearbeiten, mischen, Noten schreiben und aufnehmen.\n\n" +
-        "Verwendete Bibliotheken: NAudio (MIT), MeltySynth (MIT), CommunityToolkit.Mvvm (MIT).\n\n" +
+        "Verwendete Bibliotheken: NAudio, MeltySynth, CommunityToolkit.Mvvm, .NET Ogg Vorbis Encoder, NVorbis (alle MIT-Lizenz).\n\n" +
         UpdateService.ProjectPage,
         "Über MusicWorker");
 

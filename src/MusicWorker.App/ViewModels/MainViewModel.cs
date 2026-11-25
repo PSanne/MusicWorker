@@ -303,7 +303,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         _settings = settings;
         RefreshRecentFiles();
 
-        Mixer = new MixerViewModel(dialogs, files, new ProjectService(files));
+        Mixer = new MixerViewModel(dialogs, files, new ProjectService(files)) { Settings = settings };
         Notes = new NoteEditorViewModel(Mixer, dialogs, settings);
         Mixer.OpenClipInEditorRequested += OnOpenClipInEditorRequested;
         Mixer.OpenNoteClipRequested += OnOpenNoteClipRequested;
@@ -714,12 +714,13 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     [RelayCommand(CanExecute = nameof(CanUseAudio))]
     private async Task ExportAsync()
     {
-        string suggestedName = Path.GetFileNameWithoutExtension(FileName) + ".wav";
-        string? path = _dialogs.ShowSaveFileDialog(AudioFileService.ExportFilter, suggestedName);
-        if (path is null)
+        if (_dialogs.ShowExportDialog(Path.GetFileNameWithoutExtension(FileName), "Exportieren", PreferredExportFormat) is not { } target)
         {
             return;
         }
+
+        RememberExportFormat(target.Format);
+        string path = target.Path;
 
         // Live-Effekte einrechnen? (Sie verändern sonst nur die Wiedergabe, nicht die Datei.)
         var liveEffects = AskIncludeLiveEffects(
@@ -736,7 +737,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             var markers = _editor.Markers;
             await Task.Run(() =>
             {
-                _files.Export(ApplyAll(liveEffects, buffer), path);
+                _files.Export(ApplyAll(liveEffects, buffer), path, target.Format);
                 if (AudioFileService.SupportsMarkers(path))
                 {
                     WavMarkers.Append(path, markers); // Marker bleiben in der WAV-Datei erhalten
@@ -757,17 +758,27 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         }
     }
 
+    /// <summary>Zuletzt gewähltes Exportformat (gilt auch für das Mischpult).</summary>
+    public ExportFormat PreferredExportFormat =>
+        Enum.TryParse<ExportFormat>(_settings.Settings.LastExportFormat, out var format) ? format : ExportFormat.Wav16;
+
+    public void RememberExportFormat(ExportFormat format)
+    {
+        _settings.Settings.LastExportFormat = format.ToString();
+        _settings.Save();
+    }
+
     /// <summary>Speichert linken und rechten Kanal als zwei Mono-Dateien (…_L und …_R).</summary>
     [RelayCommand(CanExecute = nameof(CanUseStereo))]
     private async Task ExportChannelsAsync()
     {
-        string suggestedName = Path.GetFileNameWithoutExtension(FileName) + ".wav";
-        string? basePath = _dialogs.ShowSaveFileDialog(
-            AudioFileService.ExportFilter, suggestedName, "Kanäle als Mono-Dateien exportieren – Basisname wählen");
-        if (basePath is null)
+        if (_dialogs.ShowExportDialog(Path.GetFileNameWithoutExtension(FileName), "Kanäle als Mono-Dateien exportieren – Basisname wählen", PreferredExportFormat) is not { } target)
         {
             return;
         }
+
+        RememberExportFormat(target.Format);
+        string basePath = target.Path;
 
         string directory = Path.GetDirectoryName(basePath) ?? string.Empty;
         string name = Path.GetFileNameWithoutExtension(basePath);
@@ -794,8 +805,8 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             await Task.Run(() =>
             {
                 var source = ApplyAll(liveEffects, buffer);
-                _files.Export(source.GetChannel(0), leftPath);
-                _files.Export(source.GetChannel(1), rightPath);
+                _files.Export(source.GetChannel(0), leftPath, target.Format);
+                _files.Export(source.GetChannel(1), rightPath, target.Format);
             });
             StatusText = $"Exportiert: „{Path.GetFileName(leftPath)}“ und „{Path.GetFileName(rightPath)}“.";
         }
@@ -1693,7 +1704,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         chain = new ProcessingSampleProvider(chain, flanger.Process);
         chain = new ProcessingSampleProvider(chain, delay.Process);
         chain = new ReverbSampleProvider(chain, reverb);
-        return new SpectrumTapSampleProvider(chain, _spectrumAnalyzers);
+        return WithLiveLoudness(new SpectrumTapSampleProvider(chain, _spectrumAnalyzers));
     }
 
     private void UpdateSpectrum()
@@ -2602,6 +2613,8 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         _spectrumAnalyzers = null;
         _channelMonitor = null;
         Spectra = null;
+        _liveLoudness = null;
+        LoudnessText = string.Empty;
         IsPlaying = false;
         StopPlayheadUpdates();
         PlayheadFrame = Selection.Start;
@@ -2626,6 +2639,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             {
                 PlayheadFrame = _playback.CurrentFrame;
                 UpdateSpectrum();
+                UpdateLiveLoudness();
                 if (_liveCompressor is { } liveCompressor)
                 {
                     CompressorReductionLeft = liveCompressor.GetGainReductionDb(0);
@@ -2734,6 +2748,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             ApplyChorusCommand, ApplyFlangerCommand, TempoPitchCommand,
             FadeInCommand, FadeOutCommand, ReverseCommand, MuteCommand,
             AnalyzePitchCommand, CorrectPitchCommand, AutotuneCommand, PitchRampCommand, VoiceEffectCommand,
+            MeasureLoudnessCommand, NormalizeLoudnessCommand,
             LearnNoiseProfileCommand, RemoveNoiseCommand,
         ];
         foreach (var command in commands)

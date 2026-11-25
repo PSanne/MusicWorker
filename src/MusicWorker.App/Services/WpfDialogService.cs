@@ -1,5 +1,7 @@
+using System.IO;
 using System.Windows;
 using Microsoft.Win32;
+using MusicWorker.App.Audio;
 using MusicWorker.App.Views;
 
 namespace MusicWorker.App.Services;
@@ -27,6 +29,47 @@ public sealed class WpfDialogService : IDialogService
             OverwritePrompt = true,
         };
         return Show(dialog) ? dialog.FileName : null;
+    }
+
+    public ExportTarget? ShowExportDialog(string suggestedName, string title, ExportFormat preferred)
+    {
+        var formats = AudioFileService.ExportFormats;
+        int index = Math.Max(0, formats.ToList().FindIndex(f => f.Format == preferred));
+        var dialog = new SaveFileDialog
+        {
+            Title = title,
+            Filter = AudioFileService.ExportFilter,
+            FilterIndex = index + 1,
+            FileName = Path.GetFileNameWithoutExtension(suggestedName) + formats[index].Extension,
+            DefaultExt = formats[index].Extension,
+            AddExtension = true,
+            OverwritePrompt = true,
+        };
+        if (!Show(dialog))
+        {
+            return null;
+        }
+
+        var chosen = formats[Math.Clamp(dialog.FilterIndex - 1, 0, formats.Count - 1)];
+        string path = dialog.FileName;
+        if (!string.Equals(Path.GetExtension(path), chosen.Extension, StringComparison.OrdinalIgnoreCase))
+        {
+            // Endung passt nicht zum gewählten Format: Ist es eine bekannte Endung, gilt sie – sonst wird ergänzt.
+            if (formats.Any(f => string.Equals(f.Extension, Path.GetExtension(path), StringComparison.OrdinalIgnoreCase)))
+            {
+                return new ExportTarget(path, AudioFileService.FormatFor(path, chosen.Format));
+            }
+
+            path += chosen.Extension;
+        }
+
+        return new ExportTarget(path, chosen.Format);
+    }
+
+    public string? ShowFolderDialog(string title)
+    {
+        var dialog = new OpenFolderDialog { Title = title };
+        return Show(dialog) ? dialog.FolderName : null;
     }
 
     public double? AskValue(ValueRequest request)

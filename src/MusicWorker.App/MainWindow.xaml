@@ -269,6 +269,8 @@
                 <MenuItem Header="_Gruppe hinzufügen" Command="{Binding Mixer.AddGroupCommand}" />
                 <Separator />
                 <MenuItem Header="_Mixdown exportieren …" Command="{Binding Mixer.ExportMixdownCommand}" />
+                <MenuItem Header="_Einzelspuren (Stems) exportieren …" Command="{Binding Mixer.ExportStemsCommand}"
+                          ToolTip="Jede Spur als eigene, gleich lange Datei – zum Weiterarbeiten in anderen Programmen" />
                 <MenuItem Header="Mixdown im _Editor öffnen" Command="{Binding OpenMixdownInEditorCommand}" />
             </MenuItem>
             <MenuItem Header="_Bearbeiten">
@@ -324,7 +326,11 @@
             </MenuItem>
             <MenuItem Header="E_ffekte">
                 <MenuItem Header="_Lautstärke ändern …" Command="{Binding ChangeGainCommand}" />
-                <MenuItem Header="_Normalisieren" Command="{Binding NormalizeCommand}" />
+                <MenuItem Header="_Normalisieren (Spitze auf -1 dB)" Command="{Binding NormalizeCommand}" />
+                <MenuItem Header="Auf _Lautheit normalisieren (LUFS) …" Command="{Binding NormalizeLoudnessCommand}"
+                          ToolTip="Auf eine empfundene Lautheit bringen, z. B. -14 LUFS für Spotify/YouTube oder -16 LUFS für Podcasts" />
+                <MenuItem Header="Lautheit _messen …" Command="{Binding MeasureLoudnessCommand}"
+                          ToolTip="Zeigt Gesamtlautheit (LUFS), Lautheitsumfang und echte Spitze – der Auswahl oder der ganzen Datei" />
                 <MenuItem Header="_Equalizer in Audio übernehmen" Command="{Binding ApplyEqualizerCommand}" />
                 <MenuItem Header="_Kompressor in Audio übernehmen" Command="{Binding ApplyCompressorCommand}" />
                 <MenuItem Header="E_cho in Audio übernehmen" Command="{Binding ApplyDelayCommand}" />
@@ -376,7 +382,7 @@
                 <Button Style="{StaticResource ToolButton}" Command="{Binding OpenCommand}" ToolTip="Öffnen (Strg+O)">
                     <TextBlock Style="{StaticResource Glyph}" Text="&#xE8E5;" />
                 </Button>
-                <Button Style="{StaticResource ToolButton}" Command="{Binding ExportCommand}" ToolTip="Exportieren als WAV oder MP3 (Strg+E)">
+                <Button Style="{StaticResource ToolButton}" Command="{Binding ExportCommand}" ToolTip="Exportieren als WAV, FLAC, MP3, M4A oder OGG (Strg+E)">
                     <TextBlock Style="{StaticResource Glyph}" Text="&#xE74E;" />
                 </Button>
             </ToolBar>
@@ -448,7 +454,9 @@
                 <Button Style="{StaticResource ToolButton}" Command="{Binding ChangeGainCommand}" ToolTip="Lautstärke ändern …">
                     <TextBlock Style="{StaticResource Glyph}" Text="&#xE767;" />
                 </Button>
-                <Button Style="{StaticResource ToolButton}" Command="{Binding NormalizeCommand}" Content="Normalisieren" ToolTip="Auf -1 dB normalisieren" />
+                <Button Style="{StaticResource ToolButton}" Command="{Binding NormalizeCommand}" Content="Normalisieren" ToolTip="Lauteste Spitze auf -1 dB bringen" />
+                <Button Style="{StaticResource ToolButton}" Command="{Binding NormalizeLoudnessCommand}" Content="Lautheit …"
+                        ToolTip="Auf Lautheit normalisieren (LUFS): z. B. -14 für Spotify/YouTube, -16 für Podcasts – richtet sich danach, wie laut wir es empfinden" />
                 <ToggleButton Focusable="False" Padding="7,4" Content="Effekte"
                               Style="{StaticResource {x:Static ToolBar.ToggleButtonStyleKey}}"
                               IsChecked="{Binding IsEqualizerVisible, Mode=TwoWay}"
@@ -508,6 +516,10 @@
         <StatusBar DockPanel.Dock="Bottom">
             <StatusBarItem DockPanel.Dock="Right">
                 <TextBlock Visibility="{Binding IsEditorTab, Converter={StaticResource BoolToVisibility}}" Text="{Binding FormatText}" Margin="8,0" />
+            </StatusBarItem>
+            <StatusBarItem DockPanel.Dock="Right">
+                <TextBlock Visibility="{Binding IsEditorTab, Converter={StaticResource BoolToVisibility}}" Text="{Binding LoudnessText}" Margin="8,0"
+                           FontFamily="Consolas" ToolTip="Empfundene Lautheit der letzten 3 Sekunden (LUFS). Spotify/YouTube spielen mit -14, Podcasts mit -16 LUFS." />
             </StatusBarItem>
             <StatusBarItem DockPanel.Dock="Right">
                 <TextBlock Visibility="{Binding IsEditorTab, Converter={StaticResource BoolToVisibility}}" Text="{Binding ChannelTargetText}" Margin="8,0" Foreground="#C2185B" FontWeight="SemiBold" />
@@ -1233,7 +1245,9 @@
                         </ToolBar>
                         <ToolBar>
                             <Button Style="{StaticResource ToolButton}" Command="{Binding Mixer.ExportMixdownCommand}" Content="Mixdown exportieren …"
-                                    ToolTip="Alle Spuren zu einer Stereo-Datei (WAV/MP3) mischen" />
+                                    ToolTip="Alle Spuren zu einer Stereo-Datei mischen (WAV, FLAC, MP3, M4A, OGG) – auf Wunsch mit Lautheitsziel, z. B. -14 LUFS" />
+                            <Button Style="{StaticResource ToolButton}" Command="{Binding Mixer.ExportStemsCommand}" Content="Einzelspuren …"
+                                    ToolTip="Jede Spur als eigene, gleich lange Datei (Stems) – zum Weiterarbeiten in anderen Programmen" />
                             <Button Style="{StaticResource ToolButton}" Command="{Binding OpenMixdownInEditorCommand}" Content="Mixdown im Editor"
                                     ToolTip="Den Mixdown im Editor öffnen und dort weiterbearbeiten" />
                         </ToolBar>
@@ -1509,6 +1523,10 @@
                                                     ToolTip="Master-Fader: Gesamtlautstärke" />
                                         </StackPanel>
                                         <TextBlock Style="{StaticResource StripText}" FontFamily="Consolas" Text="{Binding Mixer.MasterVolumeText}" />
+                                        <TextBlock Style="{StaticResource StripSmall}" Margin="0,6,0,0" Text="Lautheit (3 s)"
+                                                   ToolTip="Empfundene Lautheit der letzten 3 Sekunden in LUFS. Zum Vergleich: Spotify/YouTube -14, Podcast -16." />
+                                        <TextBlock Style="{StaticResource StripText}" FontFamily="Consolas" Text="{Binding Mixer.LoudnessText}"
+                                                   ToolTip="Empfundene Lautheit der letzten 3 Sekunden in LUFS. Zum Vergleich: Spotify/YouTube -14, Podcast -16." />
                                         <TextBlock Style="{StaticResource StripSmall}" Margin="0,8,0,2" Text="Master-EQ" />
                                         <UniformGrid Columns="3">
                                             <StackPanel ToolTip="Tiefen der Summe ±12 dB (120 Hz) – Doppelklick = 0">

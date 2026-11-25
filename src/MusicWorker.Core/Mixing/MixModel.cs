@@ -98,6 +98,7 @@ public sealed record MixBus(BusEffect Effect, double ReturnDb = 0, ReverbSetting
 /// <param name="MasterDb">Master-Fader in dB.</param>
 /// <param name="MasterInserts">Master-Effekte (EQ, Hochpass, Kompression) vor dem Master-Fader.</param>
 /// <param name="MasterLimiter">Begrenzer am Ende: verhindert Übersteuerung der Summe.</param>
+/// <param name="IsolatedTrack">Nur diese Spur erklingt (Einzelspur-Export); -1 = alle.</param>
 public sealed record MixSnapshot(
     int SampleRate,
     IReadOnlyList<MixTrack> Tracks,
@@ -105,7 +106,8 @@ public sealed record MixSnapshot(
     IReadOnlyList<MixBus> Buses,
     double MasterDb = 0,
     TrackInserts? MasterInserts = null,
-    bool MasterLimiter = false)
+    bool MasterLimiter = false,
+    int IsolatedTrack = -1)
 {
     /// <summary>Ende des letzten Clips in Frames.</summary>
     public long Length => Tracks.SelectMany(t => t.Clips).Select(c => c.EndFrame).DefaultIfEmpty(0).Max();

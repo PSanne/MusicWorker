@@ -1574,7 +1574,7 @@ public sealed partial class MixerViewModel : ObservableObject, IDisposable
         try
         {
             started?.Invoke(); // z. B. Mitschnitt starten – direkt vor der Ausgabe, damit beides gleichzeitig beginnt
-            _playback.PlayStream(_provider, (int)start);
+            _playback.PlayStream(WithLoudnessMeter(_provider), (int)start);
         }
         catch (Exception ex)
         {
@@ -1689,42 +1689,6 @@ public sealed partial class MixerViewModel : ObservableObject, IDisposable
         return peak > 0.999f ? new NormalizeEffect(-1).Apply(mix) : mix;
     }
 
-    [RelayCommand(CanExecute = nameof(CanEditWithTracks))]
-    private async Task ExportMixdownAsync()
-    {
-        string name = ProjectPath is null ? "Mixdown" : Path.GetFileNameWithoutExtension(ProjectPath) + " (Mixdown)";
-        if (_dialogs.ShowSaveFileDialog(AudioFileService.ExportFilter, name + ".wav", "Mixdown exportieren") is not { } path)
-        {
-            return;
-        }
-
-        StopPlayback();
-        IsBusy = true;
-        StatusText = "Mixdown wird berechnet …";
-        try
-        {
-            await EnsureNotesRenderedAsync();
-            var markers = Markers;
-            await Task.Run(() =>
-            {
-                _files.Export(RenderMixdown(), path);
-                if (AudioFileService.SupportsMarkers(path))
-                {
-                    WavMarkers.Append(path, markers);
-                }
-            });
-            StatusText = $"Mixdown exportiert nach „{Path.GetFileName(path)}“.";
-        }
-        catch (Exception ex)
-        {
-            StatusText = "Mixdown fehlgeschlagen.";
-            _dialogs.ShowError($"Der Mixdown konnte nicht gespeichert werden.\n\n{ex.Message}");
-        }
-        finally
-        {
-            IsBusy = false;
-        }
-    }
 
     // ───────────── Projekte ─────────────
 
@@ -2516,6 +2480,7 @@ public sealed partial class MixerViewModel : ObservableObject, IDisposable
 
         MasterMeterLeft = Math.Max(ToMeter(engine.GetMasterPeak(0)), MasterMeterLeft - MeterFallPerFrame);
         MasterMeterRight = Math.Max(ToMeter(engine.GetMasterPeak(1)), MasterMeterRight - MeterFallPerFrame);
+        UpdateLoudnessText();
     }
 
     private void ResetMeters()
@@ -2575,7 +2540,7 @@ public sealed partial class MixerViewModel : ObservableObject, IDisposable
             SplitClipCommand, MergeWithNextClipCommand, AutoTrimClipCommand, ArrangeClipsCommand, BounceCommand,
             AddNoteTrackCommand, ImportMidiCommand, ExportMidiCommand, ToggleRecordCommand,
             LoopSelectedClipCommand,
-            PlayCommand, TogglePlayPauseCommand, ExportMixdownCommand, NewProjectCommand,
+            PlayCommand, TogglePlayPauseCommand, ExportMixdownCommand, ExportStemsCommand, NewProjectCommand,
             OpenProjectCommand, SaveProjectCommand, SaveProjectAsCommand,
         ];
         foreach (var command in commands)

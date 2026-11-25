@@ -12,6 +12,8 @@
   <ItemGroup>
     <!-- SoundFont-Synthesizer (reines C#, plattformunabhängig, MIT-Lizenz) -->
     <PackageReference Include="MeltySynth" Version="2.4.1" />
+    <PackageReference Include="NVorbis" Version="0.10.4" />
+    <PackageReference Include="OggVorbisEncoder" Version="1.2.2" />
   </ItemGroup>
 
 </Project>

@@ -3,7 +3,19 @@
 **MusicWorker** ist eine Windows-Anwendung zum Bearbeiten von Musik, geschrieben in C# mit WPF und .NET 8.
 
 Langfristig soll MusicWorker **Audio-Editor, Mehrspur-Mixer und Noten-Editor** in einem Programm vereinen.
-Version 0.3 bietet einen vollständigen Audio-Editor mit Live-Effekten **und ein Mehrspur-Mischpult** mit Fadern, Panorama, Sends, Effekt-Bussen, Gruppen und Projekten – seit 0.3.2 auch mit **Schnitt-Werkzeugen, Takt-Raster, Loop-Bereich und Rückgängig**, seit 0.4 mit **Hüllkurven (Automation) und Auto-Absenkung**, seit 0.5 mit **Noten-Editor, Instrumenten und MIDI**, seit 0.6 mit **Aufnahme, Metronom, Punch-In und Takes/Comping**, seit 0.7 mit **Autotune, Tonhöhen-Werkzeugen, Spektrogramm und Rauschentfernung**, seit 0.8 mit **automatischer Sicherung, Markern, Handbuch und Update-Hinweis**.
+Version 0.3 bietet einen vollständigen Audio-Editor mit Live-Effekten **und ein Mehrspur-Mischpult** mit Fadern, Panorama, Sends, Effekt-Bussen, Gruppen und Projekten – seit 0.3.2 auch mit **Schnitt-Werkzeugen, Takt-Raster, Loop-Bereich und Rückgängig**, seit 0.4 mit **Hüllkurven (Automation) und Auto-Absenkung**, seit 0.5 mit **Noten-Editor, Instrumenten und MIDI**, seit 0.6 mit **Aufnahme, Metronom, Punch-In und Takes/Comping**, seit 0.7 mit **Autotune, Tonhöhen-Werkzeugen, Spektrogramm und Rauschentfernung**, seit 0.8 mit **automatischer Sicherung, Markern, Handbuch und Update-Hinweis**, seit 0.9 mit **Lautheit in LUFS, FLAC/OGG/M4A, Einzelspuren und Ton aus Videos**.
+
+## Lautheit & Export (Version 0.9)
+
+| Bereich | Funktionen |
+|---|---|
+| **Lautheit messen** | Menü *Effekte → Lautheit messen*: Gesamtlautheit in **LUFS** (nach ITU-R BS.1770 / EBU R128), Lautheitsumfang (LU), lauteste Stelle und **echte Spitze (dBTP)** – mit Erklärung, was die Werte bedeuten |
+| **Auf Lautheit normalisieren** | Knopf **„Lautheit …“**: auf -14 LUFS (Spotify, YouTube, Tidal), -16 (Apple Music, Podcast), -9 (lauter Club-Mix), -23 (Rundfunk) oder einen eigenen Wert. Spitzen über der Obergrenze (Standard -1 dBTP) fängt ein vorausschauender Begrenzer sanft ab |
+| **Live-Lautheit** | Während der Wiedergabe zeigt die Statusleiste (Editor) bzw. der Master-Kanalzug (Mischpult) die Lautheit der letzten 3 Sekunden |
+| **Exportformate** | **WAV** 16 oder 24 Bit · **FLAC** verlustfrei (16/24 Bit, etwa halb so groß wie WAV) · **MP3** · **M4A/AAC** · **OGG Vorbis** – das zuletzt gewählte Format ist beim nächsten Mal vorausgewählt |
+| **Mixdown mit Lautheitsziel** | Beim Mixdown-Export lässt sich gleich das Lautheitsziel wählen (z. B. -14 LUFS) |
+| **Einzelspuren (Stems)** | *Projekt → Einzelspuren exportieren*: jede Spur als eigene Datei, alle gleich lang ab Projektbeginn – „wie im Mix“ (mit Fader, Panorama, Effekten und Hall-Anteil; zusammen ergeben sie wieder den Mix) oder „roh“ (nur die Clips) |
+| **Ton aus Videos** | MP4, MOV, M4V, WMV, AVI (und MKV, sofern Windows es kennt) öffnen oder ins Mischpult ziehen – die Tonspur wird geladen |
 
 ## Sicherheit & Hilfe (Version 0.8)
 
@@ -69,7 +81,7 @@ ganze Datei), laufen im Hintergrund und lassen sich mit Strg+Z zurücknehmen.
 
 | Bereich | Funktionen |
 |---|---|
-| **Öffnen & Abspielen** | WAV, MP3, FLAC, AIFF, M4A/AAC, WMA öffnen (Menü, Strg+O oder Drag & Drop) · **zuletzt geöffnete Dateien** · Wellenform mit Zeitleiste · Abspielen, Pause, Stopp · **Positionsgriff zum Ziehen** (springt auch während der Wiedergabe) · 5 Sekunden vor/zurück |
+| **Öffnen & Abspielen** | WAV, MP3, FLAC, OGG, AIFF, M4A/AAC, WMA sowie die Tonspur von Videos öffnen (Menü, Strg+O oder Drag & Drop) · **zuletzt geöffnete Dateien** · Wellenform mit Zeitleiste · Abspielen, Pause, Stopp · **Positionsgriff zum Ziehen** (springt auch während der Wiedergabe) · 5 Sekunden vor/zurück |
 | **Schneiden & Trimmen** | Bereich mit der Maus markieren · Ausschneiden, Kopieren, Einfügen, Löschen · Auf Auswahl zuschneiden · **Stille einfügen** · **Rückgängig/Wiederholen** (50 Schritte) |
 | **Live-Equalizer** | **15 Bänder** von 25 Hz bis 16 kHz (2/3-Oktave, ±12 dB) · Vorverstärkung · 13 Voreinstellungen (Bass-Boost, Rock, Stimme, Loudness …) · **wirkt sofort beim Abspielen** · **Pro-Kanal-EQ:** links und rechts getrennt einstellbar · Ein/Aus für Vorher-/Nachher-Vergleich · „In Audio übernehmen“ · beim Export einrechenbar · Schutz vor Übersteuerung · Einstellung wird gespeichert |
 | **Live-Hall** | Freeverb-Hall mit **Drehreglern**: Stärke **pro Kanal** (links/rechts), Raumgröße, Dämpfung · wirkt sofort beim Abspielen · „In Audio übernehmen“ (bei der ganzen Datei mit Ausklingen am Ende) · beim Export einrechenbar |
@@ -193,14 +205,14 @@ MusicWorker.sln
 ├─ installer/                    Setup-Skript (Inno Setup), wird beim Release automatisch gebaut
 ├─ src/
 │  ├─ MusicWorker.Core/          Plattformunabhängiger Kern (ohne UI, voll testbar)
-│  │  ├─ Audio/                  AudioBuffer (unveränderlich), Dezibel-Umrechnung, Marker in WAV-Dateien (cue/labl)
+│  │  ├─ Audio/                  AudioBuffer (unveränderlich), Dezibel-Umrechnung, Marker in WAV-Dateien (cue/labl), FLAC (eigener Kodierer/Dekodierer), OGG Vorbis
 │  │  ├─ Editing/                AudioEditor, Auswahl, Rückgängig/Wiederholen (Command-Pattern), Marker
 │  │  ├─ Persistence/            Automatische Sicherung & Wiederherstellung, Update-Prüfung (Versionsvergleich)
 │  │  ├─ Recording/              Takes & Comping (Zusammenstellen mit Überblendung), Metronom, Zuordnung von Aufnahmen zur Zeitleiste
 │  │  ├─ Notes/                  Noten (Ticks), Quantisieren, Humanisieren, Transponieren, Stimmaufteilung, MIDI-Dateien lesen/schreiben
 │  │  ├─ Synthesis/              Eingebauter Synthesizer (10 Instrumente), SoundFont-Wiedergabe, Noten → Audio
-│  │  ├─ Mixing/                 Misch-Engine: Spuren, Panorama, Fader, Gruppen, Sends, Effekt-Busse, Inserts, Hüllkurven, Auto-Absenkung, Master, Mixdown
-│  │  ├─ Dsp/                    Biquad-Filter, 15-Band-Equalizer, Kompressor, Echo, Hall (Freeverb), FFT/STFT & Spektrumanalyse, Zeitstreckung (WSOLA), Resampler, Tonhöhenerkennung (YIN), Pitch-Shifter, Rauschentfernung
+│  │  ├─ Mixing/                 Misch-Engine: Spuren, Panorama, Fader, Gruppen, Sends, Effekt-Busse, Inserts, Hüllkurven, Auto-Absenkung, Master, Mixdown, Einzelspuren
+│  │  ├─ Dsp/                    Biquad-Filter, 15-Band-Equalizer, Kompressor, Echo, Hall (Freeverb), FFT/STFT & Spektrumanalyse, Zeitstreckung (WSOLA), Resampler, Tonhöhenerkennung (YIN), Pitch-Shifter, Rauschentfernung, Lautheit (LUFS) & echte Spitzen
 │  │  ├─ Effects/                Lautstärke, Normalisieren, Fades, Equalizer, Tempo/Tonhöhe, Umkehren, Autotune, Tonhöhen-Verlauf, Stimmeffekte
 │  │  └─ Visualization/          Wellenform-Spitzen, Spektrogramm
 │  └─ MusicWorker.App/           WPF-Anwendung (MVVM)
@@ -230,7 +242,7 @@ die Oberfläche nur in `MusicWorker.App`. So können Mehrspur- und Noten-Editor 
 - [x] **v0.6 – Aufnahme:** Record, Neuaufnahme (Punch-In), Metronom, Takes mit Comping-Tool (inkl. Clear-Comp)
 - [x] **v0.7 – Tonhöhe & Spektrum:** Autotune, Tonhöhen-Korrektur, parametrische Tonhöhe, Stimmeffekte, Spektrogramm (Wasserfall-Ansicht der Fourier-Transformation), spektrale Rauschentfernung
 - [x] **v0.8 – Sicherheit & Hilfe (Sprint 1):** automatische Sicherung mit Wiederherstellung, Marker in Editor und Mischpult, Hilfe-Menü mit Handbuch (PDF) und Tastenkürzeln, Update-Hinweis
-- [ ] **v0.9 – Lautheit & Export (Sprint 2):** LUFS-Messung und -Normalisierung, FLAC/OGG/M4A, Einzelspuren (Stems), Ton aus Videos
+- [x] **v0.9 – Lautheit & Export (Sprint 2):** LUFS-Messung und -Normalisierung, FLAC/OGG/M4A, Einzelspuren (Stems), Ton aus Videos
 - [ ] **v0.10 – Mischpult-Komfort (Sprint 3):** Fade-Griffe am Clip, Mehrfachauswahl, Kopieren/Einfügen von Clips, Spuren sortieren, Farben, Spurhöhe
 - [ ] **v0.11 – Presets & Effekte (Sprint 4):** eigene und fertige Presets, Noise-Gate, Tremolo, Phaser, Stereo-Verbreiterung, Bandsättigung
 - [ ] **v0.12 – Restaurierung (Sprint 5):** Knackser- und Klickentfernung, spektrale Reparatur
@@ -426,8 +438,39 @@ was bewusst so gebaut ist und was sich später leicht ändern lässt.
   an. Grund: Du behältst die Kontrolle, und weil das Setup nicht signiert ist, soll Windows' Sicherheitsabfrage
   bewusst bestätigt werden.
 
+### v0.9 – Lautheit & Export
+- **Lautheit nach ITU-R BS.1770-4 / EBU R128** (K-Gewichtung, 400-ms-Blöcke, Gates bei -70 LUFS und -10 LU,
+  Lautheitsumfang nach EBU Tech 3342, echte Spitze mit vierfacher Überabtastung). Grund: Genau so messen Spotify,
+  YouTube, Apple und der Rundfunk. Zur Kontrolle habe ich die Messung mit dem Referenzwerkzeug ffmpeg verglichen –
+  die Werte stimmen auf 0,1 LU überein.
+- **Beim Normalisieren auf Lautheit begrenzt ein vorausschauender Begrenzer nur die Spitzen**, statt das Ziel zu
+  verfehlen. Grund: Bei leisen, dynamischen Aufnahmen wäre -14 LUFS sonst oft nur mit Übersteuerung erreichbar.
+  Wird stärker als 6 dB begrenzt, weist MusicWorker darauf hin, weil es dann gepresst klingen kann.
+- **Ziele als Auswahlliste mit Klartext** („Spotify, YouTube (-14 LUFS)“) plus eigener Wert. Grund: Einsteiger
+  kennen die Plattform, nicht die Zahl.
+- **FLAC mit eigenem Kodierer und Dekodierer** (feste Prädiktoren, Rice-Kodierung, Stereo-Dekorrelation, MD5).
+  Grund: Keine zusätzliche Bibliothek nötig, funktioniert auf jedem Windows. Geprüft mit dem offiziellen
+  `flac`-Werkzeug (Prüfsummen korrekt, Dateigröße wie dessen Standardstufe); der Dekodierer liest auch Dateien
+  anderer Programme bitgenau.
+- **OGG Vorbis mit den freien Bibliotheken „.NET Ogg Vorbis Encoder“ und „NVorbis“ (MIT)**. Die Kodier-Bibliothek
+  arbeitet nur in Stereo und in einem bestimmten Qualitätsbereich zuverlässig – deshalb wird immer in Stereo mit
+  etwa 160 kbit/s gespeichert (sehr gute Qualität; Mono wird auf beide Kanäle verteilt). Außerdem verschluckt sie
+  die ersten 1024 Samples; MusicWorker stellt deshalb genau so viel Stille voran, sodass die Datei exakt die
+  richtige Länge und Lage hat. Andere Abtastraten als 44,1/48 kHz werden vorher umgerechnet.
+- **M4A/AAC über den in Windows eingebauten Kodierer** (192 kbit/s). Grund: Bereits vorhanden, gute Qualität,
+  keine Lizenzfragen.
+- **Das zuletzt gewählte Exportformat wird gemerkt** – Editor und Mischpult teilen sich die Einstellung.
+- **Einzelspuren sind immer gleich lang und beginnen beim Projektanfang.** Grund: So passen sie in jedem anderen
+  Programm sofort zusammen. „Wie im Mix“ enthält Fader, Panorama, Effekte und den Hall-/Echo-Anteil der Spur, aber
+  keine Master-Effekte – so ergeben alle Dateien zusammen wieder den Mix (per Test abgesichert, auch mit
+  Auto-Absenkung). Stummgeschaltete Spuren werden übersprungen, weil sie bewusst nicht zum Stück gehören.
+- **Ton aus Videos über Windows Media Foundation.** Grund: MP4/MOV/WMV kann Windows von Haus aus; für MKV gibt es
+  einen Hinweis auf die kostenlose Erweiterung, falls Windows das Format nicht kennt.
+
 ## Verwendete Bibliotheken
 
 - [NAudio](https://github.com/naudio/NAudio): Audio-Ein-/Ausgabe und Dateiformate (MIT-Lizenz)
 - [CommunityToolkit.Mvvm](https://github.com/CommunityToolkit/dotnet): MVVM-Grundbausteine (MIT-Lizenz)
 - [MeltySynth](https://github.com/sinshu/meltysynth): SoundFont-Synthesizer in reinem C# (MIT-Lizenz)
+- [.NET Ogg Vorbis Encoder](https://github.com/SteveLillis/.NET-Ogg-Vorbis-Encoder): OGG-Vorbis-Kodierer (MIT-Lizenz)
+- [NVorbis](https://github.com/NVorbis/NVorbis): OGG-Vorbis-Dekodierer (MIT-Lizenz)
