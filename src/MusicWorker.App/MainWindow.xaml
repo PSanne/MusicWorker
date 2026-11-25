@@ -1534,6 +1534,24 @@
                             </Button>
                             <ProgressBar Width="70" Height="8" Margin="4,0" VerticalAlignment="Center" Minimum="0" Maximum="1" Value="{Binding Mixer.InputLevel, Mode=OneWay}"
                                          Foreground="#66BB6A" Background="#15171C" ToolTip="Eingangspegel (sichtbar, sobald eine Audiospur scharfgeschaltet ist)" />
+                            <ToggleButton Style="{StaticResource ChannelToggle}" Margin="4,0,0,0" IsChecked="{Binding Mixer.IsInputMonitoringEnabled}"
+                                          ToolTip="Mithören: Den Eingang (Mikrofon, Gitarre …) beim Aufnehmen über Kopfhörer hören. Lautstärke = Fader der scharfgeschalteten Spur. Bitte Kopfhörer benutzen, sonst pfeift es.">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Style="{StaticResource Glyph}" Text="&#xE7F6;" />
+                                    <TextBlock Margin="4,0,0,0" Text="Mithören" />
+                                </StackPanel>
+                            </ToggleButton>
+                            <Separator />
+                            <TextBlock Margin="4,0" VerticalAlignment="Center" Text="Treiber" />
+                            <ComboBox Width="190" VerticalAlignment="Center" ItemsSource="{Binding Mixer.AudioDriverChoices}" SelectedItem="{Binding Mixer.SelectedAudioDriver}"
+                                      ToolTip="Wie MusicWorker mit der Soundkarte spricht. Standard funktioniert überall; WASAPI und besonders WASAPI exklusiv oder ASIO (Audio-Interfaces) verringern die Verzögerung beim Aufnehmen und Mithören deutlich." />
+                            <TextBlock Margin="8,0,4,0" VerticalAlignment="Center" Text="Puffer" />
+                            <ComboBox Width="58" VerticalAlignment="Center" ItemsSource="{Binding Mixer.BufferChoices}" SelectedItem="{Binding Mixer.BufferMs}"
+                                      ItemStringFormat="{}{0} ms" IsEnabled="{Binding Mixer.CanChooseBuffer}"
+                                      ToolTip="{Binding Mixer.EngineText}" ToolTipService.ShowOnDisabled="True" />
+                            <Button Style="{StaticResource ToolButton}" Command="{Binding Mixer.ShowAsioPanelCommand}" Content="ASIO …"
+                                    Visibility="{Binding Mixer.IsAsio, Converter={StaticResource BoolToVisibility}}"
+                                    ToolTip="Einstellungen des ASIO-Treibers öffnen (Puffergröße, Eingänge)" />
                             <Separator />
                             <Button Style="{StaticResource ToolButton}" Command="{Binding Mixer.EditTakesCommand}" Content="Takes …"
                                     ToolTip="Takes &amp; Comping des gewählten Clips (oder Doppelklick auf einen Clip mit Takes)" />
@@ -2149,6 +2167,8 @@
                                     ToolTip="Akkorde als gebrochene Akkorde spielen (aufwärts, abwärts, Alberti …)" />
                             <Button Style="{StaticResource ToolButton}" Command="{Binding Notes.EditDrumsCommand}" Content="Schlagzeug-Raster …"
                                     ToolTip="Schlagzeug-Rhythmus im Raster anklicken oder einen fertigen Rhythmus wählen (Rock, Pop, Hip-Hop …)" />
+                            <Button Style="{StaticResource ToolButton}" Command="{Binding Notes.ShowSheetMusicCommand}" Content="Notenblatt …"
+                                    ToolTip="Alle Notenspuren als Noten anzeigen – zum Drucken oder als PDF speichern" />
                             <Separator />
                             <Button Style="{StaticResource ToolButton}" Click="OnPianoRollZoomInClick" ToolTip="Vergrößern (Strg+Mausrad)">
                                 <TextBlock Style="{StaticResource Glyph}" Text="&#xE8A3;" />

@@ -197,6 +197,28 @@ public sealed partial class NoteEditorViewModel
             + (IsDrums ? string.Empty : " Tipp: Wähle als Instrument „Schlagzeug“, damit es auch wie ein Schlagzeug klingt.");
     }
 
+    /// <summary>Notenblatt aller Notenspuren (ohne Schlagzeug) anzeigen – zum Drucken oder als PDF.</summary>
+    [RelayCommand]
+    private void ShowSheetMusic()
+    {
+        var parts = _mixer.Tracks
+            .Where(t => t.IsNoteTrack && t.Instrument?.IsDrums != true)
+            .Select(t => new SheetMusicPart(t.Name, NoteTools.Sorted(t.Clips
+                .Where(c => c.Notes is not null)
+                .SelectMany(c => NoteTools.Move(c.Notes!.Where(n => n.Start < c.LengthTicks), _mixer.FramesToTicks(c.StartFrame))))))
+            .Where(p => p.Notes.Count > 0)
+            .ToArray();
+        if (parts.Length == 0)
+        {
+            _mixer.StatusText = "Für das Notenblatt fehlen Noten: Lege eine Notenspur an und zeichne oder spiele ein paar Noten ein (Schlagzeug wird nicht als Noten gezeigt).";
+            return;
+        }
+
+        var key = _mixer.ProjectKey ?? MusicWorker.Core.Analysis.MusicAnalysis.DetectKey(parts.SelectMany(p => p.Notes));
+        string title = _mixer.ProjectPath is { } path ? System.IO.Path.GetFileNameWithoutExtension(path) : "Mein Lied";
+        _dialogs.ShowSheetMusic(new SheetMusicRequest(title, parts, BeatsPerBar, _mixer.Tempo.BaseBpm, key?.Tonic ?? 0, key?.Minor ?? false));
+    }
+
     private void InsertNotes(IReadOnlyList<Note> added, string status)
     {
         PushUndo();

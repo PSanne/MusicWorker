@@ -136,7 +136,53 @@ public static class MusicAnalysis
             }
         }
 
-        if (chroma.Sum() <= 1e-9)
+        return KeyFromChroma(chroma);
+    }
+
+    /// <summary>Tonart aus Noten (z. B. eines Notenclips): Tonstufen gewichtet nach ihrer Dauer.</summary>
+    public static KeyResult? DetectKey(IEnumerable<MusicWorker.Core.Notes.Note> notes)
+    {
+        ArgumentNullException.ThrowIfNull(notes);
+        var list = notes.ToArray();
+        var chroma = new double[12];
+        foreach (var note in list)
+        {
+            chroma[((note.Pitch % 12) + 12) % 12] += Math.Sqrt(Math.Max(1, note.Length));
+        }
+
+        // Dur und parallele Moll-Tonart haben dieselben Töne – den Ausschlag gibt (wie beim Hören)
+        // der Bass des ersten und des letzten Akkords, der meist der Grundton ist.
+        if (list.Length > 0)
+        {
+            double total = chroma.Sum();
+            long first = list.Min(n => n.Start);
+            long last = list.Max(n => n.Start);
+            chroma[ChordRoot(list.Where(n => n.Start == first))] += total * 0.25;
+            chroma[ChordRoot(list.Where(n => n.Start == last))] += total * 0.1;
+        }
+
+        return KeyFromChroma(chroma);
+    }
+
+    /// <summary>Grundton eines Akkords (auch in Umkehrung) – sonst der tiefste Ton.</summary>
+    private static int ChordRoot(IEnumerable<MusicWorker.Core.Notes.Note> chord)
+    {
+        var notes = chord.ToArray();
+        var classes = notes.Select(n => ((n.Pitch % 12) + 12) % 12).ToHashSet();
+        foreach (int pc in classes.OrderBy(pc => pc))
+        {
+            if (classes.Contains((pc + 7) % 12) && (classes.Contains((pc + 3) % 12) || classes.Contains((pc + 4) % 12)))
+            {
+                return pc;
+            }
+        }
+
+        return ((notes.Min(n => n.Pitch) % 12) + 12) % 12;
+    }
+
+    private static KeyResult? KeyFromChroma(double[] chroma)
+    {
+        if (chroma.Sum() <= 1e-9 || chroma.Count(c => c > 0) < 3)
         {
             return null;
         }

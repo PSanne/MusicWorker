@@ -96,6 +96,8 @@ public sealed class WpfDialogService : IDialogService
         return dialog.ShowDialog() == true ? dialog.Result : null;
     }
 
+    public void ShowSheetMusic(SheetMusicRequest request) => new SheetMusicWindow(request) { Owner = Owner }.ShowDialog();
+
     public DrumGridResult? EditDrumPattern(DrumGridRequest request)
     {
         var window = new DrumGridWindow(request) { Owner = Owner };

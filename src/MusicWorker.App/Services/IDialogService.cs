@@ -67,6 +67,12 @@ public sealed record DrumGridRequest(MusicWorker.Core.Notes.DrumPattern Pattern,
 /// <summary>Ergebnis des Schlagzeug-Rasters.</summary>
 public sealed record DrumGridResult(MusicWorker.Core.Notes.DrumPattern Pattern, int Repeats, bool ReplaceExisting);
 
+/// <summary>Eine Stimme für das Notenblatt: Name und Noten (Ticks ab Songanfang).</summary>
+public sealed record SheetMusicPart(string Name, IReadOnlyList<MusicWorker.Core.Notes.Note> Notes);
+
+/// <summary>Inhalt für das Notenblatt-Fenster.</summary>
+public sealed record SheetMusicRequest(string Title, IReadOnlyList<SheetMusicPart> Parts, int BeatsPerBar, double Bpm, int KeyTonic, bool KeyMinor);
+
 /// <summary>Gewählte Zieldatei und Format aus dem Export-Dialog.</summary>
 public sealed record ExportTarget(string Path, MusicWorker.App.Audio.ExportFormat Format);
 
@@ -93,6 +99,9 @@ public interface IDialogService
 
     /// <summary>Takes &amp; Comping bearbeiten; null = abgebrochen.</summary>
     TakesResult? EditTakes(TakesRequest request);
+
+    /// <summary>Notenblatt anzeigen (mit Drucken und PDF-Export).</summary>
+    void ShowSheetMusic(SheetMusicRequest request);
 
     /// <summary>Schlagzeug-Raster bearbeiten; null = abgebrochen.</summary>
     DrumGridResult? EditDrumPattern(DrumGridRequest request);

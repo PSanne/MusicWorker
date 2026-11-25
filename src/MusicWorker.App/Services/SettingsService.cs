@@ -116,6 +116,15 @@ public sealed class AppSettings
     /// <summary>Latenzausgleich für Aufnahmen in Millisekunden.</summary>
     public double RecordingLatencyMs { get; set; } = 60;
 
+    /// <summary>Treiber des Mischpults (Name aus der Auswahl, null = Standard).</summary>
+    public string? AudioDriverName { get; set; }
+
+    /// <summary>Puffergröße für WASAPI in Millisekunden.</summary>
+    public int AudioBufferMs { get; set; } = 20;
+
+    /// <summary>Eingang beim Aufnehmen mithören.</summary>
+    public bool InputMonitoring { get; set; }
+
     /// <summary>Zuletzt geladene SoundFont-Datei (.sf2).</summary>
     public string? LastSoundFont { get; set; }
 

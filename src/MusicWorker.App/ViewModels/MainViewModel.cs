@@ -391,14 +391,28 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         _isWidenerEnabled = saved.WidenerEnabled;
         _widenerWidth = saved.WidenerWidth;
         RefreshOutputDevices(saved.OutputDeviceName);
+        Mixer.SelectAudioDriver(saved.AudioDriverName, saved.AudioBufferMs);
         Mixer.RecordingLatencyMs = saved.RecordingLatencyMs;
         Mixer.SelectInputByName(saved.InputDeviceName);
+        Mixer.IsInputMonitoringEnabled = saved.InputMonitoring;
         Mixer.PropertyChanged += (_, e) =>
         {
-            if (e.PropertyName == nameof(MixerViewModel.SelectedInputDevice) && Mixer.SelectedInputDevice is { } input)
+            switch (e.PropertyName)
             {
-                _settings.Settings.InputDeviceName = input.Name;
-                _settings.Save();
+                case nameof(MixerViewModel.SelectedInputDevice) when Mixer.SelectedInputDevice is { } input:
+                    _settings.Settings.InputDeviceName = input.Name;
+                    _settings.Save();
+                    break;
+                case nameof(MixerViewModel.SelectedAudioDriver) or nameof(MixerViewModel.BufferMs):
+                    _settings.Settings.AudioDriverName = Mixer.SelectedAudioDriver?.Name;
+                    _settings.Settings.AudioBufferMs = Mixer.BufferMs;
+                    _settings.Settings.RecordingLatencyMs = Mixer.RecordingLatencyMs;
+                    _settings.Save();
+                    break;
+                case nameof(MixerViewModel.IsInputMonitoringEnabled):
+                    _settings.Settings.InputMonitoring = Mixer.IsInputMonitoringEnabled;
+                    _settings.Save();
+                    break;
             }
         };
         UpdateEqualizerCurve();

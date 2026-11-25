@@ -179,6 +179,9 @@ public sealed partial class MixerViewModel : ObservableObject, IDisposable
         DuckChoices.Add(NoTrack);
         Tracks.CollectionChanged += OnTracksCollectionChanged;
         _recorder.Failed += (_, message) => StatusText = $"Aufnahme-Fehler: {message}";
+        _playback.InputAvailable += _recorder.Feed;
+        _idle.InputAvailable += _recorder.Feed;
+        _selectedAudioDriver = AudioDriverChoices[0];
         RefreshInputDevices();
         HallBus = new BusViewModel("Hall-Bus", BusEffect.Reverb, OnMixChanged);
         EchoBus = new BusViewModel("Echo-Bus", BusEffect.Delay, OnMixChanged);
@@ -680,7 +683,9 @@ public sealed partial class MixerViewModel : ObservableObject, IDisposable
     private void RefreshInputDevices()
     {
         string? current = SelectedInputDevice?.Name;
-        InputDevices = RecordingService.Devices();
+        InputDevices = SelectedAudioDriver is { Kind: AudioDriverKind.Asio, AsioDriver: { } asio }
+            ? AudioDrivers.AsioInputs(asio)
+            : RecordingService.Devices();
         SelectedInputDevice = InputDevices.FirstOrDefault(d => d.Name == current) ?? InputDevices.FirstOrDefault();
     }
 
@@ -822,6 +827,7 @@ public sealed partial class MixerViewModel : ObservableObject, IDisposable
         var provider = _provider;
         var recorded = session.AudioTrack is not null && _recorder.IsCapturing ? _recorder.StopCapture() : null;
         long stop = provider is null ? PlayheadFrame : provider.MapPlayedToTimeline(_playback.PlayedFrames);
+        long asioLatency = _playback.ActiveDriver == AudioDriverKind.Asio ? 2L * _playback.OutputLatencyFrames : 0;
         IsRecording = false;
         RecordingStartFrame = -1;
         StopPlayback();
@@ -830,7 +836,9 @@ public sealed partial class MixerViewModel : ObservableObject, IDisposable
         int takes = 0;
         if (recorded is not null && provider is not null && session.AudioTrack is { } audioTrack)
         {
-            long latency = (long)(RecordingLatencyMs / 1000 * SampleRate);
+            long latency = asioLatency > 0
+                ? asioLatency // ASIO meldet seine Verzögerung selbst (Ein- und Ausgang etwa gleich)
+                : (long)(RecordingLatencyMs / 1000 * SampleRate);
             var runs = RecordingMapper.Limit(RecordingMapper.Map(recorded.FrameCount, provider.Jumps, latency), session.From, session.To)
                 .Where(r => r.Length >= SampleRate / 10) // Schnipsel unter 0,1 s ignorieren
                 .ToArray();
@@ -954,6 +962,10 @@ public sealed partial class MixerViewModel : ObservableObject, IDisposable
             }
 
             StartLevelLoop();
+            if (_recorder.Notice is { } notice)
+            {
+                StatusText = notice;
+            }
         }
         else
         {
@@ -961,6 +973,8 @@ public sealed partial class MixerViewModel : ObservableObject, IDisposable
             _recorder.Close();
             InputLevel = 0;
         }
+
+        UpdateIdleOutput();
     }
 
     private async void StartLevelLoop()
@@ -1595,8 +1609,13 @@ public sealed partial class MixerViewModel : ObservableObject, IDisposable
 
         try
         {
+            PrepareOutputForPlayback();
             started?.Invoke(); // z. B. Mitschnitt starten – direkt vor der Ausgabe, damit beides gleichzeitig beginnt
-            _playback.PlayStream(WithLoudnessMeter(_provider), (int)start);
+            _playback.PlayStream(WithMonitor(WithLoudnessMeter(_provider)), (int)start);
+            if (_playback.Notice is { } notice)
+            {
+                StatusText = notice;
+            }
         }
         catch (Exception ex)
         {
@@ -1680,8 +1699,9 @@ public sealed partial class MixerViewModel : ObservableObject, IDisposable
     /// <summary>Wiedergabegerät für das Mischpult festlegen.</summary>
     public void SetOutputDevice(int deviceNumber)
     {
-        StopPlayback();
         _playback.DeviceNumber = deviceNumber;
+        _idle.Stop();
+        StopPlayback();
     }
 
     /// <summary>Hält die Mischpult-Wiedergabe an (Position bleibt).</summary>
@@ -1693,6 +1713,7 @@ public sealed partial class MixerViewModel : ObservableObject, IDisposable
         IsPlaying = false;
         StopUpdates();
         ResetMeters();
+        UpdateIdleOutput();
     }
 
     // ───────────── Mixdown ─────────────
@@ -1945,6 +1966,7 @@ public sealed partial class MixerViewModel : ObservableObject, IDisposable
     {
         _levelLoop?.Cancel();
         _recorder.Dispose();
+        _idle.Dispose();
         StopPlayback();
         _playback.PlaybackEnded -= OnPlaybackEnded;
         _playback.Dispose();
@@ -2571,6 +2593,7 @@ public sealed partial class MixerViewModel : ObservableObject, IDisposable
         StopUpdates();
         ResetMeters();
         PlayheadFrame = _playStart;
+        UpdateIdleOutput();
         if (e.Exception is not null)
         {
             _dialogs.ShowError($"Bei der Wiedergabe ist ein Fehler aufgetreten.\n\n{e.Exception.Message}");

@@ -3,7 +3,15 @@
 **MusicWorker** ist eine Windows-Anwendung zum Bearbeiten von Musik, geschrieben in C# mit WPF und .NET 8.
 
 Langfristig soll MusicWorker **Audio-Editor, Mehrspur-Mixer und Noten-Editor** in einem Programm vereinen.
-Version 0.3 bietet einen vollständigen Audio-Editor mit Live-Effekten **und ein Mehrspur-Mischpult** mit Fadern, Panorama, Sends, Effekt-Bussen, Gruppen und Projekten – seit 0.3.2 auch mit **Schnitt-Werkzeugen, Takt-Raster, Loop-Bereich und Rückgängig**, seit 0.4 mit **Hüllkurven (Automation) und Auto-Absenkung**, seit 0.5 mit **Noten-Editor, Instrumenten und MIDI**, seit 0.6 mit **Aufnahme, Metronom, Punch-In und Takes/Comping**, seit 0.7 mit **Autotune, Tonhöhen-Werkzeugen, Spektrogramm und Rauschentfernung**, seit 0.8 mit **automatischer Sicherung, Markern, Handbuch und Update-Hinweis**, seit 0.9 mit **Lautheit in LUFS, FLAC/OGG/M4A, Einzelspuren und Ton aus Videos**, seit 0.10 mit **Fade-Griffen, Mehrfachauswahl, Kopieren/Einfügen von Clips, Spurfarben, Spurhöhe und Umsortieren**, seit 0.11 mit **Presets und fünf neuen Effekten**, seit 0.12 mit **Knackser-Entfernung und spektraler Reparatur**, seit 0.13 mit **Tempo- und Tonart-Erkennung, Tempospur, Akkorden, Arpeggiator und Schlagzeug-Raster**.
+Version 0.3 bietet einen vollständigen Audio-Editor mit Live-Effekten **und ein Mehrspur-Mischpult** mit Fadern, Panorama, Sends, Effekt-Bussen, Gruppen und Projekten – seit 0.3.2 auch mit **Schnitt-Werkzeugen, Takt-Raster, Loop-Bereich und Rückgängig**, seit 0.4 mit **Hüllkurven (Automation) und Auto-Absenkung**, seit 0.5 mit **Noten-Editor, Instrumenten und MIDI**, seit 0.6 mit **Aufnahme, Metronom, Punch-In und Takes/Comping**, seit 0.7 mit **Autotune, Tonhöhen-Werkzeugen, Spektrogramm und Rauschentfernung**, seit 0.8 mit **automatischer Sicherung, Markern, Handbuch und Update-Hinweis**, seit 0.9 mit **Lautheit in LUFS, FLAC/OGG/M4A, Einzelspuren und Ton aus Videos**, seit 0.10 mit **Fade-Griffen, Mehrfachauswahl, Kopieren/Einfügen von Clips, Spurfarben, Spurhöhe und Umsortieren**, seit 0.11 mit **Presets und fünf neuen Effekten**, seit 0.12 mit **Knackser-Entfernung und spektraler Reparatur**, seit 0.13 mit **Tempo- und Tonart-Erkennung, Tempospur, Akkorden, Arpeggiator und Schlagzeug-Raster**, seit 0.14 mit **Notenblatt (Drucken/PDF) und Aufnahme mit geringer Latenz samt Mithören**.
+
+## Notenblatt & Aufnahme (Version 0.14)
+
+| Bereich | Funktionen |
+|---|---|
+| **Notenblatt** | Im Noten-Editor *Notenblatt …*: alle Notenspuren (ohne Schlagzeug) als Noten – mit Titel, Tempoangabe, Taktart, Tonart-Vorzeichen, Violin- oder Bassschlüssel bzw. Klaviersystem bei großem Tonumfang, Notenwerten mit Punktierungen und Haltebögen, Pausen, Balken bei Achteln/Sechzehnteln, Versetzungszeichen und Hilfslinien · Stimmen einzeln oder zusammen, Tonart wählbar (die erkannte Tonart ist vorgewählt) · **Drucken** und **Als PDF speichern** (A4, ohne zusätzlichen PDF-Drucker) |
+| **Geringe Latenz** | Im Mischpult unter „Treiber“: *Standard (MME)*, *WASAPI* (geringe Verzögerung), *WASAPI exklusiv* (sehr gering) oder – wenn ein Audio-Interface installiert ist – *ASIO* · Puffer 5 – 80 ms · der Latenzausgleich für Aufnahmen wird automatisch passend gesetzt (bei ASIO meldet der Treiber seine Verzögerung selbst) · klappt ein Treiber nicht, nimmt MusicWorker automatisch den nächst einfacheren und sagt Bescheid |
+| **Mithören** | *Mithören* einschalten, Spur scharfschalten: Mikrofon oder Instrument sind über Kopfhörer zu hören – beim Aufnehmen und schon vorher; Lautstärke über den Fader der scharfgeschalteten Spur · bei ASIO zusätzlich Wahl der Eingänge (einzeln oder als Stereo-Paar) und Knopf für die ASIO-Einstellungen |
 
 ## Musik-Assistent (Version 0.13)
 
@@ -297,7 +305,7 @@ die Oberfläche nur in `MusicWorker.App`. So können Mehrspur- und Noten-Editor 
 - [x] **v0.11 – Presets & Effekte (Sprint 4):** eigene und fertige Presets, Noise-Gate, Tremolo, Phaser, Stereo-Verbreiterung, Bandsättigung
 - [x] **v0.12 – Restaurierung (Sprint 5):** Knackser- und Klickentfernung, spektrale Reparatur
 - [x] **v0.13 – Musik-Assistent (Sprint 6):** Tempo- und Tonart-Erkennung, Tempospur, Akkorde, Arpeggiator, Schlagzeug-Raster
-- [ ] **v0.14 – Notenblatt & Aufnahme (Sprint 7):** Notenblatt mit Druck/PDF, Aufnahme mit geringer Latenz und Mithören
+- [x] **v0.14 – Notenblatt & Aufnahme (Sprint 7):** Notenblatt mit Druck/PDF, Aufnahme mit geringer Latenz und Mithören
 - [ ] **v0.15 – Stimme & KI (Sprint 8):** De-Esser, Tonhöhe mit Formanterhalt, KI-Gesangstrennung
 - [ ] **v1.0 – Feinschliff (Sprint 9):** Handbuch auf den neuen Stand, Gesamttest
 - [ ] **Danach – Aussehen:** Gestaltung der Oberfläche (übernimmt der Auftraggeber zum Schluss)
@@ -587,6 +595,32 @@ was bewusst so gebaut ist und was sich später leicht ändern lässt.
 - **Schlagzeug-Raster als eigenes Fenster** mit 16 Sechzehnteln pro 4/4-Takt (bei anderen Taktarten passend mehr
   oder weniger Spalten). Grund: Ein Klick-Raster ist für Rhythmen viel schneller als einzelne Noten zu zeichnen;
   die Schläge werden als General-MIDI-Schlagzeugnoten eingefügt und sind danach normale Noten.
+
+### v0.14 – Notenblatt & Aufnahme mit geringer Latenz
+- **Das Notenblatt wird selbst gezeichnet** (Linien, Notenköpfe, Schlüssel und Vorzeichen als Formen) statt mit einer
+  Notensatz-Schriftart. Grund: Es soll auf jedem Windows-PC gleich aussehen, ohne dass eine besondere Schrift
+  installiert sein muss. Die Zeichenlogik liegt im Kern und kann WPF (Bildschirm, Drucker) und SVG (Tests,
+  Vorschau) bedienen – so ließ sich das Notenbild während der Entwicklung auch ohne Windows prüfen.
+- **Bewusst einfache Notation:** Zeiten werden auf Sechzehntel gerundet, gleichzeitig beginnende Noten werden zum
+  Akkord, Noten über Taktstriche bekommen Haltebögen, Synkopen werden am Schlag geteilt. Grund: Das Notenblatt
+  soll gut lesbar sein; eingespielte Noten sind nie ganz exakt. Triolen und mehrere unabhängige Stimmen in einem
+  System werden (noch) nicht dargestellt.
+- **Klaviersystem automatisch:** Liegt eine Spur sowohl hoch als auch tief, wird sie auf Violin- und Bassschlüssel
+  verteilt (Trennung beim eingestrichenen C). Grund: So sehen Klavierstimmen aus wie in gedruckten Noten.
+- **PDF direkt aus MusicWorker** (jede Seite als scharfes Bild mit 300 dpi). Grund: Nicht jeder Rechner hat einen
+  PDF-Drucker, und so braucht es keine Zusatzbibliothek. Drucken geht über den normalen Windows-Druckdialog.
+- **Tonart des Notenblatts:** Wurde im Projekt eine Tonart erkannt, wird sie genommen, sonst wird sie aus den Noten
+  bestimmt (bei Dur/paralleler Moll-Tonart entscheidet der erste Akkord). Sie lässt sich im Fenster ändern.
+- **Treiberwahl mit Rückfall:** ASIO → WASAPI → Standard. Grund: Treiber verhalten sich je nach Gerät sehr
+  unterschiedlich; MusicWorker soll niemals stumm bleiben, sondern dann eben mit etwas mehr Verzögerung spielen
+  und das in der Statuszeile sagen.
+- **Mithören über den Fader der scharfgeschalteten Spur.** Grund: Kein zusätzlicher Regler nötig, und man hört sich
+  so laut, wie die Spur später auch klingt. Damit man auch ohne laufende Wiedergabe mithören kann, öffnet
+  MusicWorker dafür einen eigenen leisen Ausgang, der beim Abspielen automatisch wieder freigegeben wird
+  (ASIO und WASAPI exklusiv erlauben nur einen Ausgang).
+- **Geräte mit anderer Abtastrate** (z. B. Mikrofon mit 48 kHz in einem 44,1-kHz-Projekt) werden beim Aufnehmen
+  hochwertig umgerechnet (gefensterte Sinc-Interpolation). Grund: Im geteilten WASAPI-Modus liefert Windows das
+  Format des Geräts, nicht das des Projekts.
 
 ## Verwendete Bibliotheken
 
