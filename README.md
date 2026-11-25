@@ -2,8 +2,13 @@
 
 **MusicWorker** ist eine Windows-Anwendung zum Bearbeiten von Musik, geschrieben in C# mit WPF und .NET 8.
 
-Langfristig soll MusicWorker **Audio-Editor, Mehrspur-Mixer und Noten-Editor** in einem Programm vereinen.
-Version 0.3 bietet einen vollständigen Audio-Editor mit Live-Effekten **und ein Mehrspur-Mischpult** mit Fadern, Panorama, Sends, Effekt-Bussen, Gruppen und Projekten – seit 0.3.2 auch mit **Schnitt-Werkzeugen, Takt-Raster, Loop-Bereich und Rückgängig**, seit 0.4 mit **Hüllkurven (Automation) und Auto-Absenkung**, seit 0.5 mit **Noten-Editor, Instrumenten und MIDI**, seit 0.6 mit **Aufnahme, Metronom, Punch-In und Takes/Comping**, seit 0.7 mit **Autotune, Tonhöhen-Werkzeugen, Spektrogramm und Rauschentfernung**, seit 0.8 mit **automatischer Sicherung, Markern, Handbuch und Update-Hinweis**, seit 0.9 mit **Lautheit in LUFS, FLAC/OGG/M4A, Einzelspuren und Ton aus Videos**, seit 0.10 mit **Fade-Griffen, Mehrfachauswahl, Kopieren/Einfügen von Clips, Spurfarben, Spurhöhe und Umsortieren**, seit 0.11 mit **Presets und fünf neuen Effekten**, seit 0.12 mit **Knackser-Entfernung und spektraler Reparatur**, seit 0.13 mit **Tempo- und Tonart-Erkennung, Tempospur, Akkorden, Arpeggiator und Schlagzeug-Raster**, seit 0.14 mit **Notenblatt (Drucken/PDF) und Aufnahme mit geringer Latenz samt Mithören**, seit 0.15 mit **De-Esser, natürlicher Tonhöhenänderung und KI-Gesangstrennung**.
+MusicWorker vereint **Audio-Editor, Mehrspur-Mischpult und Noten-Editor** in einem Programm – gedacht für
+Musikliebhaber ohne Vorkenntnisse. **Version 1.0** umfasst:
+
+- **Editor:** Schneiden, Live-Effekte mit Presets (EQ, Hall, Kompressor, Echo, Chorus, Flanger, Phaser, Tremolo, Noise-Gate, Bandsättigung, Stereo-Breite …), Lautheit in LUFS, Tonhöhen-Werkzeuge mit Autotune, Spektrogramm, Restaurierung (Rauschen, Knackser, Störgeräusche) sowie De-Esser, natürliche Tonhöhenänderung und **KI-Gesangstrennung**
+- **Mischpult:** Spuren mit Fadern, Panorama, Sends, Bussen, Gruppen, Hüllkurven und Auto-Absenkung · Schnitt, Fade-Griffe, Mehrfachauswahl, Kopieren/Einfügen · Takt-Raster mit **Tempospur** · Aufnahme mit Punch-In, Takes/Comping, **geringer Latenz (WASAPI/ASIO) und Mithören** · Mixdown, Einzelspuren und viele Formate (WAV, FLAC, MP3, M4A, OGG)
+- **Noten:** Piano-Roll, Instrumente und SoundFonts, MIDI, **Akkorde, Akkordfolgen, Arpeggiator, Schlagzeug-Raster** und ein **Notenblatt** zum Drucken oder als PDF
+- **Sicherheit & Hilfe:** automatische Sicherung, Marker, Handbuch (F1, 61 Seiten) und Update-Hinweis
 
 ## Stimme & KI (Version 0.15)
 
@@ -317,7 +322,7 @@ die Oberfläche nur in `MusicWorker.App`. So können Mehrspur- und Noten-Editor 
 - [x] **v0.13 – Musik-Assistent (Sprint 6):** Tempo- und Tonart-Erkennung, Tempospur, Akkorde, Arpeggiator, Schlagzeug-Raster
 - [x] **v0.14 – Notenblatt & Aufnahme (Sprint 7):** Notenblatt mit Druck/PDF, Aufnahme mit geringer Latenz und Mithören
 - [x] **v0.15 – Stimme & KI (Sprint 8):** De-Esser, Tonhöhe mit Formanterhalt, KI-Gesangstrennung
-- [ ] **v1.0 – Feinschliff (Sprint 9):** Handbuch auf den neuen Stand, Gesamttest
+- [x] **v1.0 – Feinschliff (Sprint 9):** Handbuch auf den neuen Stand, Gesamttest
 - [ ] **Danach – Aussehen:** Gestaltung der Oberfläche (übernimmt der Auftraggeber zum Schluss)
 
 Den Sprint-Plan mit Status gibt es auch als Board in Miro (*MusicWorker – Sprint-Plan*).
@@ -654,6 +659,16 @@ was bewusst so gebaut ist und was sich später leicht ändern lässt.
   Knackser am Anfang.
 - **Im Mischpult wird das Original stummgeschaltet, nicht gelöscht.** Grund: Man kann jederzeit vergleichen oder
   zurück – und mit Strg+Z ist alles wieder wie vorher.
+
+### v1.0 – Feinschliff
+- **Handbuch um neun Kapitel erweitert** (Sicherheit & Marker, Lautheit & Export, Mischpult-Komfort, Presets &
+  Effekte, Reparieren, Musik-Assistent, Notenblatt, geringe Latenz, Stimme & KI) plus ein viertes
+  Schritt-für-Schritt-Projekt (Karaoke-Version), neue Tastenkürzel, Tipps und 22 neue Lexikon-Begriffe.
+  Grund: Das Handbuch soll weiterhin alles für Einsteiger erklären; alle Menünamen wurden mit der App abgeglichen.
+- **Gesamttest vor 1.0:** alle Kern-Tests, der Prüfstand für die ViewModels (inklusive echter KI-Trennung mit dem
+  Original-Modell) und der Kompilier-Check der Oberfläche. Grund: Die Version 1.0 soll als Ganzes stimmig sein.
+- **Gestaltung der Oberfläche bewusst noch nicht verändert.** Grund: Das Aussehen übernimmt der Auftraggeber
+  zum Schluss.
 
 ## Verwendete Bibliotheken
 
