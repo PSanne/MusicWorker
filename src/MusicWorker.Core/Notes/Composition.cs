@@ -258,9 +258,9 @@ public static class Arpeggiator
         switch (pattern)
         {
             case ArpeggioPattern.Down:
-                return [.. pitches.Reverse()];
+                return [.. Enumerable.Reverse(pitches)];
             case ArpeggioPattern.UpDown:
-                return pitches.Length <= 2 ? pitches : [.. pitches, .. pitches.Reverse().Skip(1).Take(pitches.Length - 2)];
+                return pitches.Length <= 2 ? pitches : [.. pitches, .. Enumerable.Reverse(pitches).Skip(1).Take(pitches.Length - 2)];
             case ArpeggioPattern.Alberti:
                 if (pitches.Length < 3)
                 {
