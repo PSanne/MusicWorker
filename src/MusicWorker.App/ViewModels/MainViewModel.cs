@@ -2787,7 +2787,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             ChangeGainCommand, NormalizeCommand, ApplyEqualizerCommand, ApplyReverbCommand, ApplyCompressorCommand, ApplyDelayCommand, ApplyFilterCommand, ApplyDistortionCommand,
             ApplyChorusCommand, ApplyFlangerCommand, TempoPitchCommand,
             FadeInCommand, FadeOutCommand, ReverseCommand, MuteCommand,
-            AnalyzePitchCommand, CorrectPitchCommand, AutotuneCommand, PitchRampCommand, VoiceEffectCommand,
+            AnalyzePitchCommand, CorrectPitchCommand, AutotuneCommand, PitchRampCommand, VoiceEffectCommand, DetectTempoAndKeyCommand,
             MeasureLoudnessCommand, NormalizeLoudnessCommand, DeclickCommand, RepairSpectrumCommand,
             LearnNoiseProfileCommand, RemoveNoiseCommand,
         ];

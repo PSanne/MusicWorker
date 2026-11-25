@@ -3,7 +3,18 @@
 **MusicWorker** ist eine Windows-Anwendung zum Bearbeiten von Musik, geschrieben in C# mit WPF und .NET 8.
 
 Langfristig soll MusicWorker **Audio-Editor, Mehrspur-Mixer und Noten-Editor** in einem Programm vereinen.
-Version 0.3 bietet einen vollständigen Audio-Editor mit Live-Effekten **und ein Mehrspur-Mischpult** mit Fadern, Panorama, Sends, Effekt-Bussen, Gruppen und Projekten – seit 0.3.2 auch mit **Schnitt-Werkzeugen, Takt-Raster, Loop-Bereich und Rückgängig**, seit 0.4 mit **Hüllkurven (Automation) und Auto-Absenkung**, seit 0.5 mit **Noten-Editor, Instrumenten und MIDI**, seit 0.6 mit **Aufnahme, Metronom, Punch-In und Takes/Comping**, seit 0.7 mit **Autotune, Tonhöhen-Werkzeugen, Spektrogramm und Rauschentfernung**, seit 0.8 mit **automatischer Sicherung, Markern, Handbuch und Update-Hinweis**, seit 0.9 mit **Lautheit in LUFS, FLAC/OGG/M4A, Einzelspuren und Ton aus Videos**, seit 0.10 mit **Fade-Griffen, Mehrfachauswahl, Kopieren/Einfügen von Clips, Spurfarben, Spurhöhe und Umsortieren**, seit 0.11 mit **Presets und fünf neuen Effekten**, seit 0.12 mit **Knackser-Entfernung und spektraler Reparatur**.
+Version 0.3 bietet einen vollständigen Audio-Editor mit Live-Effekten **und ein Mehrspur-Mischpult** mit Fadern, Panorama, Sends, Effekt-Bussen, Gruppen und Projekten – seit 0.3.2 auch mit **Schnitt-Werkzeugen, Takt-Raster, Loop-Bereich und Rückgängig**, seit 0.4 mit **Hüllkurven (Automation) und Auto-Absenkung**, seit 0.5 mit **Noten-Editor, Instrumenten und MIDI**, seit 0.6 mit **Aufnahme, Metronom, Punch-In und Takes/Comping**, seit 0.7 mit **Autotune, Tonhöhen-Werkzeugen, Spektrogramm und Rauschentfernung**, seit 0.8 mit **automatischer Sicherung, Markern, Handbuch und Update-Hinweis**, seit 0.9 mit **Lautheit in LUFS, FLAC/OGG/M4A, Einzelspuren und Ton aus Videos**, seit 0.10 mit **Fade-Griffen, Mehrfachauswahl, Kopieren/Einfügen von Clips, Spurfarben, Spurhöhe und Umsortieren**, seit 0.11 mit **Presets und fünf neuen Effekten**, seit 0.12 mit **Knackser-Entfernung und spektraler Reparatur**, seit 0.13 mit **Tempo- und Tonart-Erkennung, Tempospur, Akkorden, Arpeggiator und Schlagzeug-Raster**.
+
+## Musik-Assistent (Version 0.13)
+
+| Bereich | Funktionen |
+|---|---|
+| **Tempo und Tonart erkennen** | Editor: *Tonhöhe & Spektrum → Tempo und Tonart erkennen* zeigt BPM und Tonart (z. B. „a-Moll“) der Auswahl oder der ganzen Datei; die Tonart lässt sich für Autotune übernehmen · Mischpult: im Tempo-Menü *Tempo des gewählten Clips erkennen* (wird auf Wunsch Projekttempo, und der Clip wird so verschoben, dass sein erster Schlag auf einem Takt liegt) und *Tonart des gewählten Clips erkennen* |
+| **Tempospur** | Tempowechsel ab einem bestimmten Takt (z. B. ein langsamer werdender Schluss): *Tempowechsel → am Abspielkopf einfügen*, bearbeiten oder löschen. Raster, Einrasten, Metronom und alle Notenclips folgen dem Tempoverlauf; im Zeitlineal steht „♩ 90“ an jedem Wechsel · Tempowechsel werden im Projekt und in MIDI-Dateien gespeichert und beim MIDI-Import übernommen |
+| **Akkord einfügen** | Im Noten-Editor *Akkord …*: Grundton, Art (Dur, Moll, 7, maj7, m7, vermindert, übermäßig, sus2, sus4), Oktave, Umkehrung und Länge wählen – der Akkord landet am grünen Cursor, danach rückt der Cursor weiter |
+| **Akkordfolge** | *Akkordfolge …*: bekannte Folgen (Pop I–V–vi–IV, 50er, Jazz ii–V–I, 12-Takt-Blues, Moll-Pop, Andalusisch …) in jeder Tonart, auf Wunsch mit Septimen und Bass – die Akkorde werden eng geführt, damit sie weich ineinander übergehen. Eine erkannte Tonart wird vorgeschlagen |
+| **Arpeggiator** | Akkorde nacheinander spielen: aufwärts, abwärts, auf und ab, Alberti oder zufällig · in 1/8, 1/16, Triolen oder 1/32 · über bis zu 3 Oktaven · Tonlänge von gezupft bis gebunden |
+| **Schlagzeug-Raster** | Rhythmus in einem Raster aus Kästchen anklicken (12 Instrumente × 16 Sechzehntel) oder einen fertigen Rhythmus wählen (Rock, Pop, Disco/House, Hip-Hop, Ballade, Funk, Reggae, Shuffle, Bossa Nova, Walzer) und für mehrere Takte einfügen · ein vorhandener Takt wird zum Weiterbearbeiten geladen |
 
 ## Restaurierung (Version 0.12)
 
@@ -285,7 +296,7 @@ die Oberfläche nur in `MusicWorker.App`. So können Mehrspur- und Noten-Editor 
 - [x] **v0.10 – Mischpult-Komfort (Sprint 3):** Fade-Griffe am Clip, Mehrfachauswahl, Kopieren/Einfügen von Clips, Spuren sortieren, Farben, Spurhöhe
 - [x] **v0.11 – Presets & Effekte (Sprint 4):** eigene und fertige Presets, Noise-Gate, Tremolo, Phaser, Stereo-Verbreiterung, Bandsättigung
 - [x] **v0.12 – Restaurierung (Sprint 5):** Knackser- und Klickentfernung, spektrale Reparatur
-- [ ] **v0.13 – Musik-Assistent (Sprint 6):** Tempo- und Tonart-Erkennung, Tempospur, Akkorde, Arpeggiator, Schlagzeug-Raster
+- [x] **v0.13 – Musik-Assistent (Sprint 6):** Tempo- und Tonart-Erkennung, Tempospur, Akkorde, Arpeggiator, Schlagzeug-Raster
 - [ ] **v0.14 – Notenblatt & Aufnahme (Sprint 7):** Notenblatt mit Druck/PDF, Aufnahme mit geringer Latenz und Mithören
 - [ ] **v0.15 – Stimme & KI (Sprint 8):** De-Esser, Tonhöhe mit Formanterhalt, KI-Gesangstrennung
 - [ ] **v1.0 – Feinschliff (Sprint 9):** Handbuch auf den neuen Stand, Gesamttest
@@ -552,6 +563,30 @@ was bewusst so gebaut ist und was sich später leicht ändern lässt.
   gewohnt; wer gezielt eine Störung „ausschneiden“ will, kann sie im Spektrogramm einrahmen.
 - **Neues Menü „Reparieren“**, in das auch die Rauschentfernung umgezogen ist. Grund: Alles, was Aufnahmen
   rettet, ist an einer Stelle zu finden.
+
+### v0.13 – Musik-Assistent
+- **Tempo-Erkennung über eine „Einsatzkurve“ und Kammfilter.** MusicWorker misst, wo neue Klänge einsetzen
+  (Bass-Bereich doppelt gewichtet, weil Bass-Trommel und Bass den Grundschlag tragen), und prüft für jedes Tempo
+  zwischen 60 und 180 BPM, wie gut ein gleichmäßiges Raster auf diese Einsätze passt. Grund: Das ist robust und
+  braucht keine Zusatzbibliothek.
+- **Doppelt oder halb so schnell wird gezielt entschieden:** Liegt zwischen den Schlägen fast genauso viel wie auf
+  ihnen, ist das schnellere Raster der eigentliche Grundschlag. Grund: Die häufigste Fehlerquelle bei der
+  Tempo-Erkennung ist die Oktave (60 statt 120 BPM). Weil auch Menschen hier verschieden empfinden, bietet der
+  Dialog im Mischpult zusätzlich „halb“ und „doppelt“ an.
+- **Tonart nach Krumhansl-Schmuckler:** Die Verteilung der zwölf Tonstufen wird mit typischen Dur- und
+  Moll-Profilen verglichen. Grund: bewährtes, nachvollziehbares Verfahren. Moll-Tonarten werden in deutscher
+  Schreibweise klein geschrieben („a-Moll“, „Es-Dur“).
+- **Tempowechsel gelten ab Taktanfängen** und werden in Ticks (musikalischer Zeit) gespeichert. Grund: Dann bleiben
+  Noten, Raster und Metronom immer im Takt; Audioaufnahmen bleiben unverändert an ihrer Stelle (sie werden
+  durch einen Tempowechsel nicht gedehnt). Ein Notenclip, der verschoben wird, wird bei Tempowechseln neu
+  berechnet, weil seine Noten dann in einem anderen Tempo liegen können.
+- **Akkordfolgen werden „eng geführt“:** Für jeden Akkord wird die Umkehrung gewählt, die am nächsten am vorigen
+  liegt. Grund: So klingt eine Begleitung wie von einem Pianisten gespielt statt in großen Sprüngen.
+- **Arpeggiator und Akkorde verändern echte Noten** (kein Live-Effekt). Grund: Das Ergebnis ist sofort im
+  Noten-Editor sichtbar, lässt sich weiter bearbeiten, als MIDI exportieren und mit Strg+Z zurücknehmen.
+- **Schlagzeug-Raster als eigenes Fenster** mit 16 Sechzehnteln pro 4/4-Takt (bei anderen Taktarten passend mehr
+  oder weniger Spalten). Grund: Ein Klick-Raster ist für Rhythmen viel schneller als einzelne Noten zu zeichnen;
+  die Schläge werden als General-MIDI-Schlagzeugnoten eingefügt und sind danach normale Noten.
 
 ## Verwendete Bibliotheken
 

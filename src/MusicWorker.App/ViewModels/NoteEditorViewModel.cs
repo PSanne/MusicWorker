@@ -326,7 +326,7 @@ public sealed partial class NoteEditorViewModel : ObservableObject, IDisposable
                 break;
             case PianoRollAction.Seek:
                 StepCursorTick = Math.Max(0, Snap(edit.Tick));
-                _mixer.Seek(Clip.StartFrame + _mixer.TicksToFrames(StepCursorTick));
+                _mixer.Seek(Clip.StartFrame + _mixer.ClipTicksToFrames(Clip.StartFrame, StepCursorTick));
                 break;
         }
     }
@@ -976,7 +976,7 @@ public sealed partial class NoteEditorViewModel : ObservableObject, IDisposable
     {
         if (Clip is { } clip)
         {
-            PlayheadTick = _mixer.FramesToTicks(_mixer.PlayheadFrame - clip.StartFrame);
+            PlayheadTick = _mixer.ClipFramesToTicks(clip.StartFrame, _mixer.PlayheadFrame - clip.StartFrame);
         }
     }
 

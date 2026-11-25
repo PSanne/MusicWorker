@@ -1,4 +1,5 @@
 using MusicWorker.Core.Mixing;
+using MusicWorker.Core.Notes;
 using MusicWorker.Core.Recording;
 using NAudio.Wave;
 
@@ -17,7 +18,7 @@ internal sealed class MixEngineSampleProvider : ISampleProvider
     private readonly MixEngine _engine;
     private readonly Func<long> _endFrame;
     private readonly Func<(bool Active, long Start, long End)> _loop;
-    private readonly Func<(bool Enabled, double Bpm, int BeatsPerBar)> _metronome;
+    private readonly Func<(bool Enabled, TempoMap Tempo, int BeatsPerBar)> _metronome;
     private readonly Metronome _click;
     private readonly object _lock = new();
     private readonly List<(long Delivered, long Timeline)> _jumps = [];
@@ -34,13 +35,13 @@ internal sealed class MixEngineSampleProvider : ISampleProvider
         MixEngine engine,
         Func<long> endFrame,
         Func<(bool Active, long Start, long End)> loop,
-        Func<(bool Enabled, double Bpm, int BeatsPerBar)>? metronome = null,
+        Func<(bool Enabled, TempoMap Tempo, int BeatsPerBar)>? metronome = null,
         long countInFrames = 0)
     {
         _engine = engine;
         _endFrame = endFrame;
         _loop = loop;
-        _metronome = metronome ?? (() => (false, 120, 4));
+        _metronome = metronome ?? (() => (false, TempoMap.Constant(120), 4));
         _click = new Metronome(engine.SampleRate);
         _countIn = Math.Max(0, countInFrames);
         _jumps.Add((0, engine.Position - _countIn));
@@ -91,7 +92,7 @@ internal sealed class MixEngineSampleProvider : ISampleProvider
             AddJump(_delivered, pending);
         }
 
-        var (clickOn, bpm, beatsPerBar) = _metronome();
+        var (clickOn, tempo, beatsPerBar) = _metronome();
         int wanted = count / 2;
         int written = 0;
 
@@ -101,7 +102,7 @@ internal sealed class MixEngineSampleProvider : ISampleProvider
             int frames = (int)Math.Min(wanted, _countIn);
             var span = buffer.AsSpan(offset, frames * 2);
             span.Clear();
-            _click.Render(span, _engine.Position - _countIn, bpm, beatsPerBar);
+            _click.Render(span, _engine.Position - _countIn, tempo, beatsPerBar);
             _countIn -= frames;
             written += frames;
         }
@@ -130,7 +131,7 @@ internal sealed class MixEngineSampleProvider : ISampleProvider
             _engine.Render(span);
             if (clickOn)
             {
-                _click.Render(span, position, bpm, beatsPerBar);
+                _click.Render(span, position, tempo, beatsPerBar);
             }
 
             written += frames;

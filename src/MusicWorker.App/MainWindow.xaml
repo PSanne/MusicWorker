@@ -385,6 +385,8 @@
             </MenuItem>
             <MenuItem Header="_Tonhöhe &amp; Spektrum">
                 <MenuItem Header="Tonhöhe _erkennen" Command="{Binding AnalyzePitchCommand}" />
+                <MenuItem Header="Tempo und Ton_art erkennen …" Command="{Binding DetectTempoAndKeyCommand}"
+                          ToolTip="Erkennt BPM und Tonart (z. B. a-Moll) der Auswahl oder der ganzen Datei – die Tonart lässt sich für Autotune übernehmen" />
                 <MenuItem Header="Tonhöhe _korrigieren …" Command="{Binding CorrectPitchCommand}" />
                 <MenuItem Header="_Autotune …" Command="{Binding AutotuneCommand}" />
                 <MenuItem Header="Tonhöhen-_Verlauf …" Command="{Binding PitchRampCommand}" />
@@ -1637,7 +1639,26 @@
                             <TextBlock Margin="8,0,4,0" VerticalAlignment="Center" Text="Tempo" />
                             <TextBox Width="44" VerticalAlignment="Center" HorizontalContentAlignment="Right" Text="{Binding Mixer.BpmText, UpdateSourceTrigger=LostFocus}"
                                      KeyDown="OnCommitTextBoxKeyDown" ToolTip="Tempo in Schlägen pro Minute (20 … 300) – mit Eingabetaste übernehmen" />
-                            <TextBlock Margin="4,0,8,0" VerticalAlignment="Center" Text="BPM" />
+                            <TextBlock Margin="4,0,4,0" VerticalAlignment="Center" Text="BPM" />
+                            <Menu Background="Transparent" VerticalAlignment="Center">
+                                <MenuItem Header="{Binding Mixer.TempoSummary}" ToolTip="Tempospur: das Tempo ab einem bestimmten Takt ändern (z. B. langsamer werdender Schluss)">
+                                    <MenuItem Header="Tempowechsel am Abspielkopf einfügen …" Command="{Binding Mixer.AddTempoChangeCommand}" />
+                                    <MenuItem Header="Tempowechsel bearbeiten" ItemsSource="{Binding Mixer.TempoChangeItems}" IsEnabled="{Binding Mixer.HasTempoChanges}">
+                                        <MenuItem.ItemContainerStyle>
+                                            <Style TargetType="MenuItem">
+                                                <Setter Property="Header" Value="{Binding Header}" />
+                                                <Setter Property="Command" Value="{Binding DataContext.Mixer.EditTempoChangeCommand, RelativeSource={RelativeSource AncestorType=Window}}" />
+                                                <Setter Property="CommandParameter" Value="{Binding Index}" />
+                                            </Style>
+                                        </MenuItem.ItemContainerStyle>
+                                    </MenuItem>
+                                    <MenuItem Header="Alle Tempowechsel entfernen" Command="{Binding Mixer.RemoveTempoChangesCommand}" IsEnabled="{Binding Mixer.HasTempoChanges}" />
+                                    <Separator />
+                                    <MenuItem Header="Tempo des gewählten Clips erkennen …" Command="{Binding Mixer.DetectClipTempoCommand}" />
+                                    <MenuItem Header="Tonart des gewählten Clips erkennen" Command="{Binding Mixer.DetectClipKeyCommand}" />
+                                    <MenuItem Header="{Binding Mixer.ProjectKeyText}" IsEnabled="False" />
+                                </MenuItem>
+                            </Menu>
                             <ComboBox Width="52" VerticalAlignment="Center" ItemsSource="{Binding Mixer.BeatsPerBarChoices}" SelectedItem="{Binding Mixer.BeatsPerBar}"
                                       ItemStringFormat="{}{0}/4" ToolTip="Taktart (Schläge pro Takt)" />
                             <ToggleButton Style="{StaticResource ChannelToggle}" Margin="6,0,0,0" Content="Einrasten" IsChecked="{Binding Mixer.IsSnapEnabled}"
@@ -1970,6 +1991,7 @@
                                                        OpenClipCommand="{Binding Mixer.OpenClipInEditorCommand}"
                                                        SetLoopCommand="{Binding Mixer.SetLoopRangeCommand}"
                                                        Bpm="{Binding Mixer.Bpm}"
+                                                       TempoMap="{Binding Mixer.Tempo}"
                                                        BeatsPerBar="{Binding Mixer.BeatsPerBar}"
                                                        ShowGrid="{Binding Mixer.ShowGrid}"
                                                        IsLooping="{Binding Mixer.IsLooping}"
@@ -2117,6 +2139,16 @@
                             <Separator />
                             <Button Style="{StaticResource ToolButton}" Command="{Binding Notes.SplitVoicesCommand}" Content="Stimmen aufteilen …"
                                     ToolTip="Gleichzeitige Noten auf mehrere Spuren verteilen (z. B. Melodie und Begleitung)" />
+                            <Separator />
+                            <TextBlock Margin="4,0" VerticalAlignment="Center" Text="Komponieren" />
+                            <Button Style="{StaticResource ToolButton}" Command="{Binding Notes.InsertChordCommand}" Content="Akkord …"
+                                    ToolTip="Einen Akkord (z. B. Am, G7) am grünen Cursor einfügen – danach rückt der Cursor weiter" />
+                            <Button Style="{StaticResource ToolButton}" Command="{Binding Notes.InsertProgressionCommand}" Content="Akkordfolge …"
+                                    ToolTip="Eine ganze Akkordfolge in einer Tonart einfügen (Pop, Blues, Jazz …)" />
+                            <Button Style="{StaticResource ToolButton}" Command="{Binding Notes.ArpeggiateCommand}" Content="Arpeggiator …"
+                                    ToolTip="Akkorde als gebrochene Akkorde spielen (aufwärts, abwärts, Alberti …)" />
+                            <Button Style="{StaticResource ToolButton}" Command="{Binding Notes.EditDrumsCommand}" Content="Schlagzeug-Raster …"
+                                    ToolTip="Schlagzeug-Rhythmus im Raster anklicken oder einen fertigen Rhythmus wählen (Rock, Pop, Hip-Hop …)" />
                             <Separator />
                             <Button Style="{StaticResource ToolButton}" Click="OnPianoRollZoomInClick" ToolTip="Vergrößern (Strg+Mausrad)">
                                 <TextBlock Style="{StaticResource Glyph}" Text="&#xE8A3;" />

@@ -28,6 +28,14 @@ public sealed class ProjectFile
 
     public int BeatsPerBar { get; set; } = 4;
 
+    /// <summary>Tonart des Projekts: Grundton 0 = C … 11 = H, -1 = unbekannt.</summary>
+    public int KeyTonic { get; set; } = -1;
+
+    public bool KeyMinor { get; set; }
+
+    /// <summary>Tempowechsel nach dem Anfang (Tempospur).</summary>
+    public List<ProjectTempoChange> TempoChanges { get; set; } = [];
+
     public bool Snap { get; set; }
 
     public long LoopStart { get; set; }
@@ -45,6 +53,14 @@ public sealed class ProjectFile
 
     /// <summary>Nur in automatischen Sicherungen: wo das Projekt ursprünglich gespeichert war.</summary>
     public string? OriginalPath { get; set; }
+}
+
+public sealed class ProjectTempoChange
+{
+    /// <summary>Position in Ticks (480 pro Viertel) vom Songanfang.</summary>
+    public long Tick { get; set; }
+
+    public double Bpm { get; set; } = 120;
 }
 
 public sealed class ProjectMarker

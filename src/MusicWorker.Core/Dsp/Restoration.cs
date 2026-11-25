@@ -227,6 +227,8 @@ public enum SpectralRepairMode
 /// <param name="endFrame">Ende der Störung.</param>
 /// <param name="lowHz">Untere Frequenz (0 = ganz unten).</param>
 /// <param name="highHz">Obere Frequenz (≥ halbe Abtastrate = ganz oben).</param>
+/// <param name="mode">Ersetzen durch die Umgebung oder nur abschwächen.</param>
+/// <param name="reductionDb">Abschwächung in dB (nur beim Abschwächen).</param>
 public sealed class SpectralRepairEffect(
     long startFrame, long endFrame, double lowHz, double highHz, SpectralRepairMode mode = SpectralRepairMode.Replace, double reductionDb = 24) : IAudioEffect
 {

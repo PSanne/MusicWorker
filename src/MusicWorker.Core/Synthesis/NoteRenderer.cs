@@ -18,17 +18,33 @@ public static class NoteRenderer
         int sampleRate,
         long minimumFrames = 0,
         double maxTailSeconds = 3,
+        CancellationToken cancellationToken = default) =>
+        Render(notes, instrument, TempoMap.Constant(bpm), 0, sampleRate, minimumFrames, maxTailSeconds, cancellationToken);
+
+    /// <summary>
+    /// Wie oben, aber mit Tempowechseln: Der Clip beginnt bei <paramref name="clipStartFrame"/> auf der Zeitleiste,
+    /// jede Note erklingt dort, wo sie laut <paramref name="tempo"/> hingehört.
+    /// </summary>
+    public static AudioBuffer Render(
+        IReadOnlyList<Note> notes,
+        InstrumentSpec instrument,
+        TempoMap tempo,
+        long clipStartFrame,
+        int sampleRate,
+        long minimumFrames = 0,
+        double maxTailSeconds = 3,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(notes);
         ArgumentNullException.ThrowIfNull(instrument);
+        ArgumentNullException.ThrowIfNull(tempo);
         var engine = instrument.CreateEngine(sampleRate);
 
         var events = notes
             .SelectMany(n => new[]
             {
-                (Frame: MusicalTime.TicksToFrames(n.Start, bpm, sampleRate), On: true, n.Pitch, n.Velocity),
-                (Frame: MusicalTime.TicksToFrames(n.End, bpm, sampleRate), On: false, n.Pitch, n.Velocity),
+                (Frame: tempo.ClipTicksToFrames(clipStartFrame, n.Start, sampleRate), On: true, n.Pitch, n.Velocity),
+                (Frame: tempo.ClipTicksToFrames(clipStartFrame, n.End, sampleRate), On: false, n.Pitch, n.Velocity),
             })
             .OrderBy(e => e.Frame)
             .ThenBy(e => e.On) // Note-Aus vor Note-An an derselben Stelle

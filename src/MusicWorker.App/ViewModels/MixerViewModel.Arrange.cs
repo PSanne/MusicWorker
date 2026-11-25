@@ -141,7 +141,7 @@ public sealed partial class MixerViewModel
         long start = Math.Max(0, move.NewStart);
         if (IsSnapEnabled)
         {
-            start = (long)Math.Round(Math.Round(start / BeatFrames) * BeatFrames);
+            start = SnapToBeat(start);
         }
 
         long delta = start - move.Anchor.StartFrame;
@@ -252,7 +252,7 @@ public sealed partial class MixerViewModel
         long at = PlayheadFrame;
         if (IsSnapEnabled)
         {
-            at = (long)Math.Round(Math.Round(at / BeatFrames) * BeatFrames);
+            at = SnapToBeat(at);
         }
 
         var pasted = Paste(items, at);

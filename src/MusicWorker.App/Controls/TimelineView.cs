@@ -7,6 +7,7 @@ using MusicWorker.App.Helpers;
 using MusicWorker.App.ViewModels;
 using MusicWorker.Core.Editing;
 using MusicWorker.Core.Mixing;
+using MusicWorker.Core.Notes;
 using MusicWorker.Core.Visualization;
 
 namespace MusicWorker.App.Controls;
@@ -82,6 +83,11 @@ public sealed class TimelineView : FrameworkElement
         nameof(Bpm), typeof(double), typeof(TimelineView),
         new FrameworkPropertyMetadata(120.0, FrameworkPropertyMetadataOptions.AffectsRender));
 
+    /// <summary>Tempoverlauf mit Tempowechseln (null = gleichbleibend <see cref="Bpm"/>).</summary>
+    public static readonly DependencyProperty TempoMapProperty = DependencyProperty.Register(
+        nameof(TempoMap), typeof(TempoMap), typeof(TimelineView),
+        new FrameworkPropertyMetadata(null, FrameworkPropertyMetadataOptions.AffectsRender));
+
     public static readonly DependencyProperty BeatsPerBarProperty = DependencyProperty.Register(
         nameof(BeatsPerBar), typeof(int), typeof(TimelineView),
         new FrameworkPropertyMetadata(4, FrameworkPropertyMetadataOptions.AffectsRender));
@@ -143,6 +149,8 @@ public sealed class TimelineView : FrameworkElement
     private static readonly Pen BeatPen = Frozen(new Pen(Frozen(new SolidColorBrush(Color.FromArgb(0x1C, 0xFF, 0xFF, 0xFF))), 1));
     private static readonly Pen BarPen = Frozen(new Pen(Frozen(new SolidColorBrush(Color.FromArgb(0x40, 0xFF, 0xFF, 0xFF))), 1));
     private static readonly Brush BarTextBrush = Frozen(new SolidColorBrush(Color.FromArgb(0x90, 0xFF, 0xFF, 0xFF)));
+    private static readonly Brush TempoBrush = Frozen(new SolidColorBrush(Color.FromRgb(0xFF, 0xB3, 0x47)));
+    private static readonly Pen TempoPen = Frozen(new Pen(TempoBrush, 1.5));
     private static readonly Brush LoopActiveBrush = Frozen(new SolidColorBrush(Color.FromArgb(0x90, 0x4C, 0xAF, 0x50)));
     private static readonly Brush LoopInactiveBrush = Frozen(new SolidColorBrush(Color.FromArgb(0x50, 0x9E, 0x9E, 0x9E)));
     private static readonly Brush LoopLaneBrush = Frozen(new SolidColorBrush(Color.FromArgb(0x14, 0x4C, 0xAF, 0x50)));
@@ -347,6 +355,12 @@ public sealed class TimelineView : FrameworkElement
         set => SetValue(BpmProperty, value);
     }
 
+    public TempoMap? TempoMap
+    {
+        get => (TempoMap?)GetValue(TempoMapProperty);
+        set => SetValue(TempoMapProperty, value);
+    }
+
     public int BeatsPerBar
     {
         get => (int)GetValue(BeatsPerBarProperty);
@@ -492,6 +506,7 @@ public sealed class TimelineView : FrameworkElement
         EnsureView();
         double pixelsPerDip = VisualTreeHelper.GetDpi(this).PixelsPerDip;
         DrawRuler(dc, width, pixelsPerDip);
+        DrawTempoChanges(dc, width, pixelsPerDip);
 
         var tracks = Tracks;
         if (tracks is null || tracks.Count == 0)
@@ -827,7 +842,7 @@ public sealed class TimelineView : FrameworkElement
         }
     }
 
-    /// <summary>Takt-Raster: feine Linien pro Schlag, kräftigere pro Takt (mit Taktnummer).</summary>
+    /// <summary>Takt-Raster: feine Linien pro Schlag, kräftigere pro Takt (mit Taktnummer) – folgt Tempowechseln.</summary>
     private void DrawGrid(DrawingContext dc, double width, double height, double pixelsPerDip)
     {
         if (!ShowGrid || Bpm <= 0 || SampleRate <= 0)
@@ -835,34 +850,58 @@ public sealed class TimelineView : FrameworkElement
             return;
         }
 
-        double beatFrames = 60.0 / Bpm * SampleRate;
-        double beatPixels = beatFrames / _viewLength * width;
+        var tempo = TempoMap ?? TempoMap.Constant(Bpm);
+        double fastest = tempo.Changes.Max(c => c.Bpm);
+        double beatPixelsMin = 60.0 / fastest * SampleRate / _viewLength * width;
         int beatsPerBar = Math.Max(1, BeatsPerBar);
-        double barPixels = beatPixels * beatsPerBar;
-        if (barPixels < 4)
+        if (beatPixelsMin * beatsPerBar < 4)
         {
             return; // zu weit herausgezoomt
         }
 
-        bool drawBeats = beatPixels >= 7;
-        int barLabelEvery = barPixels >= 28 ? 1 : (int)Math.Ceiling(28 / barPixels);
-        long first = (long)Math.Floor(_viewStart / beatFrames);
-        long last = (long)Math.Ceiling((_viewStart + _viewLength) / beatFrames);
+        double barPixelsMin = beatPixelsMin * beatsPerBar;
+        int barLabelEvery = barPixelsMin >= 28 ? 1 : (int)Math.Ceiling(28 / barPixelsMin);
+        long first = (long)Math.Floor(tempo.FramesToTicksExact(_viewStart, SampleRate) / MusicalTime.TicksPerQuarter);
+        long last = (long)Math.Ceiling(tempo.FramesToTicksExact(_viewStart + _viewLength, SampleRate) / MusicalTime.TicksPerQuarter);
+        double lastBeatX = double.NegativeInfinity;
         for (long beat = Math.Max(0, first); beat <= last; beat++)
         {
             bool isBar = beat % beatsPerBar == 0;
-            if (!isBar && !drawBeats)
+            double x = Math.Round(FrameToX(tempo.TicksToFramesExact(beat * MusicalTime.TicksPerQuarter, SampleRate))) + 0.5;
+            if (!isBar && x - lastBeatX < 7)
             {
-                continue;
+                continue; // Schläge zu dicht – nur Takte zeichnen
             }
 
-            double x = Math.Round(FrameToX(beat * beatFrames)) + 0.5;
+            lastBeatX = x;
             dc.DrawLine(isBar ? BarPen : BeatPen, new Point(x, RulerHeight), new Point(x, height));
             long bar = beat / beatsPerBar;
             if (isBar && bar % barLabelEvery == 0)
             {
                 dc.DrawText(Text((bar + 1).ToString(CultureInfo.CurrentCulture), 9, BarTextBrush, pixelsPerDip), new Point(x + 2, RulerHeight + 1));
             }
+        }
+    }
+
+    /// <summary>Tempowechsel als kleine Beschriftung im Lineal („♩ 90“).</summary>
+    private void DrawTempoChanges(DrawingContext dc, double width, double pixelsPerDip)
+    {
+        if (TempoMap is not { IsConstant: false } tempo || SampleRate <= 0)
+        {
+            return;
+        }
+
+        foreach (var change in tempo.Changes)
+        {
+            double x = FrameToX(tempo.TicksToFramesExact(change.Tick, SampleRate));
+            if (x < -60 || x > width)
+            {
+                continue;
+            }
+
+            dc.DrawLine(TempoPen, new Point(x, RulerHeight - 9), new Point(x, RulerHeight));
+            dc.DrawText(Text(string.Format(CultureInfo.CurrentCulture, "\u2669 {0:0.#}", change.Bpm), 9, TempoBrush, pixelsPerDip),
+                new Point(x + 3, RulerHeight - 12));
         }
     }
 

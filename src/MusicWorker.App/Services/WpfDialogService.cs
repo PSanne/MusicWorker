@@ -96,6 +96,12 @@ public sealed class WpfDialogService : IDialogService
         return dialog.ShowDialog() == true ? dialog.Result : null;
     }
 
+    public DrumGridResult? EditDrumPattern(DrumGridRequest request)
+    {
+        var window = new DrumGridWindow(request) { Owner = Owner };
+        return window.ShowDialog() == true ? window.Result : null;
+    }
+
     public bool Confirm(string message, string title)
     {
         var result = Owner is { } owner

@@ -8,6 +8,7 @@ using CommunityToolkit.Mvvm.Input;
 using MusicWorker.App.Audio;
 using MusicWorker.App.Helpers;
 using MusicWorker.App.Services;
+using MusicWorker.Core.Analysis;
 using MusicWorker.Core.Audio;
 using MusicWorker.Core.Editing;
 using MusicWorker.Core.Dsp;
@@ -409,7 +410,7 @@ public sealed partial class MixerViewModel : ObservableObject, IDisposable
         long start = Math.Max(0, move.NewStart);
         if (IsSnapEnabled)
         {
-            start = (long)Math.Round(Math.Round(start / BeatFrames) * BeatFrames); // auf den nächsten Schlag einrasten
+            start = SnapToBeat(start); // auf den nächsten Schlag einrasten
         }
 
         var clip = move.Clip;
@@ -465,9 +466,9 @@ public sealed partial class MixerViewModel : ObservableObject, IDisposable
         ClipViewModel right;
         if (clip.Notes is { } notes)
         {
-            long tick = Math.Clamp(FramesToTicks(at - clip.StartFrame), 1, Math.Max(1, clip.LengthTicks - 1));
+            long tick = Math.Clamp(ClipFramesToTicks(clip.StartFrame, at - clip.StartFrame), 1, Math.Max(1, clip.LengthTicks - 1));
             var (leftNotes, rightNotes) = NoteTools.Split(notes, tick);
-            right = CreateNoteClip(clip.Track, rightNotes, Math.Max(1, clip.LengthTicks - tick), clip.StartFrame + TicksToFrames(tick));
+            right = CreateNoteClip(clip.Track, rightNotes, Math.Max(1, clip.LengthTicks - tick), clip.StartFrame + ClipTicksToFrames(clip.StartFrame, tick));
             UpdateNoteClip(clip, leftNotes, tick);
         }
         else
@@ -519,7 +520,7 @@ public sealed partial class MixerViewModel : ObservableObject, IDisposable
         Flatten(next);
         if (clip.Notes is { } notes && next.Notes is { } nextNotes)
         {
-            long offset = FramesToTicks(next.StartFrame - clip.StartFrame);
+            long offset = ClipFramesToTicks(clip.StartFrame, next.StartFrame - clip.StartFrame);
             UpdateNoteClip(clip, NoteTools.Merge(notes, nextNotes, offset), Math.Max(clip.LengthTicks, offset + next.LengthTicks));
         }
         else
@@ -904,8 +905,8 @@ public sealed partial class MixerViewModel : ObservableObject, IDisposable
         long clipStart = clip?.StartFrame ?? BarStart(first);
         var converted = notes.Select(n => new Note(
             n.Pitch,
-            Math.Max(0, FramesToTicks(n.Start - clipStart)),
-            Math.Max(MusicalTime.TicksPerQuarter / 16, FramesToTicks(n.End - n.Start)),
+            Math.Max(0, ClipFramesToTicks(clipStart, n.Start - clipStart)),
+            Math.Max(MusicalTime.TicksPerQuarter / 16, FramesToTicks(n.End) - FramesToTicks(n.Start)),
             n.Velocity)).ToArray();
         long bar = MusicalTime.TicksPerBar(BeatsPerBar);
         long end = (NoteTools.EndOf(converted) + bar - 1) / bar * bar;
@@ -1046,7 +1047,7 @@ public sealed partial class MixerViewModel : ObservableObject, IDisposable
     /// <summary>Erzeugt einen Notenclip und berechnet seinen Klang im Hintergrund.</summary>
     public ClipViewModel CreateNoteClip(TrackViewModel track, IReadOnlyList<Note> notes, long lengthTicks, long startFrame)
     {
-        var clip = new ClipViewModel(track, notes, lengthTicks, Math.Max(0, startFrame), TicksToFrames(lengthTicks), SampleRate);
+        var clip = new ClipViewModel(track, notes, lengthTicks, Math.Max(0, startFrame), ClipTicksToFrames(Math.Max(0, startFrame), lengthTicks), SampleRate);
         RequestRender(clip, immediate: true);
         return clip;
     }
@@ -1056,7 +1057,7 @@ public sealed partial class MixerViewModel : ObservableObject, IDisposable
     {
         clip.Notes = notes;
         clip.LengthTicks = Math.Max(1, lengthTicks);
-        clip.NoteLengthFrames = TicksToFrames(clip.LengthTicks);
+        clip.NoteLengthFrames = ClipTicksToFrames(clip.StartFrame, clip.LengthTicks);
         IsModified = true;
         TimelineVersion++;
         OnPropertyChanged(nameof(PositionText));
@@ -1066,9 +1067,9 @@ public sealed partial class MixerViewModel : ObservableObject, IDisposable
     /// <summary>Für die Undo-Aufzeichnung aus dem Noten-Editor.</summary>
     public void RecordNoteUndo() => RecordUndo();
 
-    public long TicksToFrames(long ticks) => MusicalTime.TicksToFrames(ticks, Bpm, SampleRate);
+    public long TicksToFrames(long ticks) => Tempo.TicksToFrames(ticks, SampleRate);
 
-    public long FramesToTicks(long frames) => MusicalTime.FramesToTicks(frames, Bpm, SampleRate);
+    public long FramesToTicks(long frames) => Tempo.FramesToTicks(frames, SampleRate);
 
     /// <summary>Anfang des Takts, in dem <paramref name="frame"/> liegt.</summary>
     public long BarStart(long frame)
@@ -1083,12 +1084,13 @@ public sealed partial class MixerViewModel : ObservableObject, IDisposable
         foreach (var clip in Tracks.SelectMany(t => t.Clips).Where(c => c.NeedsRender).ToArray())
         {
             int version = clip.RenderVersion;
-            var (notes, spec, bpm, rate, length) = (clip.Notes!, clip.Track.Instrument ?? new InstrumentSpec(), Bpm, SampleRate, clip.NoteLengthFrames);
-            var audio = await Task.Run(() => NoteRenderer.Render(notes, spec, bpm, rate, length));
+            var (notes, spec, tempo, start, rate, length) = (clip.Notes!, clip.Track.Instrument ?? new InstrumentSpec(), Tempo, clip.StartFrame, SampleRate, clip.NoteLengthFrames);
+            var audio = await Task.Run(() => NoteRenderer.Render(notes, spec, tempo, start, rate, length));
             if (clip.RenderVersion == version)
             {
                 clip.Audio = audio;
                 clip.RenderedVersion = version;
+                clip.RenderedStartFrame = start;
             }
         }
 
@@ -1118,10 +1120,11 @@ public sealed partial class MixerViewModel : ObservableObject, IDisposable
             }
 
             var spec = clip.Track.Instrument ?? new InstrumentSpec();
-            double bpm = Bpm;
+            var tempo = Tempo;
+            long start = clip.StartFrame;
             int rate = SampleRate;
             long length = clip.NoteLengthFrames;
-            var audio = await Task.Run(() => NoteRenderer.Render(notes, spec, bpm, rate, length));
+            var audio = await Task.Run(() => NoteRenderer.Render(notes, spec, tempo, start, rate, length));
             if (clip.RenderVersion != version)
             {
                 return;
@@ -1129,6 +1132,7 @@ public sealed partial class MixerViewModel : ObservableObject, IDisposable
 
             clip.Audio = audio;
             clip.RenderedVersion = version;
+            clip.RenderedStartFrame = start;
             _engine?.Update(BuildSnapshot());
             TimelineVersion++;
         }
@@ -1143,7 +1147,7 @@ public sealed partial class MixerViewModel : ObservableObject, IDisposable
     {
         foreach (var clip in Tracks.Where(t => only is null || ReferenceEquals(t, only)).SelectMany(t => t.Clips).Where(c => c.IsNoteClip))
         {
-            clip.NoteLengthFrames = TicksToFrames(clip.LengthTicks);
+            clip.NoteLengthFrames = ClipTicksToFrames(clip.StartFrame, clip.LengthTicks);
             RequestRender(clip, immediate: true);
         }
 
@@ -1170,7 +1174,7 @@ public sealed partial class MixerViewModel : ObservableObject, IDisposable
 
         StopPlayback();
         RecordUndo();
-        clip.StartFrame += TicksToFrames(first);
+        clip.StartFrame += ClipTicksToFrames(clip.StartFrame, first);
         UpdateNoteClip(clip, NoteTools.Move(notes, -first), last - first);
         OnStructureChanged();
         StatusText = "Auto-Zuschnitt: Der Notenclip reicht jetzt genau von der ersten bis zur letzten Note.";
@@ -1245,8 +1249,9 @@ public sealed partial class MixerViewModel : ObservableObject, IDisposable
         RecordUndo();
         if (Tracks.Count == 0)
         {
-            Bpm = song.Bpm; // leeres Projekt übernimmt Tempo und Taktart
+            Bpm = song.Bpm; // leeres Projekt übernimmt Tempo, Tempowechsel und Taktart
             BeatsPerBar = song.BeatsPerBar;
+            TempoChanges = song.TempoChanges?.ToArray() ?? [];
         }
 
         long bar = MusicalTime.TicksPerBar(BeatsPerBar);
@@ -1302,7 +1307,7 @@ public sealed partial class MixerViewModel : ObservableObject, IDisposable
 
         try
         {
-            MidiFile.Write(path, new MidiSong(Bpm, BeatsPerBar, data));
+            MidiFile.Write(path, new MidiSong(Bpm, BeatsPerBar, data, TempoChanges));
             StatusText = $"{data.Length} Notenspur(en) als MIDI exportiert nach „{Path.GetFileName(path)}“.";
         }
         catch (Exception ex)
@@ -1328,7 +1333,7 @@ public sealed partial class MixerViewModel : ObservableObject, IDisposable
         long frame = Math.Max(0, edit.Frame);
         if (IsSnapEnabled)
         {
-            frame = (long)Math.Round(Math.Round(frame / BeatFrames) * BeatFrames);
+            frame = SnapToBeat(frame);
         }
 
         switch (edit.Kind)
@@ -1498,8 +1503,8 @@ public sealed partial class MixerViewModel : ObservableObject, IDisposable
         long end = range.End;
         if (IsSnapEnabled)
         {
-            start = (long)(Math.Round(start / BeatFrames) * BeatFrames);
-            end = (long)(Math.Round(end / BeatFrames) * BeatFrames);
+            start = SnapToBeat(start);
+            end = SnapToBeat(end);
         }
 
         LoopStart = Math.Min(start, end);
@@ -1585,7 +1590,7 @@ public sealed partial class MixerViewModel : ObservableObject, IDisposable
             _engine,
             () => IsRecording ? long.MaxValue : ProjectLength + TailFrames(), // beim Aufnehmen über das Projektende hinaus weiterlaufen
             () => (IsLooping, LoopStart, LoopEnd),
-            () => (IsMetronomeEnabled, Bpm, BeatsPerBar),
+            () => (IsMetronomeEnabled, Tempo, BeatsPerBar),
             countInFrames);
 
         try
@@ -1759,6 +1764,8 @@ public sealed partial class MixerViewModel : ObservableObject, IDisposable
             MasterLimiter = project.MasterLimiter;
             Bpm = project.Bpm > 0 ? project.Bpm : 120;
             BeatsPerBar = project.BeatsPerBar > 0 ? project.BeatsPerBar : 4;
+            TempoChanges = project.TempoChanges.Where(c => c.Tick > 0 && c.Bpm > 0).Select(c => new TempoChange(c.Tick, c.Bpm)).OrderBy(c => c.Tick).ToArray();
+            ProjectKey = project.KeyTonic is >= 0 and < 12 ? new KeyResult(project.KeyTonic, project.KeyMinor, 1) : null;
             IsSnapEnabled = project.Snap;
             LoopStart = project.LoopStart;
             LoopEnd = project.LoopEnd;
@@ -2014,6 +2021,7 @@ public sealed partial class MixerViewModel : ObservableObject, IDisposable
     /// <summary>Spuren oder Clips geändert → zusätzlich Spuransicht neu zeichnen und Befehle aktualisieren.</summary>
     private void OnStructureChanged()
     {
+        RefreshMovedNoteClips();
         OnMixChanged();
         TimelineVersion++;
         OnPropertyChanged(nameof(HasTracks));
@@ -2039,6 +2047,8 @@ public sealed partial class MixerViewModel : ObservableObject, IDisposable
         LoopStart = LoopEnd = 0;
         Bpm = 120;
         BeatsPerBar = 4;
+        TempoChanges = [];
+        ProjectKey = null;
         Markers = MarkerList.Empty;
         ClearUndo();
         PlayheadFrame = 0;
@@ -2231,6 +2241,9 @@ public sealed partial class MixerViewModel : ObservableObject, IDisposable
         MasterLimiter = MasterLimiter,
         Bpm = Bpm,
         BeatsPerBar = BeatsPerBar,
+        TempoChanges = TempoChanges.Select(c => new ProjectTempoChange { Tick = c.Tick, Bpm = c.Bpm }).ToList(),
+        KeyTonic = ProjectKey?.Tonic ?? -1,
+        KeyMinor = ProjectKey?.Minor ?? false,
         Snap = IsSnapEnabled,
         LoopStart = LoopStart,
         LoopEnd = LoopEnd,
@@ -2290,7 +2303,7 @@ public sealed partial class MixerViewModel : ObservableObject, IDisposable
 
     private sealed record GroupState(string Name, double VolumeDb, bool Mute);
 
-    private sealed record MixerState(TrackState[] Tracks, GroupState[] Groups, int SelectedTrack, int SelectedClip, int NextColor, IReadOnlyList<Marker> Markers);
+    private sealed record MixerState(TrackState[] Tracks, GroupState[] Groups, int SelectedTrack, int SelectedClip, int NextColor, IReadOnlyList<Marker> Markers, double Bpm, IReadOnlyList<TempoChange> TempoChanges);
 
     /// <summary>Merkt sich den aktuellen Zustand für „Rückgängig“ (höchstens 50 Schritte).</summary>
     private void RecordUndo()
@@ -2336,12 +2349,18 @@ public sealed partial class MixerViewModel : ObservableObject, IDisposable
             selectedTrack,
             selectedClip,
             _nextColor,
-            Markers);
+            Markers,
+            Bpm,
+            TempoChanges);
     }
 
     private void Restore(MixerState state)
     {
         SelectedClip = null;
+        _restoringTempo = true; // die Notenclips werden unten ohnehin neu aufgebaut und berechnet
+        Bpm = state.Bpm;
+        TempoChanges = state.TempoChanges;
+        _restoringTempo = false;
         Tracks.Clear();
         foreach (var group in Groups.ToArray())
         {
@@ -2384,7 +2403,7 @@ public sealed partial class MixerViewModel : ObservableObject, IDisposable
             {
                 if (c.Notes is { } notes)
                 {
-                    var noteClip = new ClipViewModel(track, notes, c.LengthTicks, c.Start, TicksToFrames(c.LengthTicks), SampleRate) { Audio = c.Audio };
+                    var noteClip = new ClipViewModel(track, notes, c.LengthTicks, c.Start, ClipTicksToFrames(c.Start, c.LengthTicks), SampleRate) { Audio = c.Audio };
                     track.Clips.Add(noteClip);
                     RequestRender(noteClip, immediate: true);
                     continue;
@@ -2442,13 +2461,21 @@ public sealed partial class MixerViewModel : ObservableObject, IDisposable
 
     partial void OnBpmChanged(double value)
     {
+        _tempoMap = null;
+        OnPropertyChanged(nameof(Tempo));
+        OnPropertyChanged(nameof(TempoChangeItems));
         IsModified = true;
-        RenderNoteClips();
+        if (!_restoringTempo)
+        {
+            RenderNoteClips();
+        }
+
         TimelineVersion++;
     }
 
     partial void OnBeatsPerBarChanged(int value)
     {
+        OnPropertyChanged(nameof(TempoChangeItems));
         IsModified = true;
         TimelineVersion++;
     }

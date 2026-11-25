@@ -1,3 +1,5 @@
+using MusicWorker.Core.Notes;
+
 namespace MusicWorker.Core.Recording;
 
 /// <summary>
@@ -20,18 +22,27 @@ public sealed class Metronome(int sampleRate)
     /// Addiert die Klicks für die Frames ab <paramref name="startFrame"/> (Zeitleiste) in <paramref name="stereo"/>.
     /// Negative Positionen sind erlaubt (Vorzähler vor dem Start).
     /// </summary>
-    public void Render(Span<float> stereo, long startFrame, double bpm, int beatsPerBar)
+    public void Render(Span<float> stereo, long startFrame, double bpm, int beatsPerBar) =>
+        Render(stereo, startFrame, TempoMap.Constant(Math.Clamp(bpm, 20, 400)), beatsPerBar);
+
+    /// <summary>Wie oben, folgt aber den Tempowechseln von <paramref name="tempo"/>.</summary>
+    public void Render(Span<float> stereo, long startFrame, TempoMap tempo, int beatsPerBar)
     {
+        ArgumentNullException.ThrowIfNull(tempo);
         int frames = stereo.Length / 2;
-        double beat = BeatFrames(bpm);
         int clickLength = (int)(ClickSeconds * SampleRate);
         beatsPerBar = Math.Max(1, beatsPerBar);
 
         // Erster Schlag, dessen Klick in diesen Block hineinreicht
-        long firstBeat = (long)Math.Floor((startFrame - clickLength) / beat);
-        for (long b = firstBeat; b * beat < startFrame + frames; b++)
+        long firstBeat = (long)Math.Floor(tempo.FramesToTicksExact(startFrame - clickLength, SampleRate) / MusicalTime.TicksPerQuarter);
+        for (long b = firstBeat; ; b++)
         {
-            long beatFrame = (long)Math.Round(b * beat);
+            long beatFrame = (long)Math.Round(tempo.TicksToFramesExact(b * MusicalTime.TicksPerQuarter, SampleRate));
+            if (beatFrame >= startFrame + frames)
+            {
+                break;
+            }
+
             bool accent = ((b % beatsPerBar) + beatsPerBar) % beatsPerBar == 0;
             double frequency = accent ? 1760 : 1180;
             double gain = Volume * (accent ? 0.9 : 0.55);

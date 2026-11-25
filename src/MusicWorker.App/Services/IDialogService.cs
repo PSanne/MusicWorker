@@ -56,6 +56,17 @@ public sealed record TakesResult(
     IReadOnlyList<MusicWorker.Core.Recording.CompSegment> Comp,
     bool Flatten);
 
+/// <summary>Vorgaben für das Schlagzeug-Raster.</summary>
+/// <param name="Pattern">Muster, mit dem das Raster startet.</param>
+/// <param name="Repeats">Wie viele Takte eingefügt werden.</param>
+/// <param name="BeatsPerBar">Taktart (Schläge pro Takt).</param>
+/// <param name="StartBar">Ab welchem Takt eingefügt wird (nur zur Anzeige).</param>
+/// <param name="IsDrumTrack">Hat die Spur ein Schlagzeug-Instrument?</param>
+public sealed record DrumGridRequest(MusicWorker.Core.Notes.DrumPattern Pattern, int Repeats, int BeatsPerBar, int StartBar, bool IsDrumTrack);
+
+/// <summary>Ergebnis des Schlagzeug-Rasters.</summary>
+public sealed record DrumGridResult(MusicWorker.Core.Notes.DrumPattern Pattern, int Repeats, bool ReplaceExisting);
+
 /// <summary>Gewählte Zieldatei und Format aus dem Export-Dialog.</summary>
 public sealed record ExportTarget(string Path, MusicWorker.App.Audio.ExportFormat Format);
 
@@ -82,6 +93,9 @@ public interface IDialogService
 
     /// <summary>Takes &amp; Comping bearbeiten; null = abgebrochen.</summary>
     TakesResult? EditTakes(TakesRequest request);
+
+    /// <summary>Schlagzeug-Raster bearbeiten; null = abgebrochen.</summary>
+    DrumGridResult? EditDrumPattern(DrumGridRequest request);
 
     bool Confirm(string message, string title);
 

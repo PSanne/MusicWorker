@@ -91,6 +91,9 @@ public sealed partial class ClipViewModel : ObservableObject
     /// <summary>Zu welchem Auftrag das aktuelle Audio gehört.</summary>
     internal int RenderedVersion { get; set; } = -1;
 
+    /// <summary>Wo der Clip lag, als sein Klang berechnet wurde (wichtig bei Tempowechseln).</summary>
+    internal long RenderedStartFrame { get; set; } = -1;
+
     internal bool NeedsRender => IsNoteClip && RenderedVersion != RenderVersion;
 
     // Für schnelles Speichern: Welche Datei gehört zu diesem (unveränderten) Audio?

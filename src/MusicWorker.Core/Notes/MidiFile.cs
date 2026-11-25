@@ -12,8 +12,8 @@ public sealed record MidiTrackData(string Name, int Channel, int Program, IReadO
     public bool IsDrums => Channel == 9;
 }
 
-/// <summary>Inhalt einer MIDI-Datei: Tempo, Taktart und Notenspuren.</summary>
-public sealed record MidiSong(double Bpm, int BeatsPerBar, IReadOnlyList<MidiTrackData> Tracks);
+/// <summary>Inhalt einer MIDI-Datei: Tempo, Taktart, Notenspuren und (optional) Tempowechsel nach dem Anfang.</summary>
+public sealed record MidiSong(double Bpm, int BeatsPerBar, IReadOnlyList<MidiTrackData> Tracks, IReadOnlyList<TempoChange>? TempoChanges = null);
 
 /// <summary>
 /// Liest und schreibt Standard-MIDI-Dateien (.mid, Format 0 und 1). Beim Lesen werden Spuren mit mehreren
@@ -47,7 +47,7 @@ public static class MidiFile
         }
 
         double scale = MusicalTime.TicksPerQuarter / (double)Math.Max(1, division);
-        double? bpm = null;
+        var tempos = new SortedDictionary<long, double>();
         int beatsPerBar = 4;
         var tracks = new List<MidiTrackData>();
 
@@ -133,10 +133,10 @@ public static class MidiFile
                             {
                                 name = Encoding.Latin1.GetString(data, metaStart, metaLength).Trim();
                             }
-                            else if (meta == 0x51 && metaLength == 3 && bpm is null)
+                            else if (meta == 0x51 && metaLength == 3)
                             {
                                 int microsPerQuarter = (data[metaStart] << 16) | (data[metaStart + 1] << 8) | data[metaStart + 2];
-                                bpm = 60_000_000.0 / Math.Max(1, microsPerQuarter);
+                                tempos.TryAdd((long)Math.Round(tick * scale), Math.Round(60_000_000.0 / Math.Max(1, microsPerQuarter), 2));
                             }
                             else if (meta == 0x58 && metaLength >= 1)
                             {
@@ -177,7 +177,9 @@ public static class MidiFile
             }
         }
 
-        return new MidiSong(Math.Round(bpm ?? 120, 2), beatsPerBar, tracks);
+        double bpm = tempos.Count > 0 && tempos.First().Key == 0 ? tempos.First().Value : 120;
+        var changes = tempos.Where(t => t.Key > 0).Select(t => new TempoChange(t.Key, t.Value)).ToArray();
+        return new MidiSong(bpm, beatsPerBar, tracks, changes.Length > 0 ? changes : null);
     }
 
     /// <summary>Schreibt eine MIDI-Datei (Format 1, <see cref="MusicalTime.TicksPerQuarter"/> Ticks pro Viertel).</summary>
@@ -194,11 +196,18 @@ public static class MidiFile
 
         // Spur 0: Tempo und Taktart
         var conductor = new MemoryStream();
-        int micros = (int)Math.Round(60_000_000 / Math.Clamp(song.Bpm, 10, 1000));
-        WriteVariableLength(conductor, 0);
-        conductor.Write([0xFF, 0x51, 0x03, (byte)(micros >> 16), (byte)(micros >> 8), (byte)micros]);
+        var tempo = new TempoMap(song.Bpm, song.TempoChanges);
         WriteVariableLength(conductor, 0);
         conductor.Write([0xFF, 0x58, 0x04, (byte)Math.Clamp(song.BeatsPerBar, 1, 16), 0x02, 0x18, 0x08]);
+        long previousTick = 0;
+        foreach (var change in tempo.Changes)
+        {
+            int micros = (int)Math.Round(60_000_000 / change.Bpm);
+            WriteVariableLength(conductor, change.Tick - previousTick);
+            conductor.Write([0xFF, 0x51, 0x03, (byte)(micros >> 16), (byte)(micros >> 8), (byte)micros]);
+            previousTick = change.Tick;
+        }
+
         WriteVariableLength(conductor, 0);
         conductor.Write([0xFF, 0x2F, 0x00]);
         WriteChunk(output, conductor.ToArray());
