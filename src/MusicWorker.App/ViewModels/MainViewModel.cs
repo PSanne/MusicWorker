@@ -2802,6 +2802,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             ApplyChorusCommand, ApplyFlangerCommand, TempoPitchCommand,
             FadeInCommand, FadeOutCommand, ReverseCommand, MuteCommand,
             AnalyzePitchCommand, CorrectPitchCommand, AutotuneCommand, PitchRampCommand, VoiceEffectCommand, DetectTempoAndKeyCommand,
+            DeEsserCommand, NaturalPitchCommand, SeparateVocalsCommand,
             MeasureLoudnessCommand, NormalizeLoudnessCommand, DeclickCommand, RepairSpectrumCommand,
             LearnNoiseProfileCommand, RemoveNoiseCommand,
         ];

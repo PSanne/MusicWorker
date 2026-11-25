@@ -3,7 +3,17 @@
 **MusicWorker** ist eine Windows-Anwendung zum Bearbeiten von Musik, geschrieben in C# mit WPF und .NET 8.
 
 Langfristig soll MusicWorker **Audio-Editor, Mehrspur-Mixer und Noten-Editor** in einem Programm vereinen.
-Version 0.3 bietet einen vollständigen Audio-Editor mit Live-Effekten **und ein Mehrspur-Mischpult** mit Fadern, Panorama, Sends, Effekt-Bussen, Gruppen und Projekten – seit 0.3.2 auch mit **Schnitt-Werkzeugen, Takt-Raster, Loop-Bereich und Rückgängig**, seit 0.4 mit **Hüllkurven (Automation) und Auto-Absenkung**, seit 0.5 mit **Noten-Editor, Instrumenten und MIDI**, seit 0.6 mit **Aufnahme, Metronom, Punch-In und Takes/Comping**, seit 0.7 mit **Autotune, Tonhöhen-Werkzeugen, Spektrogramm und Rauschentfernung**, seit 0.8 mit **automatischer Sicherung, Markern, Handbuch und Update-Hinweis**, seit 0.9 mit **Lautheit in LUFS, FLAC/OGG/M4A, Einzelspuren und Ton aus Videos**, seit 0.10 mit **Fade-Griffen, Mehrfachauswahl, Kopieren/Einfügen von Clips, Spurfarben, Spurhöhe und Umsortieren**, seit 0.11 mit **Presets und fünf neuen Effekten**, seit 0.12 mit **Knackser-Entfernung und spektraler Reparatur**, seit 0.13 mit **Tempo- und Tonart-Erkennung, Tempospur, Akkorden, Arpeggiator und Schlagzeug-Raster**, seit 0.14 mit **Notenblatt (Drucken/PDF) und Aufnahme mit geringer Latenz samt Mithören**.
+Version 0.3 bietet einen vollständigen Audio-Editor mit Live-Effekten **und ein Mehrspur-Mischpult** mit Fadern, Panorama, Sends, Effekt-Bussen, Gruppen und Projekten – seit 0.3.2 auch mit **Schnitt-Werkzeugen, Takt-Raster, Loop-Bereich und Rückgängig**, seit 0.4 mit **Hüllkurven (Automation) und Auto-Absenkung**, seit 0.5 mit **Noten-Editor, Instrumenten und MIDI**, seit 0.6 mit **Aufnahme, Metronom, Punch-In und Takes/Comping**, seit 0.7 mit **Autotune, Tonhöhen-Werkzeugen, Spektrogramm und Rauschentfernung**, seit 0.8 mit **automatischer Sicherung, Markern, Handbuch und Update-Hinweis**, seit 0.9 mit **Lautheit in LUFS, FLAC/OGG/M4A, Einzelspuren und Ton aus Videos**, seit 0.10 mit **Fade-Griffen, Mehrfachauswahl, Kopieren/Einfügen von Clips, Spurfarben, Spurhöhe und Umsortieren**, seit 0.11 mit **Presets und fünf neuen Effekten**, seit 0.12 mit **Knackser-Entfernung und spektraler Reparatur**, seit 0.13 mit **Tempo- und Tonart-Erkennung, Tempospur, Akkorden, Arpeggiator und Schlagzeug-Raster**, seit 0.14 mit **Notenblatt (Drucken/PDF) und Aufnahme mit geringer Latenz samt Mithören**, seit 0.15 mit **De-Esser, natürlicher Tonhöhenänderung und KI-Gesangstrennung**.
+
+## Stimme & KI (Version 0.15)
+
+Im Editor im neuen Menü **„Stimme & KI“** (wirkt auf die Auswahl, ohne Auswahl auf die ganze Datei, mit Strg+Z rückgängig):
+
+| Bereich | Funktionen |
+|---|---|
+| **De-Esser** | Scharfe „s“-, „sch“- und „z“-Laute leiser machen, ohne die übrige Stimme zu verändern · Frequenz (3 – 10 kHz), Stärke und Empfindlichkeit einstellbar · funktioniert bei leisen und lauten Aufnahmen gleich |
+| **Tonhöhe ändern – Klangfarbe erhalten** | Stimme höher oder tieferstellen, ohne Micky-Maus- oder Monster-Klang · zusätzlich die Klangfarbe allein verändern (heller/jünger oder dunkler/größer) – die Tonhöhe bleibt dabei gleich |
+| **Gesang und Begleitung trennen (KI)** | Eine künstliche Intelligenz trennt die Stimme von der Musik: nur den Gesang behalten, nur die Begleitung behalten (Karaoke) oder beides als zwei Spuren ins Mischpult · im Mischpult: Knopf *Gesang trennen (KI)* legt für den gewählten Clip zwei neue Spuren an derselben Stelle an (das Original wird stummgeschaltet) · läuft komplett auf dem eigenen Rechner; das Modell (ca. 35 MB) wird beim ersten Benutzen einmalig heruntergeladen |
 
 ## Notenblatt & Aufnahme (Version 0.14)
 
@@ -306,7 +316,7 @@ die Oberfläche nur in `MusicWorker.App`. So können Mehrspur- und Noten-Editor 
 - [x] **v0.12 – Restaurierung (Sprint 5):** Knackser- und Klickentfernung, spektrale Reparatur
 - [x] **v0.13 – Musik-Assistent (Sprint 6):** Tempo- und Tonart-Erkennung, Tempospur, Akkorde, Arpeggiator, Schlagzeug-Raster
 - [x] **v0.14 – Notenblatt & Aufnahme (Sprint 7):** Notenblatt mit Druck/PDF, Aufnahme mit geringer Latenz und Mithören
-- [ ] **v0.15 – Stimme & KI (Sprint 8):** De-Esser, Tonhöhe mit Formanterhalt, KI-Gesangstrennung
+- [x] **v0.15 – Stimme & KI (Sprint 8):** De-Esser, Tonhöhe mit Formanterhalt, KI-Gesangstrennung
 - [ ] **v1.0 – Feinschliff (Sprint 9):** Handbuch auf den neuen Stand, Gesamttest
 - [ ] **Danach – Aussehen:** Gestaltung der Oberfläche (übernimmt der Auftraggeber zum Schluss)
 
@@ -622,6 +632,29 @@ was bewusst so gebaut ist und was sich später leicht ändern lässt.
   hochwertig umgerechnet (gefensterte Sinc-Interpolation). Grund: Im geteilten WASAPI-Modus liefert Windows das
   Format des Geräts, nicht das des Projekts.
 
+### v0.15 – Stimme & KI
+- **De-Esser vergleicht die Höhen mit dem ganzen Signal** statt mit einem festen Pegel. Grund: So erkennt er
+  Zischlaute bei leisen wie lauten Aufnahmen gleich zuverlässig. Abgesenkt wird, indem zu einer
+  tiefpassgefilterten Fassung übergeblendet wird – ohne Zischlaut bleibt die Aufnahme bit-genau unverändert.
+- **Formanterhalt über die spektrale Hülle:** Erst wird die Tonhöhe wie bisher verschoben (dabei wandert die
+  Klangfarbe mit), danach wird in jedem kurzen Abschnitt die Hülle des Originals wiederhergestellt. Grund: Die
+  verschobene Hülle ist genau die gestreckte Original-Hülle – sie muss also nur aus dem Original geschätzt werden,
+  was robuster ist als eine Schätzung aus der veränderten Stimme. Funktioniert für Stimmen bis etwa 400 Hz
+  Grundton (also praktisch alle Sing- und Sprechstimmen außer sehr hohem Sopran).
+- **KI-Trennung mit „Spleeter“** (Deezer, MIT-Lizenz) über die Bibliothek sherpa-onnx (Apache-2.0). Grund:
+  freie Lizenz, gute Qualität bei Gesang/Begleitung, kleines Modell (35 MB) und schnell (ein 4-Minuten-Song in
+  etwa 20 – 60 Sekunden auf einem normalen PC). Die Trennung wurde während der Entwicklung mit dem echten Modell
+  geprüft: Wo nur Begleitung spielt, bleibt die Gesangsspur still, und die Pegel beider Teile stimmen mit dem
+  Original überein.
+- **Modell erst bei Bedarf herunterladen** (nach Nachfrage, mit Fortschritt in der Statuszeile), gespeichert unter
+  `%LOCALAPPDATA%\MusicWorker\models`. Grund: Das Setup bleibt klein, und wer die KI nie nutzt, lädt nichts.
+  Die Musik selbst verlässt den Rechner nie.
+- **Lange Songs werden in 30-Sekunden-Abschnitten** mit je einer Sekunde Kontext getrennt und weich überblendet.
+  Grund: geringer Speicherbedarf, ohne hörbare Nahtstellen. Etwas Stille vor jedem Abschnitt verhindert einen
+  Knackser am Anfang.
+- **Im Mischpult wird das Original stummgeschaltet, nicht gelöscht.** Grund: Man kann jederzeit vergleichen oder
+  zurück – und mit Strg+Z ist alles wieder wie vorher.
+
 ## Verwendete Bibliotheken
 
 - [NAudio](https://github.com/naudio/NAudio): Audio-Ein-/Ausgabe und Dateiformate (MIT-Lizenz)
@@ -629,3 +662,6 @@ was bewusst so gebaut ist und was sich später leicht ändern lässt.
 - [MeltySynth](https://github.com/sinshu/meltysynth): SoundFont-Synthesizer in reinem C# (MIT-Lizenz)
 - [.NET Ogg Vorbis Encoder](https://github.com/SteveLillis/.NET-Ogg-Vorbis-Encoder): OGG-Vorbis-Kodierer (MIT-Lizenz)
 - [NVorbis](https://github.com/NVorbis/NVorbis): OGG-Vorbis-Dekodierer (MIT-Lizenz)
+- [sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx): führt das KI-Modell zur Gesangstrennung aus (Apache-2.0-Lizenz; enthält ONNX Runtime, MIT-Lizenz)
+- [SharpZipLib](https://github.com/icsharpcode/SharpZipLib): Entpacken des KI-Modells (MIT-Lizenz)
+- KI-Modell [Spleeter](https://github.com/deezer/spleeter) (2 Stems) von Deezer: Gesang/Begleitung (MIT-Lizenz; wird erst bei Bedarf heruntergeladen)

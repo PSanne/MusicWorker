@@ -394,6 +394,15 @@
                 <Separator />
                 <MenuItem Header="S_pektrogramm anzeigen" IsCheckable="True" IsChecked="{Binding IsSpectrogramVisible, Mode=TwoWay}" />
             </MenuItem>
+            <MenuItem Header="_Stimme &amp; KI">
+                <MenuItem Header="_De-Esser (Zischlaute dämpfen) …" Command="{Binding DeEsserCommand}"
+                          ToolTip="Scharfe „s“- und „sch“-Laute leiser machen – für Gesang, Sprache und Podcasts" />
+                <MenuItem Header="_Tonhöhe ändern – Klangfarbe erhalten …" Command="{Binding NaturalPitchCommand}"
+                          ToolTip="Stimme höher oder tiefer, ohne Micky-Maus- oder Monster-Klang; die Klangfarbe lässt sich auch einzeln verändern" />
+                <Separator />
+                <MenuItem Header="_Gesang und Begleitung trennen (KI) …" Command="{Binding SeparateVocalsCommand}"
+                          ToolTip="Stimme von der Musik trennen: nur Gesang, nur Begleitung (Karaoke) oder beides als Spuren ins Mischpult" />
+            </MenuItem>
             <MenuItem Header="_Reparieren">
                 <MenuItem Header="_Rauschprofil aus Auswahl lernen" Command="{Binding LearnNoiseProfileCommand}"
                           ToolTip="Zuerst eine Stelle markieren, an der nur Rauschen zu hören ist" />
@@ -1650,6 +1659,8 @@
                                     ToolTip="Alle Clips der Spur lückenlos hintereinanderlegen – auf Wunsch mit Überblendung (Mixtape)" />
                             <Button Style="{StaticResource ToolButton}" Command="{Binding Mixer.BounceCommand}" Content="Zusammenmischen"
                                     ToolTip="Clip-Mischung: alle hörbaren Spuren zu einer neuen Spur mischen (Quellen werden stummgeschaltet)" />
+                            <Button Style="{StaticResource ToolButton}" Command="{Binding Mixer.SeparateClipVocalsCommand}" Content="Gesang trennen (KI)"
+                                    ToolTip="Gesang und Begleitung des gewählten Clips per KI auf zwei neue Spuren trennen (das Original wird stummgeschaltet)" />
                         </ToolBar>
                         <ToolBar Band="1">
                             <ToggleButton Style="{StaticResource ChannelToggle}" Content="Raster" IsChecked="{Binding Mixer.ShowGrid}"
