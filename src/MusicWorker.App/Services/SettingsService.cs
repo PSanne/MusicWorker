@@ -141,6 +141,46 @@ public sealed class AppSettings
 
     /// <summary>Lautheit beim Mixdown-Export (0 = nicht verändern).</summary>
     public int MixdownLoudnessChoice { get; set; }
+
+    public bool GateEnabled { get; set; }
+
+    public double GateThresholdDb { get; set; } = -50;
+
+    public double GateReductionDb { get; set; } = 40;
+
+    public double GateHoldMs { get; set; } = 60;
+
+    public double GateReleaseMs { get; set; } = 150;
+
+    public bool SaturationEnabled { get; set; }
+
+    public double SaturationDriveDb { get; set; } = 6;
+
+    public double SaturationWarmth { get; set; } = 40;
+
+    public double SaturationMix { get; set; } = 100;
+
+    public bool PhaserEnabled { get; set; }
+
+    public double PhaserRate { get; set; } = 0.5;
+
+    public double PhaserDepth { get; set; } = 70;
+
+    public double PhaserFeedback { get; set; } = 40;
+
+    public double PhaserMix { get; set; } = 50;
+
+    public bool TremoloEnabled { get; set; }
+
+    public double TremoloRate { get; set; } = 5;
+
+    public double TremoloDepth { get; set; } = 50;
+
+    public bool TremoloStereo { get; set; }
+
+    public bool WidenerEnabled { get; set; }
+
+    public double WidenerWidth { get; set; } = 140;
 }
 
 /// <summary>Lädt und speichert <see cref="AppSettings"/> unter %APPDATA%\MusicWorker\settings.json.</summary>

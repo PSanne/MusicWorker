@@ -369,6 +369,27 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         _flangerFeedback = saved.FlangerFeedback;
         _flangerMixLeft = saved.FlangerMixLeft;
         _flangerMixRight = saved.FlangerMixRight;
+        // Weitere Effekte (Noise-Gate, Sättigung, Phaser, Tremolo, Stereo-Breite)
+        _isGateEnabled = saved.GateEnabled;
+        _gateThreshold = saved.GateThresholdDb;
+        _gateReduction = saved.GateReductionDb;
+        _gateHold = saved.GateHoldMs;
+        _gateRelease = saved.GateReleaseMs;
+        _isSaturationEnabled = saved.SaturationEnabled;
+        _saturationDrive = saved.SaturationDriveDb;
+        _saturationWarmth = saved.SaturationWarmth;
+        _saturationMix = saved.SaturationMix;
+        _isPhaserEnabled = saved.PhaserEnabled;
+        _phaserRate = saved.PhaserRate;
+        _phaserDepth = saved.PhaserDepth;
+        _phaserFeedback = saved.PhaserFeedback;
+        _phaserMix = saved.PhaserMix;
+        _isTremoloEnabled = saved.TremoloEnabled;
+        _tremoloRate = saved.TremoloRate;
+        _tremoloDepth = saved.TremoloDepth;
+        _tremoloStereo = saved.TremoloStereo;
+        _isWidenerEnabled = saved.WidenerEnabled;
+        _widenerWidth = saved.WidenerWidth;
         RefreshOutputDevices(saved.OutputDeviceName);
         Mixer.RecordingLatencyMs = saved.RecordingLatencyMs;
         Mixer.SelectInputByName(saved.InputDeviceName);
@@ -471,6 +492,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
                 parts.Add("Hall");
             }
 
+            parts.AddRange(ActiveStudioEffectNames());
             return parts.Count == 0 ? string.Empty : string.Join(" + ", parts) + " aktiv";
         }
     }
@@ -519,7 +541,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
 
     /// <summary>Mindestens ein Live-Effekt verändert gerade den Klang.</summary>
     private bool AreLiveEffectsActive => IsEqualizerActive || IsFilterActive || IsDistortionActive || IsCompressorActive
-        || IsChorusActive || IsFlangerActive || IsDelayActive || IsReverbActive;
+        || IsChorusActive || IsFlangerActive || IsDelayActive || IsReverbActive || AreStudioEffectsActive;
 
     /// <summary>True, wenn der EQ eingeschaltet ist und den Klang tatsächlich verändert.</summary>
     private bool IsEqualizerActive => IsEqualizerEnabled &&
@@ -1696,12 +1718,14 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         _liveReverb = reverb;
 
         // … → Filter → Equalizer → Verzerrung → Kompressor → Chorus → Flanger → Echo → Hall → Spektrum → Soundkarte.
-        ISampleProvider chain = new ProcessingSampleProvider(_channelMonitor, filter.Process);
+        ISampleProvider chain = new ProcessingSampleProvider(WithPreStudioEffects(_channelMonitor), filter.Process);
         chain = new EqualizerSampleProvider(chain, processor);
+        chain = WithSaturation(chain);
         chain = new ProcessingSampleProvider(chain, distortion.Process);
         chain = new ProcessingSampleProvider(chain, compressor.Process);
         chain = new ProcessingSampleProvider(chain, chorus.Process);
         chain = new ProcessingSampleProvider(chain, flanger.Process);
+        chain = WithModulationStudioEffects(chain);
         chain = new ProcessingSampleProvider(chain, delay.Process);
         chain = new ReverbSampleProvider(chain, reverb);
         return WithLiveLoudness(new SpectrumTapSampleProvider(chain, _spectrumAnalyzers));
@@ -1839,7 +1863,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         (IsFlangerActive, "Flanger"),
         (IsDelayActive, "Echo"),
         (IsReverbActive, "Hall"),
-    }.Where(e => e.Active).Select(e => e.Name));
+    }.Where(e => e.Active).Select(e => e.Name).Concat(ActiveStudioEffectNames()));
 
     /// <summary>Fragt nach, ob aktive Live-Effekte beim Export eingerechnet werden sollen.</summary>
     private IAudioEffect[] AskIncludeLiveEffects(string question)
@@ -1850,6 +1874,8 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         }
 
         var effects = new List<IAudioEffect>();
+        var studio = StudioEffectsForExport();
+        effects.AddRange(studio.Before);
         if (IsFilterActive)
         {
             effects.Add(new FilterEffect(EffectiveFilterSettings()));
@@ -1859,6 +1885,8 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         {
             effects.Add(equalizer);
         }
+
+        effects.AddRange(studio.AfterEq);
 
         if (IsDistortionActive)
         {
@@ -1880,6 +1908,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             effects.Add(new FlangerEffect(EffectiveFlangerSettings(), preventClipping: EqualizerPreventClipping));
         }
 
+        effects.AddRange(studio.AfterModulation);
         if (IsDelayActive)
         {
             var delay = EffectiveDelaySettings();
@@ -2609,6 +2638,11 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         _liveDistortion = null;
         _liveChorus = null;
         _liveFlanger = null;
+        _liveGate = null;
+        _liveSaturation = null;
+        _livePhaser = null;
+        _liveTremolo = null;
+        _liveWidener = null;
         CompressorReductionLeft = CompressorReductionRight = 0;
         _spectrumAnalyzers = null;
         _channelMonitor = null;
@@ -2691,6 +2725,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         OnPropertyChanged(nameof(PositionText));
         OnPropertyChanged(nameof(FormatText));
         OnPropertyChanged(nameof(IsStereo));
+        OnPropertyChanged(nameof(IsWidenerAudible));
         OnPropertyChanged(nameof(UsesPerChannelEqualizer));
         OnPropertyChanged(nameof(CurrentEqualizer));
         OnPropertyChanged(nameof(EqualizerTargetText));

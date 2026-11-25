@@ -78,6 +78,38 @@ public sealed class PersistenceTests : IDisposable
         Assert.False(File.Exists(path + ".tmp"));
     }
 
+    [Fact]
+    public void Presets_are_saved_replaced_and_deleted()
+    {
+        string path = Path.Combine(_root, "presets.json");
+        var store = new PresetStore(path);
+        int changes = 0;
+        store.Changed += (_, _) => changes++;
+
+        store.Save(new EffectPreset("Kompressor", " Meine Stimme ", new Dictionary<string, double> { ["Ratio"] = 3 }));
+        store.Save(new EffectPreset("Kompressor", "meine stimme", new Dictionary<string, double> { ["Ratio"] = 4 }));
+        store.Save(new EffectPreset("Klang", "Podcast", new Dictionary<string, double> { ["Gate.On"] = 1 }));
+
+        var reloaded = new PresetStore(path);
+        var compressor = Assert.Single(reloaded.For("Kompressor"));
+        Assert.Equal(4, compressor.Values["Ratio"]);
+        Assert.Single(reloaded.For("Klang"));
+        Assert.True(reloaded.Delete("Klang", "PODCAST"));
+        Assert.Empty(new PresetStore(path).For("Klang"));
+        Assert.Equal(3, changes);
+        Assert.Throws<ArgumentException>(() => store.Save(new EffectPreset("Hall", "  ", new Dictionary<string, double>())));
+    }
+
+    [Fact]
+    public void Broken_preset_files_are_ignored()
+    {
+        Directory.CreateDirectory(_root);
+        string path = Path.Combine(_root, "presets.json");
+        File.WriteAllText(path, "{ kaputt");
+
+        Assert.Empty(new PresetStore(path).For("Hall"));
+    }
+
     [Theory]
     [InlineData("v0.8.0", "0.8.0")]
     [InlineData("0.8", "0.8.0")]

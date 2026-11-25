@@ -1,5 +1,5 @@
 ﻿; Setup für MusicWorker (Inno Setup 6) – wird beim Release automatisch gebaut.
-; Aufruf: ISCC.exe /DAppVersion=0.10.0 /DSourceDir=<publish-Ordner> MusicWorker.iss
+; Aufruf: ISCC.exe /DAppVersion=0.11.0 /DSourceDir=<publish-Ordner> MusicWorker.iss
 
 #ifndef AppVersion
   #define AppVersion "0.0.0"

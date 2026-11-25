@@ -93,6 +93,46 @@
                 </DataTrigger>
             </Style.Triggers>
         </Style>
+        <Style x:Key="PresetItem" TargetType="MenuItem">
+            <Setter Property="Header" Value="{Binding Header}" />
+            <Setter Property="Command" Value="{Binding Command}" />
+            <Setter Property="CommandParameter" Value="{Binding Parameter}" />
+        </Style>
+        <Style x:Key="GateDimWhenOff" TargetType="FrameworkElement">
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding IsGateEnabled}" Value="False">
+                    <Setter Property="Opacity" Value="0.45" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+        <Style x:Key="SaturationDimWhenOff" TargetType="FrameworkElement">
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding IsSaturationEnabled}" Value="False">
+                    <Setter Property="Opacity" Value="0.45" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+        <Style x:Key="PhaserDimWhenOff" TargetType="FrameworkElement">
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding IsPhaserEnabled}" Value="False">
+                    <Setter Property="Opacity" Value="0.45" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+        <Style x:Key="TremoloDimWhenOff" TargetType="FrameworkElement">
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding IsTremoloEnabled}" Value="False">
+                    <Setter Property="Opacity" Value="0.45" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+        <Style x:Key="WidenerDimWhenOff" TargetType="FrameworkElement">
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding IsWidenerEnabled}" Value="False">
+                    <Setter Property="Opacity" Value="0.45" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
         <Style x:Key="ActiveDot" TargetType="Ellipse">
             <Setter Property="Width" Value="7" />
             <Setter Property="Height" Value="7" />
@@ -361,7 +401,7 @@
                 <MenuItem Header="_Ganze Datei" Click="OnZoomFitClick" />
                 <MenuItem Header="_Auswahl einpassen" Click="OnZoomSelectionClick" />
                 <Separator />
-                <MenuItem Header="_Live-Effekte anzeigen (EQ, Kompressor, Echo, Hall)" IsCheckable="True"
+                <MenuItem Header="_Live-Effekte anzeigen (EQ, Hall, Kompressor, Gate …)" IsCheckable="True"
                           IsChecked="{Binding IsEqualizerVisible, Mode=TwoWay}" InputGestureText="Strg+Umschalt+E" />
             </MenuItem>
             <MenuItem Header="_Hilfe">
@@ -565,6 +605,17 @@
                             Background="#F7F7F9" BorderBrush="#D9D9DE" BorderThickness="0,1,0,0">
                         <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
                         <StackPanel Margin="12,8">
+                            <!-- Klang-Presets: alle Effekte auf einmal einstellen -->
+                            <StackPanel Margin="0,0,0,8" Orientation="Horizontal">
+                                <TextBlock VerticalAlignment="Center" FontWeight="SemiBold" Text="Klang-Preset:" />
+                                <Menu Margin="6,0,0,0" Background="Transparent" VerticalAlignment="Center">
+                                    <MenuItem Header="Laden oder speichern ▾" Padding="6,2" ItemsSource="{Binding PresetMenus[Klang]}"
+                                              ItemContainerStyle="{StaticResource PresetItem}"
+                                              ToolTip="Stellt alle Effekte auf einmal ein – z. B. „Podcast-Stimme“ – oder speichert deine aktuelle Einstellung als eigenes Klang-Preset" />
+                                </Menu>
+                                <TextBlock Margin="8,0,0,0" VerticalAlignment="Center" FontSize="11" Foreground="#666"
+                                           Text="Fertige Klänge wie „Podcast-Stimme“ laden oder die aktuelle Einstellung aller Effekte als eigenes Preset speichern (z. B. „Meine Stimme“)." />
+                            </StackPanel>
                             <!-- Effekte über dem EQ: alle Felder gleich hoch, Reglerreihen auf gleicher Höhe (gemeinsame Zeilenhöhen) -->
                             <WrapPanel Grid.IsSharedSizeScope="True">
                                 <GroupBox Margin="0,0,8,8" Padding="6,4" VerticalAlignment="Top">
@@ -572,6 +623,11 @@
                                         <StackPanel Orientation="Horizontal">
                                             <TextBlock FontWeight="SemiBold" Text="Hall" />
                                             <Ellipse Style="{StaticResource ActiveDot}" Visibility="{Binding IsReverbAudible, Converter={StaticResource BoolToVisibility}}" />
+                                            <Menu Margin="6,0,0,0" Background="Transparent" VerticalAlignment="Center">
+                                                <MenuItem Header="Presets ▾" Padding="4,0" FontSize="11" ItemsSource="{Binding PresetMenus[Hall]}"
+                                                          ItemContainerStyle="{StaticResource PresetItem}"
+                                                          ToolTip="Fertige Einstellungen laden – oder die aktuelle als eigenes Preset speichern" />
+                                            </Menu>
                                         </StackPanel>
                                     </GroupBox.Header>
                                     <Grid Width="130">
@@ -626,6 +682,11 @@
                                         <StackPanel Orientation="Horizontal">
                                             <TextBlock FontWeight="SemiBold" Text="Kompressor" />
                                             <Ellipse Style="{StaticResource ActiveDot}" Visibility="{Binding IsCompressorAudible, Converter={StaticResource BoolToVisibility}}" />
+                                            <Menu Margin="6,0,0,0" Background="Transparent" VerticalAlignment="Center">
+                                                <MenuItem Header="Presets ▾" Padding="4,0" FontSize="11" ItemsSource="{Binding PresetMenus[Kompressor]}"
+                                                          ItemContainerStyle="{StaticResource PresetItem}"
+                                                          ToolTip="Fertige Einstellungen laden – oder die aktuelle als eigenes Preset speichern" />
+                                            </Menu>
                                         </StackPanel>
                                     </GroupBox.Header>
                                     <Grid Width="256">
@@ -720,6 +781,11 @@
                                         <StackPanel Orientation="Horizontal">
                                             <TextBlock FontWeight="SemiBold" Text="Echo" />
                                             <Ellipse Style="{StaticResource ActiveDot}" Visibility="{Binding IsDelayAudible, Converter={StaticResource BoolToVisibility}}" />
+                                            <Menu Margin="6,0,0,0" Background="Transparent" VerticalAlignment="Center">
+                                                <MenuItem Header="Presets ▾" Padding="4,0" FontSize="11" ItemsSource="{Binding PresetMenus[Echo]}"
+                                                          ItemContainerStyle="{StaticResource PresetItem}"
+                                                          ToolTip="Fertige Einstellungen laden – oder die aktuelle als eigenes Preset speichern" />
+                                            </Menu>
                                         </StackPanel>
                                     </GroupBox.Header>
                                     <Grid Width="192">
@@ -796,6 +862,11 @@
                                         <StackPanel Orientation="Horizontal">
                                             <TextBlock FontWeight="SemiBold" Text="Filter" />
                                             <Ellipse Style="{StaticResource ActiveDot}" Visibility="{Binding IsFilterAudible, Converter={StaticResource BoolToVisibility}}" />
+                                            <Menu Margin="6,0,0,0" Background="Transparent" VerticalAlignment="Center">
+                                                <MenuItem Header="Presets ▾" Padding="4,0" FontSize="11" ItemsSource="{Binding PresetMenus[Filter]}"
+                                                          ItemContainerStyle="{StaticResource PresetItem}"
+                                                          ToolTip="Fertige Einstellungen laden – oder die aktuelle als eigenes Preset speichern" />
+                                            </Menu>
                                         </StackPanel>
                                     </GroupBox.Header>
                                     <Grid Width="128">
@@ -830,6 +901,11 @@
                                         <StackPanel Orientation="Horizontal">
                                             <TextBlock FontWeight="SemiBold" Text="Verzerrung" />
                                             <Ellipse Style="{StaticResource ActiveDot}" Visibility="{Binding IsDistortionAudible, Converter={StaticResource BoolToVisibility}}" />
+                                            <Menu Margin="6,0,0,0" Background="Transparent" VerticalAlignment="Center">
+                                                <MenuItem Header="Presets ▾" Padding="4,0" FontSize="11" ItemsSource="{Binding PresetMenus[Verzerrung]}"
+                                                          ItemContainerStyle="{StaticResource PresetItem}"
+                                                          ToolTip="Fertige Einstellungen laden – oder die aktuelle als eigenes Preset speichern" />
+                                            </Menu>
                                         </StackPanel>
                                     </GroupBox.Header>
                                     <Grid Width="128">
@@ -886,6 +962,11 @@
                                         <StackPanel Orientation="Horizontal">
                                             <TextBlock FontWeight="SemiBold" Text="Chorus" />
                                             <Ellipse Style="{StaticResource ActiveDot}" Visibility="{Binding IsChorusAudible, Converter={StaticResource BoolToVisibility}}" />
+                                            <Menu Margin="6,0,0,0" Background="Transparent" VerticalAlignment="Center">
+                                                <MenuItem Header="Presets ▾" Padding="4,0" FontSize="11" ItemsSource="{Binding PresetMenus[Chorus]}"
+                                                          ItemContainerStyle="{StaticResource PresetItem}"
+                                                          ToolTip="Fertige Einstellungen laden – oder die aktuelle als eigenes Preset speichern" />
+                                            </Menu>
                                         </StackPanel>
                                     </GroupBox.Header>
                                     <Grid Width="128">
@@ -940,6 +1021,11 @@
                                         <StackPanel Orientation="Horizontal">
                                             <TextBlock FontWeight="SemiBold" Text="Flanger" />
                                             <Ellipse Style="{StaticResource ActiveDot}" Visibility="{Binding IsFlangerAudible, Converter={StaticResource BoolToVisibility}}" />
+                                            <Menu Margin="6,0,0,0" Background="Transparent" VerticalAlignment="Center">
+                                                <MenuItem Header="Presets ▾" Padding="4,0" FontSize="11" ItemsSource="{Binding PresetMenus[Flanger]}"
+                                                          ItemContainerStyle="{StaticResource PresetItem}"
+                                                          ToolTip="Fertige Einstellungen laden – oder die aktuelle als eigenes Preset speichern" />
+                                            </Menu>
                                         </StackPanel>
                                     </GroupBox.Header>
                                     <Grid Width="192">
@@ -995,6 +1081,229 @@
                                                 ToolTip="Flanger fest in die Auswahl (oder die ganze Datei) einrechnen. Danach stehen die übernommenen Stärke-Regler auf 0." />
                                     </Grid>
                                 </GroupBox>
+                                <GroupBox Margin="0,0,8,8" Padding="6,4" VerticalAlignment="Top">
+                                    <GroupBox.Header>
+                                        <StackPanel Orientation="Horizontal">
+                                            <TextBlock FontWeight="SemiBold" Text="Noise-Gate" />
+                                            <Ellipse Style="{StaticResource ActiveDot}" Visibility="{Binding IsGateAudible, Converter={StaticResource BoolToVisibility}}" />
+                                            <Menu Margin="6,0,0,0" Background="Transparent" VerticalAlignment="Center">
+                                                <MenuItem Header="Presets ▾" Padding="4,0" FontSize="11" ItemsSource="{Binding PresetMenus[Gate]}"
+                                                          ItemContainerStyle="{StaticResource PresetItem}"
+                                                          ToolTip="Fertige Einstellungen laden – oder die aktuelle als eigenes Preset speichern" />
+                                            </Menu>
+                                        </StackPanel>
+                                    </GroupBox.Header>
+                                    <Grid Width="192">
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition SharedSizeGroup="FxOptions" />
+                                            <RowDefinition SharedSizeGroup="FxKnobs" />
+                                            <RowDefinition SharedSizeGroup="FxApply" />
+                                        </Grid.RowDefinitions>
+                                        <StackPanel Grid.Row="0">
+                                            <CheckBox Content="Ein" IsChecked="{Binding IsGateEnabled}" ToolTip="Noise-Gate ein/aus: macht Pausen leise, damit Rauschen und Brummen zwischen den Sätzen verschwinden" />
+                                        </StackPanel>
+                                        <UniformGrid Grid.Row="1" VerticalAlignment="Top" Margin="0,8,0,0" Columns="2" Style="{StaticResource GateDimWhenOff}">
+                                            <StackPanel Margin="0,0,0,6" ToolTip="Unter dieser Lautstärke gilt es als Pause – Doppelklick für -50 dB">
+                                                <controls:Knob Width="42" Height="42" Minimum="-80" Maximum="-10" DefaultValue="-50"
+                                                               Value="{Binding GateThreshold}" Accent="#2E7D32" />
+                                                <TextBlock Style="{StaticResource KnobValue}" Text="{Binding GateThreshold, StringFormat={}{0:0} dB}" />
+                                                <TextBlock Style="{StaticResource KnobLabel}" Text="Schwelle" />
+                                            </StackPanel>
+                                            <StackPanel Margin="0,0,0,6" ToolTip="So viel leiser werden Pausen (80 dB = stumm) – Doppelklick für 40 dB">
+                                                <controls:Knob Width="42" Height="42" Minimum="0" Maximum="80" DefaultValue="40"
+                                                               Value="{Binding GateReduction}" Accent="#6A1B9A" />
+                                                <TextBlock Style="{StaticResource KnobValue}" Text="{Binding GateReduction, StringFormat={}-{0:0} dB}" />
+                                                <TextBlock Style="{StaticResource KnobLabel}" Text="Absenkung" />
+                                            </StackPanel>
+                                            <StackPanel Margin="0,0,0,6" ToolTip="So lange bleibt das Gate nach dem letzten lauten Moment offen – verhindert abgehackte Wortenden">
+                                                <controls:Knob Width="42" Height="42" Minimum="0" Maximum="500" DefaultValue="60"
+                                                               Value="{Binding GateHold}" Accent="#EF6C00" />
+                                                <TextBlock Style="{StaticResource KnobValue}" Text="{Binding GateHold, StringFormat={}{0:0} ms}" />
+                                                <TextBlock Style="{StaticResource KnobLabel}" Text="Halten" />
+                                            </StackPanel>
+                                            <StackPanel Margin="0,0,0,6" ToolTip="So sanft wird danach leiser – Doppelklick für 150 ms">
+                                                <controls:Knob Width="42" Height="42" Minimum="10" Maximum="1000" DefaultValue="150"
+                                                               Value="{Binding GateRelease}" Accent="#00838F" />
+                                                <TextBlock Style="{StaticResource KnobValue}" Text="{Binding GateRelease, StringFormat={}{0:0} ms}" />
+                                                <TextBlock Style="{StaticResource KnobLabel}" Text="Release" />
+                                            </StackPanel>
+                                        </UniformGrid>
+                                        <Button Grid.Row="2" VerticalAlignment="Bottom" Padding="6,2" FontWeight="SemiBold" Content="Übernehmen" Command="{Binding ApplyGateCommand}"
+                                                ToolTip="Noise-Gate fest in die Auswahl (oder die ganze Datei) einrechnen – danach ist es ausgeschaltet." />
+                                    </Grid>
+                                </GroupBox>
+                                <GroupBox Margin="0,0,8,8" Padding="6,4" VerticalAlignment="Top">
+                                    <GroupBox.Header>
+                                        <StackPanel Orientation="Horizontal">
+                                            <TextBlock FontWeight="SemiBold" Text="Bandsättigung" />
+                                            <Ellipse Style="{StaticResource ActiveDot}" Visibility="{Binding IsSaturationAudible, Converter={StaticResource BoolToVisibility}}" />
+                                            <Menu Margin="6,0,0,0" Background="Transparent" VerticalAlignment="Center">
+                                                <MenuItem Header="Presets ▾" Padding="4,0" FontSize="11" ItemsSource="{Binding PresetMenus[Saettigung]}"
+                                                          ItemContainerStyle="{StaticResource PresetItem}"
+                                                          ToolTip="Fertige Einstellungen laden – oder die aktuelle als eigenes Preset speichern" />
+                                            </Menu>
+                                        </StackPanel>
+                                    </GroupBox.Header>
+                                    <Grid Width="192">
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition SharedSizeGroup="FxOptions" />
+                                            <RowDefinition SharedSizeGroup="FxKnobs" />
+                                            <RowDefinition SharedSizeGroup="FxApply" />
+                                        </Grid.RowDefinitions>
+                                        <StackPanel Grid.Row="0">
+                                            <CheckBox Content="Ein" IsChecked="{Binding IsSaturationEnabled}" ToolTip="Bandsättigung ein/aus: warme, weiche Verzerrung wie bei einem Tonbandgerät" />
+                                        </StackPanel>
+                                        <UniformGrid Grid.Row="1" VerticalAlignment="Top" Margin="0,8,0,0" Columns="3" Style="{StaticResource SaturationDimWhenOff}">
+                                            <StackPanel Margin="0,0,0,6" ToolTip="Wie stark in die Sättigung gefahren wird – mehr = wärmer und dichter">
+                                                <controls:Knob Width="42" Height="42" Minimum="0" Maximum="24" DefaultValue="6"
+                                                               Value="{Binding SaturationDrive}" Accent="#C62828" />
+                                                <TextBlock Style="{StaticResource KnobValue}" Text="{Binding SaturationDrive, StringFormat={}+{0:0.#} dB}" />
+                                                <TextBlock Style="{StaticResource KnobLabel}" Text="Drive" />
+                                            </StackPanel>
+                                            <StackPanel Margin="0,0,0,6" ToolTip="Dämpft die Höhen wie ein Tonband – Doppelklick für 40 %">
+                                                <controls:Knob Width="42" Height="42" Minimum="0" Maximum="100" DefaultValue="40"
+                                                               Value="{Binding SaturationWarmth}" Accent="#EF6C00" />
+                                                <TextBlock Style="{StaticResource KnobValue}" Text="{Binding SaturationWarmth, StringFormat={}{0:0} %}" />
+                                                <TextBlock Style="{StaticResource KnobLabel}" Text="Wärme" />
+                                            </StackPanel>
+                                            <StackPanel Margin="0,0,0,6" ToolTip="Anteil des gesättigten Klangs – Doppelklick für 100 %">
+                                                <controls:Knob Width="42" Height="42" Minimum="0" Maximum="100" DefaultValue="100"
+                                                               Value="{Binding SaturationMix}" Accent="#0277BD" />
+                                                <TextBlock Style="{StaticResource KnobValue}" Text="{Binding SaturationMix, StringFormat={}{0:0} %}" />
+                                                <TextBlock Style="{StaticResource KnobLabel}" Text="Anteil" />
+                                            </StackPanel>
+                                        </UniformGrid>
+                                        <Button Grid.Row="2" VerticalAlignment="Bottom" Padding="6,2" FontWeight="SemiBold" Content="Übernehmen" Command="{Binding ApplySaturationCommand}"
+                                                ToolTip="Bandsättigung fest in die Auswahl (oder die ganze Datei) einrechnen – danach ist sie ausgeschaltet." />
+                                    </Grid>
+                                </GroupBox>
+                                <GroupBox Margin="0,0,8,8" Padding="6,4" VerticalAlignment="Top">
+                                    <GroupBox.Header>
+                                        <StackPanel Orientation="Horizontal">
+                                            <TextBlock FontWeight="SemiBold" Text="Phaser" />
+                                            <Ellipse Style="{StaticResource ActiveDot}" Visibility="{Binding IsPhaserAudible, Converter={StaticResource BoolToVisibility}}" />
+                                            <Menu Margin="6,0,0,0" Background="Transparent" VerticalAlignment="Center">
+                                                <MenuItem Header="Presets ▾" Padding="4,0" FontSize="11" ItemsSource="{Binding PresetMenus[Phaser]}"
+                                                          ItemContainerStyle="{StaticResource PresetItem}"
+                                                          ToolTip="Fertige Einstellungen laden – oder die aktuelle als eigenes Preset speichern" />
+                                            </Menu>
+                                        </StackPanel>
+                                    </GroupBox.Header>
+                                    <Grid Width="192">
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition SharedSizeGroup="FxOptions" />
+                                            <RowDefinition SharedSizeGroup="FxKnobs" />
+                                            <RowDefinition SharedSizeGroup="FxApply" />
+                                        </Grid.RowDefinitions>
+                                        <StackPanel Grid.Row="0">
+                                            <CheckBox Content="Ein" IsChecked="{Binding IsPhaserEnabled}" ToolTip="Phaser ein/aus: wandernde Klangfarbe, der „schwebende“ Klang der 70er" />
+                                        </StackPanel>
+                                        <UniformGrid Grid.Row="1" VerticalAlignment="Top" Margin="0,8,0,0" Columns="2" Style="{StaticResource PhaserDimWhenOff}">
+                                            <StackPanel Margin="0,0,0,6" ToolTip="Wie schnell der Effekt wandert – Doppelklick für 0,5 Hz">
+                                                <controls:Knob Width="42" Height="42" Minimum="0.05" Maximum="5" DefaultValue="0.5"
+                                                               Value="{Binding PhaserRate}" Accent="#2E7D32" />
+                                                <TextBlock Style="{StaticResource KnobValue}" Text="{Binding PhaserRate, StringFormat={}{0:0.00} Hz}" />
+                                                <TextBlock Style="{StaticResource KnobLabel}" Text="Tempo" />
+                                            </StackPanel>
+                                            <StackPanel Margin="0,0,0,6" ToolTip="Wie weit der Effekt wandert – Doppelklick für 70 %">
+                                                <controls:Knob Width="42" Height="42" Minimum="0" Maximum="100" DefaultValue="70"
+                                                               Value="{Binding PhaserDepth}" Accent="#6A1B9A" />
+                                                <TextBlock Style="{StaticResource KnobValue}" Text="{Binding PhaserDepth, StringFormat={}{0:0} %}" />
+                                                <TextBlock Style="{StaticResource KnobLabel}" Text="Tiefe" />
+                                            </StackPanel>
+                                            <StackPanel Margin="0,0,0,6" ToolTip="Rückkopplung: macht den Effekt deutlicher – Doppelklick für 40 %">
+                                                <controls:Knob Width="42" Height="42" Minimum="0" Maximum="90" DefaultValue="40"
+                                                               Value="{Binding PhaserFeedback}" Accent="#EF6C00" />
+                                                <TextBlock Style="{StaticResource KnobValue}" Text="{Binding PhaserFeedback, StringFormat={}{0:0} %}" />
+                                                <TextBlock Style="{StaticResource KnobLabel}" Text="Rückk." />
+                                            </StackPanel>
+                                            <StackPanel Margin="0,0,0,6" ToolTip="Anteil des Effekts – Doppelklick für 50 %">
+                                                <controls:Knob Width="42" Height="42" Minimum="0" Maximum="100" DefaultValue="50"
+                                                               Value="{Binding PhaserMix}" Accent="#0277BD" />
+                                                <TextBlock Style="{StaticResource KnobValue}" Text="{Binding PhaserMix, StringFormat={}{0:0} %}" />
+                                                <TextBlock Style="{StaticResource KnobLabel}" Text="Anteil" />
+                                            </StackPanel>
+                                        </UniformGrid>
+                                        <Button Grid.Row="2" VerticalAlignment="Bottom" Padding="6,2" FontWeight="SemiBold" Content="Übernehmen" Command="{Binding ApplyPhaserCommand}"
+                                                ToolTip="Phaser fest in die Auswahl (oder die ganze Datei) einrechnen – danach ist er ausgeschaltet." />
+                                    </Grid>
+                                </GroupBox>
+                                <GroupBox Margin="0,0,8,8" Padding="6,4" VerticalAlignment="Top">
+                                    <GroupBox.Header>
+                                        <StackPanel Orientation="Horizontal">
+                                            <TextBlock FontWeight="SemiBold" Text="Tremolo" />
+                                            <Ellipse Style="{StaticResource ActiveDot}" Visibility="{Binding IsTremoloAudible, Converter={StaticResource BoolToVisibility}}" />
+                                            <Menu Margin="6,0,0,0" Background="Transparent" VerticalAlignment="Center">
+                                                <MenuItem Header="Presets ▾" Padding="4,0" FontSize="11" ItemsSource="{Binding PresetMenus[Tremolo]}"
+                                                          ItemContainerStyle="{StaticResource PresetItem}"
+                                                          ToolTip="Fertige Einstellungen laden – oder die aktuelle als eigenes Preset speichern" />
+                                            </Menu>
+                                        </StackPanel>
+                                    </GroupBox.Header>
+                                    <Grid Width="130">
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition SharedSizeGroup="FxOptions" />
+                                            <RowDefinition SharedSizeGroup="FxKnobs" />
+                                            <RowDefinition SharedSizeGroup="FxApply" />
+                                        </Grid.RowDefinitions>
+                                        <StackPanel Grid.Row="0">
+                                            <CheckBox Content="Ein" IsChecked="{Binding IsTremoloEnabled}" ToolTip="Tremolo ein/aus: die Lautstärke schwankt regelmäßig" />
+                                            <CheckBox Margin="0,3,0,0" Content="Stereo-Pendel" IsChecked="{Binding TremoloStereo}" IsEnabled="{Binding IsStereo}"
+                                                      ToolTip="Links und rechts abwechselnd laut – der Klang pendelt hin und her (nur bei Stereo)" />
+                                        </StackPanel>
+                                        <UniformGrid Grid.Row="1" VerticalAlignment="Top" Margin="0,8,0,0" Columns="2" Style="{StaticResource TremoloDimWhenOff}">
+                                            <StackPanel Margin="0,0,0,6" ToolTip="Wie oft pro Sekunde die Lautstärke schwankt – Doppelklick für 5 Hz">
+                                                <controls:Knob Width="42" Height="42" Minimum="0.5" Maximum="15" DefaultValue="5"
+                                                               Value="{Binding TremoloRate}" Accent="#2E7D32" />
+                                                <TextBlock Style="{StaticResource KnobValue}" Text="{Binding TremoloRate, StringFormat={}{0:0.0} Hz}" />
+                                                <TextBlock Style="{StaticResource KnobLabel}" Text="Tempo" />
+                                            </StackPanel>
+                                            <StackPanel Margin="0,0,0,6" ToolTip="Wie stark die Lautstärke schwankt – Doppelklick für 50 %">
+                                                <controls:Knob Width="42" Height="42" Minimum="0" Maximum="100" DefaultValue="50"
+                                                               Value="{Binding TremoloDepth}" Accent="#6A1B9A" />
+                                                <TextBlock Style="{StaticResource KnobValue}" Text="{Binding TremoloDepth, StringFormat={}{0:0} %}" />
+                                                <TextBlock Style="{StaticResource KnobLabel}" Text="Tiefe" />
+                                            </StackPanel>
+                                        </UniformGrid>
+                                        <Button Grid.Row="2" VerticalAlignment="Bottom" Padding="6,2" FontWeight="SemiBold" Content="Übernehmen" Command="{Binding ApplyTremoloCommand}"
+                                                ToolTip="Tremolo fest in die Auswahl (oder die ganze Datei) einrechnen – danach ist es ausgeschaltet." />
+                                    </Grid>
+                                </GroupBox>
+                                <GroupBox Margin="0,0,8,8" Padding="6,4" VerticalAlignment="Top">
+                                    <GroupBox.Header>
+                                        <StackPanel Orientation="Horizontal">
+                                            <TextBlock FontWeight="SemiBold" Text="Stereo-Breite" />
+                                            <Ellipse Style="{StaticResource ActiveDot}" Visibility="{Binding IsWidenerAudible, Converter={StaticResource BoolToVisibility}}" />
+                                            <Menu Margin="6,0,0,0" Background="Transparent" VerticalAlignment="Center">
+                                                <MenuItem Header="Presets ▾" Padding="4,0" FontSize="11" ItemsSource="{Binding PresetMenus[Breite]}"
+                                                          ItemContainerStyle="{StaticResource PresetItem}"
+                                                          ToolTip="Fertige Einstellungen laden – oder die aktuelle als eigenes Preset speichern" />
+                                            </Menu>
+                                        </StackPanel>
+                                    </GroupBox.Header>
+                                    <Grid Width="110">
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition SharedSizeGroup="FxOptions" />
+                                            <RowDefinition SharedSizeGroup="FxKnobs" />
+                                            <RowDefinition SharedSizeGroup="FxApply" />
+                                        </Grid.RowDefinitions>
+                                        <StackPanel Grid.Row="0">
+                                            <CheckBox Content="Ein" IsChecked="{Binding IsWidenerEnabled}" ToolTip="Stereo-Breite ein/aus: macht den Klang breiter oder schmaler (bis Mono)" />
+                                            <TextBlock Margin="0,3,0,0" FontSize="10" Foreground="#666" TextWrapping="Wrap" Text="Nur bei Stereo-Dateien"
+                                                       Visibility="{Binding IsStereo, Converter={StaticResource InverseBoolToVisibility}}" />
+                                        </StackPanel>
+                                        <UniformGrid Grid.Row="1" VerticalAlignment="Top" Margin="0,8,0,0" Columns="1" Style="{StaticResource WidenerDimWhenOff}">
+                                            <StackPanel Margin="0,0,0,6" ToolTip="0 % = Mono, 100 % = unverändert, 200 % = doppelt so breit – Doppelklick für 100 %">
+                                                <controls:Knob Width="42" Height="42" Minimum="0" Maximum="200" DefaultValue="100"
+                                                               Value="{Binding WidenerWidth}" Accent="#0277BD" />
+                                                <TextBlock Style="{StaticResource KnobValue}" Text="{Binding WidenerWidth, StringFormat={}{0:0} %}" />
+                                                <TextBlock Style="{StaticResource KnobLabel}" Text="Breite" />
+                                            </StackPanel>
+                                        </UniformGrid>
+                                        <Button Grid.Row="2" VerticalAlignment="Bottom" Padding="6,2" FontWeight="SemiBold" Content="Übernehmen" Command="{Binding ApplyWidenerCommand}"
+                                                ToolTip="Stereo-Breite fest in die Auswahl (oder die ganze Datei) einrechnen – danach ist sie ausgeschaltet." />
+                                    </Grid>
+                                </GroupBox>
                             </WrapPanel>
 
                             <!-- Equalizer -->
@@ -1022,6 +1331,10 @@
                                     <TextBlock Margin="0,0,6,0" VerticalAlignment="Center" Text="Voreinstellung:" />
                                     <ComboBox Width="140" Margin="0,0,8,0" ItemsSource="{Binding CurrentEqualizer.Presets}"
                                               SelectedItem="{Binding CurrentEqualizer.SelectedPreset}" DisplayMemberPath="Name" />
+                                    <Menu Margin="0,0,8,0" Background="Transparent" VerticalAlignment="Center">
+                                        <MenuItem Header="Eigene ▾" Padding="4,1" ItemsSource="{Binding PresetMenus[Equalizer]}" ItemContainerStyle="{StaticResource PresetItem}"
+                                                  ToolTip="Eigene Equalizer-Einstellungen speichern und laden" />
+                                    </Menu>
                                     <Button Margin="0,0,8,0" Padding="6,1" Content="Alle auf 0" Command="{Binding CurrentEqualizer.ResetCommand}" />
                                     <Button Margin="0,0,8,0" Padding="6,1" FontWeight="SemiBold" Content="In Audio übernehmen"
                                             Command="{Binding ApplyEqualizerCommand}"

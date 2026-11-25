@@ -3,7 +3,22 @@
 **MusicWorker** ist eine Windows-Anwendung zum Bearbeiten von Musik, geschrieben in C# mit WPF und .NET 8.
 
 Langfristig soll MusicWorker **Audio-Editor, Mehrspur-Mixer und Noten-Editor** in einem Programm vereinen.
-Version 0.3 bietet einen vollständigen Audio-Editor mit Live-Effekten **und ein Mehrspur-Mischpult** mit Fadern, Panorama, Sends, Effekt-Bussen, Gruppen und Projekten – seit 0.3.2 auch mit **Schnitt-Werkzeugen, Takt-Raster, Loop-Bereich und Rückgängig**, seit 0.4 mit **Hüllkurven (Automation) und Auto-Absenkung**, seit 0.5 mit **Noten-Editor, Instrumenten und MIDI**, seit 0.6 mit **Aufnahme, Metronom, Punch-In und Takes/Comping**, seit 0.7 mit **Autotune, Tonhöhen-Werkzeugen, Spektrogramm und Rauschentfernung**, seit 0.8 mit **automatischer Sicherung, Markern, Handbuch und Update-Hinweis**, seit 0.9 mit **Lautheit in LUFS, FLAC/OGG/M4A, Einzelspuren und Ton aus Videos**, seit 0.10 mit **Fade-Griffen, Mehrfachauswahl, Kopieren/Einfügen von Clips, Spurfarben, Spurhöhe und Umsortieren**.
+Version 0.3 bietet einen vollständigen Audio-Editor mit Live-Effekten **und ein Mehrspur-Mischpult** mit Fadern, Panorama, Sends, Effekt-Bussen, Gruppen und Projekten – seit 0.3.2 auch mit **Schnitt-Werkzeugen, Takt-Raster, Loop-Bereich und Rückgängig**, seit 0.4 mit **Hüllkurven (Automation) und Auto-Absenkung**, seit 0.5 mit **Noten-Editor, Instrumenten und MIDI**, seit 0.6 mit **Aufnahme, Metronom, Punch-In und Takes/Comping**, seit 0.7 mit **Autotune, Tonhöhen-Werkzeugen, Spektrogramm und Rauschentfernung**, seit 0.8 mit **automatischer Sicherung, Markern, Handbuch und Update-Hinweis**, seit 0.9 mit **Lautheit in LUFS, FLAC/OGG/M4A, Einzelspuren und Ton aus Videos**, seit 0.10 mit **Fade-Griffen, Mehrfachauswahl, Kopieren/Einfügen von Clips, Spurfarben, Spurhöhe und Umsortieren**, seit 0.11 mit **Presets und fünf neuen Effekten**.
+
+## Presets & neue Effekte (Version 0.11)
+
+| Bereich | Funktionen |
+|---|---|
+| **Klang-Presets** | Oben im Effektbereich: **alle Effekte auf einmal** einstellen – fertig dabei sind „Podcast-Stimme“, „Warme Stimme“, „Radio-Moderation“, „Telefon“, „Großer Saal“, „Lo-Fi / Kassette“, „Gitarre mit Chorus“, „Breites Stereo“ und „Alles aus“. Mit **„Aktuelle Einstellung als Preset speichern …“** wird z. B. „Meine Stimme“ zum eigenen Klang-Preset |
+| **Presets je Effekt** | Jeder Effekt hat ein Menü **„Presets ▾“** mit fertigen Einstellungen (z. B. Hall „Kirche“, Kompressor „Sprache / Podcast“, Echo „Ping-Pong“) und eigenen Presets (mit ★). Beim Equalizer heißt es „Eigene ▾“ |
+| **Noise-Gate** | Macht Pausen leise – Rauschen und Brummen zwischen den Sätzen verschwinden · Schwelle, Absenkung, Haltezeit, Release |
+| **Bandsättigung** | Warme, weiche Verzerrung wie bei einem Tonbandgerät · Drive, Wärme (dämpft Höhen), Anteil |
+| **Phaser** | Wandernde Klangfarbe – der „schwebende“ Klang der 70er · Tempo, Tiefe, Rückkopplung, Anteil |
+| **Tremolo** | Lautstärke schwankt regelmäßig · Tempo, Tiefe, auf Wunsch als **Stereo-Pendel** |
+| **Stereo-Breite** | 0 % = Mono, 100 % = unverändert, bis 200 % = doppelt so breit |
+
+Alle neuen Effekte wirken sofort beim Abspielen, werden mit „Übernehmen“ fest eingerechnet und beim Export auf Wunsch berücksichtigt.
+Reihenfolge der Live-Kette: Noise-Gate → Filter → EQ → Bandsättigung → Verzerrung → Kompressor → Chorus → Flanger → Phaser → Tremolo → Stereo-Breite → Echo → Hall.
 
 ## Mischpult-Komfort (Version 0.10)
 
@@ -220,12 +235,12 @@ MusicWorker.sln
 │  ├─ MusicWorker.Core/          Plattformunabhängiger Kern (ohne UI, voll testbar)
 │  │  ├─ Audio/                  AudioBuffer (unveränderlich), Dezibel-Umrechnung, Marker in WAV-Dateien (cue/labl), FLAC (eigener Kodierer/Dekodierer), OGG Vorbis
 │  │  ├─ Editing/                AudioEditor, Auswahl, Rückgängig/Wiederholen (Command-Pattern), Marker
-│  │  ├─ Persistence/            Automatische Sicherung & Wiederherstellung, Update-Prüfung (Versionsvergleich)
+│  │  ├─ Persistence/            Automatische Sicherung & Wiederherstellung, Update-Prüfung (Versionsvergleich), eigene Presets
 │  │  ├─ Recording/              Takes & Comping (Zusammenstellen mit Überblendung), Metronom, Zuordnung von Aufnahmen zur Zeitleiste
 │  │  ├─ Notes/                  Noten (Ticks), Quantisieren, Humanisieren, Transponieren, Stimmaufteilung, MIDI-Dateien lesen/schreiben
 │  │  ├─ Synthesis/              Eingebauter Synthesizer (10 Instrumente), SoundFont-Wiedergabe, Noten → Audio
 │  │  ├─ Mixing/                 Misch-Engine: Spuren, Panorama, Fader, Gruppen, Sends, Effekt-Busse, Inserts, Hüllkurven, Auto-Absenkung, Master, Mixdown, Einzelspuren
-│  │  ├─ Dsp/                    Biquad-Filter, 15-Band-Equalizer, Kompressor, Echo, Hall (Freeverb), FFT/STFT & Spektrumanalyse, Zeitstreckung (WSOLA), Resampler, Tonhöhenerkennung (YIN), Pitch-Shifter, Rauschentfernung, Lautheit (LUFS) & echte Spitzen
+│  │  ├─ Dsp/                    Biquad-Filter, 15-Band-Equalizer, Kompressor, Echo, Hall (Freeverb), FFT/STFT & Spektrumanalyse, Zeitstreckung (WSOLA), Resampler, Tonhöhenerkennung (YIN), Pitch-Shifter, Rauschentfernung, Lautheit (LUFS) & echte Spitzen, Noise-Gate, Tremolo, Phaser, Stereo-Breite, Bandsättigung
 │  │  ├─ Effects/                Lautstärke, Normalisieren, Fades, Equalizer, Tempo/Tonhöhe, Umkehren, Autotune, Tonhöhen-Verlauf, Stimmeffekte
 │  │  └─ Visualization/          Wellenform-Spitzen, Spektrogramm
 │  └─ MusicWorker.App/           WPF-Anwendung (MVVM)
@@ -257,7 +272,7 @@ die Oberfläche nur in `MusicWorker.App`. So können Mehrspur- und Noten-Editor 
 - [x] **v0.8 – Sicherheit & Hilfe (Sprint 1):** automatische Sicherung mit Wiederherstellung, Marker in Editor und Mischpult, Hilfe-Menü mit Handbuch (PDF) und Tastenkürzeln, Update-Hinweis
 - [x] **v0.9 – Lautheit & Export (Sprint 2):** LUFS-Messung und -Normalisierung, FLAC/OGG/M4A, Einzelspuren (Stems), Ton aus Videos
 - [x] **v0.10 – Mischpult-Komfort (Sprint 3):** Fade-Griffe am Clip, Mehrfachauswahl, Kopieren/Einfügen von Clips, Spuren sortieren, Farben, Spurhöhe
-- [ ] **v0.11 – Presets & Effekte (Sprint 4):** eigene und fertige Presets, Noise-Gate, Tremolo, Phaser, Stereo-Verbreiterung, Bandsättigung
+- [x] **v0.11 – Presets & Effekte (Sprint 4):** eigene und fertige Presets, Noise-Gate, Tremolo, Phaser, Stereo-Verbreiterung, Bandsättigung
 - [ ] **v0.12 – Restaurierung (Sprint 5):** Knackser- und Klickentfernung, spektrale Reparatur
 - [ ] **v0.13 – Musik-Assistent (Sprint 6):** Tempo- und Tonart-Erkennung, Tempospur, Akkorde, Arpeggiator, Schlagzeug-Raster
 - [ ] **v0.14 – Notenblatt & Aufnahme (Sprint 7):** Notenblatt mit Druck/PDF, Aufnahme mit geringer Latenz und Mithören
@@ -494,6 +509,23 @@ was bewusst so gebaut ist und was sich später leicht ändern lässt.
   der Rest bleibt kompakt. Höhe und Farbe werden im Projekt gespeichert, zählen aber nicht als „Änderung am Klang“.
 - **Spuren werden durch Ziehen am Spurnamen umsortiert** (dazu „Nach oben/unten“ im Rechtsklick-Menü). Das
   Umsortieren ist rückgängig machbar; Auto-Absenkung und Gruppen bleiben an der richtigen Spur.
+
+### v0.11 – Presets & neue Effekte
+- **Zwei Arten von Presets: „Klang-Presets“ für alle Effekte auf einmal und Presets je Effekt.** Grund: Ein
+  „Podcast-Klang“ besteht aus mehreren Effekten (Gate, EQ, Kompressor) – das soll ein einziger Klick sein. Wer nur
+  den Hall wechseln will, nimmt das Menü am Hall. Ein Klang-Preset schaltet erst alle Effekte aus und stellt den
+  EQ gerade; so klingt es immer gleich, egal was vorher eingestellt war.
+- **Laden eines Effekt-Presets schaltet den Effekt ein.** Grund: Man will das Ergebnis sofort hören.
+- **Eigene Presets liegen in `%APPDATA%\MusicWorker\presets.json`** und sind im Menü mit ★ markiert. Grund: Eine
+  Datei lässt sich leicht sichern oder auf einen anderen Rechner mitnehmen; die fertigen Presets bleiben davon
+  getrennt und können nicht versehentlich überschrieben werden.
+- **Das Noise-Gate kommt ganz an den Anfang der Kette**, die Bandsättigung direkt hinter den EQ, Phaser, Tremolo
+  und Stereo-Breite nach Chorus/Flanger und vor Echo/Hall. Grund: So arbeiten Studios üblicherweise – das Gate soll
+  nur das Rauschen der Aufnahme sehen, nicht den Hall; Hall und Echo kommen zuletzt, damit sie natürlich ausklingen.
+- **Stereo-Breite gleicht die Lautstärke aus**, wenn sie breiter macht. Grund: Sonst würde „breiter“ einfach
+  „lauter“ bedeuten und man könnte den Klang nicht fair vergleichen.
+- **Die Bandsättigung bleibt auch bei viel Drive unter 0 dB.** Leise Stellen werden etwas lauter, Spitzen weich
+  abgerundet – das ist der gewünschte „dichtere“ Klang, ohne zu übersteuern.
 
 ## Verwendete Bibliotheken
 
