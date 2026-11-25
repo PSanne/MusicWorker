@@ -120,6 +120,15 @@ public sealed class AppSettings
     public string? LastSoundFont { get; set; }
 
     public bool EqualizerVisible { get; set; }
+
+    /// <summary>Alle zwei Minuten automatisch sichern (für die Wiederherstellung nach einem Absturz).</summary>
+    public bool AutosaveEnabled { get; set; } = true;
+
+    /// <summary>Beim Start einmal täglich nach einer neuen Version suchen.</summary>
+    public bool UpdateCheckEnabled { get; set; } = true;
+
+    /// <summary>Zeitpunkt der letzten automatischen Update-Prüfung (UTC).</summary>
+    public DateTime LastUpdateCheck { get; set; }
 }
 
 /// <summary>Lädt und speichert <see cref="AppSettings"/> unter %APPDATA%\MusicWorker\settings.json.</summary>

@@ -61,6 +61,24 @@ public sealed class WpfDialogService : IDialogService
         return result == MessageBoxResult.Yes;
     }
 
+    public string? AskText(string title, string prompt, string initialText)
+    {
+        var dialog = new TextInputDialog(title, prompt, initialText) { Owner = Owner };
+        return dialog.ShowDialog() == true ? dialog.Text : null;
+    }
+
+    public void ShowInfo(string message, string title)
+    {
+        if (Owner is { } owner)
+        {
+            MessageBox.Show(owner, message, title, MessageBoxButton.OK, MessageBoxImage.Information);
+        }
+        else
+        {
+            MessageBox.Show(message, title, MessageBoxButton.OK, MessageBoxImage.Information);
+        }
+    }
+
     public void ShowError(string message)
     {
         if (Owner is { } owner)

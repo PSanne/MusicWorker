@@ -39,6 +39,19 @@ public sealed class ProjectFile
     public List<ProjectGroup> Groups { get; set; } = [];
 
     public List<ProjectBus> Buses { get; set; } = [];
+
+    /// <summary>Marker im Projekt (z. B. „Strophe“, „Refrain“).</summary>
+    public List<ProjectMarker> Markers { get; set; } = [];
+
+    /// <summary>Nur in automatischen Sicherungen: wo das Projekt ursprünglich gespeichert war.</summary>
+    public string? OriginalPath { get; set; }
+}
+
+public sealed class ProjectMarker
+{
+    public string Name { get; set; } = "Marker";
+
+    public long Frame { get; set; }
 }
 
 public sealed class ProjectTrack
@@ -178,6 +191,10 @@ public sealed class ProjectService
 
     public void Write(string projectPath, ProjectFile project) =>
         File.WriteAllText(projectPath, JsonSerializer.Serialize(project, JsonOptions));
+
+    /// <summary>Schreibt erst eine Hilfsdatei und ersetzt dann die alte – nie eine halb geschriebene Projektdatei.</summary>
+    public void WriteAtomic(string projectPath, ProjectFile project) =>
+        MusicWorker.Core.Persistence.AtomicFile.WriteAllText(projectPath, JsonSerializer.Serialize(project, JsonOptions));
 
     public AudioBuffer LoadClip(string projectPath, string fileName) =>
         _files.Load(Path.Combine(AudioFolderFor(projectPath), fileName));

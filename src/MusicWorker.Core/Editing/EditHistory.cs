@@ -5,7 +5,9 @@ public sealed record HistoryEntry(
     IEditCommand Command,
     SelectionRange SelectionBefore,
     SelectionRange SelectionAfter,
-    long StateId);
+    long StateId,
+    IReadOnlyList<Marker>? MarkersBefore = null,
+    IReadOnlyList<Marker>? MarkersAfter = null);
 
 /// <summary>
 /// Verlauf für Rückgängig/Wiederholen mit begrenzter Tiefe.
@@ -38,9 +40,11 @@ public sealed class EditHistory
     /// <summary>ID des aktuellen Dokumentzustands.</summary>
     public long CurrentStateId => _undo.Last?.Value.StateId ?? _baseStateId;
 
-    public HistoryEntry Record(IEditCommand command, SelectionRange before, SelectionRange after)
+    public HistoryEntry Record(
+        IEditCommand command, SelectionRange before, SelectionRange after,
+        IReadOnlyList<Marker>? markersBefore = null, IReadOnlyList<Marker>? markersAfter = null)
     {
-        var entry = new HistoryEntry(command, before, after, _nextStateId++);
+        var entry = new HistoryEntry(command, before, after, _nextStateId++, markersBefore, markersAfter);
         _undo.AddLast(entry);
         _redo.Clear();
 

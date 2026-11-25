@@ -3,6 +3,7 @@ using System.Windows;
 using System.Windows.Input;
 using System.Windows.Media;
 using MusicWorker.App.Helpers;
+using MusicWorker.App.ViewModels;
 using MusicWorker.Core.Audio;
 using MusicWorker.Core.Editing;
 using MusicWorker.Core.Visualization;
@@ -44,6 +45,13 @@ public sealed class WaveformView : FrameworkElement
     public static readonly DependencyProperty FollowPlayheadProperty = DependencyProperty.Register(
         nameof(FollowPlayhead), typeof(bool), typeof(WaveformView), new PropertyMetadata(false));
 
+    public static readonly DependencyProperty MarkersProperty = DependencyProperty.Register(
+        nameof(Markers), typeof(IReadOnlyList<Marker>), typeof(WaveformView),
+        new FrameworkPropertyMetadata(null, FrameworkPropertyMetadataOptions.AffectsRender));
+
+    public static readonly DependencyProperty MarkerCommandProperty = DependencyProperty.Register(
+        nameof(MarkerCommand), typeof(ICommand), typeof(WaveformView), new PropertyMetadata(null));
+
     private const double RulerHeight = 22;
     private const double MaxPixelsPerFrame = 8;
 
@@ -84,6 +92,7 @@ public sealed class WaveformView : FrameworkElement
     private ViewKey _cachedKey;
     private Geometry[]? _cachedWaveforms;
 
+    private readonly MarkerOverlay _markers = new();
     private bool _isSelecting;
     private bool _isSeeking;
     private int _seekFrame;
@@ -116,7 +125,6 @@ public sealed class WaveformView : FrameworkElement
         set => SetValue(PlayheadFrameProperty, value);
     }
 
-    /// <summary>Wenn true, scrollt die Ansicht mit, sobald die Abspielposition den sichtbaren Bereich verlässt.</summary>
     /// <summary>Kanäle, auf die Effekte wirken (null = alle). Die Auswahl wird nur dort markiert.</summary>
     public bool[]? ActiveChannels
     {
@@ -141,10 +149,25 @@ public sealed class WaveformView : FrameworkElement
         set => SetValue(SeekCommandProperty, value);
     }
 
+    /// <summary>Wenn true, scrollt die Ansicht mit, sobald die Abspielposition den sichtbaren Bereich verlässt.</summary>
     public bool FollowPlayhead
     {
         get => (bool)GetValue(FollowPlayheadProperty);
         set => SetValue(FollowPlayheadProperty, value);
+    }
+
+    /// <summary>Marker der Datei (gelbe Fähnchen).</summary>
+    public IReadOnlyList<Marker>? Markers
+    {
+        get => (IReadOnlyList<Marker>?)GetValue(MarkersProperty);
+        set => SetValue(MarkersProperty, value);
+    }
+
+    /// <summary>Parameter: <see cref="MarkerAction"/> (springen, verschieben, umbenennen, löschen).</summary>
+    public ICommand? MarkerCommand
+    {
+        get => (ICommand?)GetValue(MarkerCommandProperty);
+        set => SetValue(MarkerCommandProperty, value);
     }
 
     private bool HasAudio => Buffer is { IsEmpty: false } && ActualWidth > 0;
@@ -310,6 +333,7 @@ public sealed class WaveformView : FrameworkElement
             }
         }
 
+        _markers.Draw(dc, Markers, f => FrameToX(f), RulerHeight, size.Height, size.Width, pixelsPerDip);
         DrawPlayhead(dc, size);
     }
 
@@ -527,6 +551,13 @@ public sealed class WaveformView : FrameworkElement
         var position = e.GetPosition(this);
         int frame = XToFrame(position.X);
 
+        if (_markers.MouseDown(position, e.ClickCount, Markers, MarkerCommand, this))
+        {
+            InvalidateVisual();
+            e.Handled = true;
+            return;
+        }
+
         // Klick in die Zeitleiste (oder auf den roten Griff): Position verschieben statt markieren.
         if (position.Y < RulerHeight)
         {
@@ -560,10 +591,18 @@ public sealed class WaveformView : FrameworkElement
     {
         base.OnMouseMove(e);
         var position = e.GetPosition(this);
+        if (HasAudio && _markers.MouseMove(position, x => XToFrame(Math.Clamp(x, 0, ActualWidth))))
+        {
+            InvalidateVisual();
+            return;
+        }
+
         if (!_isSelecting && !_isSeeking)
         {
             // Hand über der Zeitleiste zeigt: hier kann man die Position anfassen.
-            Cursor = HasAudio && position.Y < RulerHeight ? Cursors.Hand : Cursors.IBeam;
+            Cursor = HasAudio && _markers.HitTest(position) >= 0 ? Cursors.SizeWE
+                : HasAudio && position.Y < RulerHeight ? Cursors.Hand
+                : Cursors.IBeam;
         }
 
         if (_isSeeking && HasAudio)
@@ -605,6 +644,13 @@ public sealed class WaveformView : FrameworkElement
     protected override void OnMouseLeftButtonUp(MouseButtonEventArgs e)
     {
         base.OnMouseLeftButtonUp(e);
+        if (_markers.MouseUp(MarkerCommand, this))
+        {
+            InvalidateVisual();
+            e.Handled = true;
+            return;
+        }
+
         if (_isSeeking)
         {
             SendSeek(force: true);   // genau an der Loslass-Stelle weiterspielen
@@ -626,11 +672,27 @@ public sealed class WaveformView : FrameworkElement
     protected override void OnLostMouseCapture(MouseEventArgs e)
     {
         base.OnLostMouseCapture(e);
+        if (_markers.IsDragging)
+        {
+            _markers.Cancel();
+            InvalidateVisual();
+        }
+
         _isSelecting = false;
         if (_isSeeking)
         {
             _isSeeking = false;
             InvalidateVisual();
+        }
+    }
+
+    /// <summary>Rechtsklick auf ein Marker-Fähnchen: Menü zum Springen, Umbenennen und Löschen.</summary>
+    protected override void OnMouseRightButtonUp(MouseButtonEventArgs e)
+    {
+        base.OnMouseRightButtonUp(e);
+        if (HasAudio && _markers.ShowMenu(e.GetPosition(this), Markers, MarkerCommand, this))
+        {
+            e.Handled = true;
         }
     }
 

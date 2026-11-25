@@ -233,6 +233,7 @@
         <KeyBinding Key="Escape" Command="{Binding TransportStopCommand}" />
         <KeyBinding Key="Right" Modifiers="Ctrl" Command="{Binding TransportSkipForwardCommand}" />
         <KeyBinding Key="Left" Modifiers="Ctrl" Command="{Binding TransportSkipBackCommand}" />
+        <KeyBinding Key="F1" Command="{Binding OpenManualCommand}" />
     </Window.InputBindings>
 
     <DockPanel>
@@ -251,6 +252,9 @@
                 </MenuItem>
                 <MenuItem Header="_Exportieren …" Command="{Binding ExportCommand}" InputGestureText="Strg+E" />
                 <MenuItem Header="_Kanäle als Mono-Dateien exportieren …" Command="{Binding ExportChannelsCommand}" />
+                <Separator />
+                <MenuItem Header="Automatisch _sichern (alle 2 Minuten)" IsCheckable="True" IsChecked="{Binding IsAutosaveEnabled, Mode=TwoWay}"
+                          ToolTip="Sichert ungespeicherte Arbeit regelmäßig in einen eigenen Ordner. Nach einem Absturz bietet MusicWorker beim nächsten Start die Wiederherstellung an." />
                 <Separator />
                 <MenuItem Header="_Beenden" Click="OnExitClick" InputGestureText="Alt+F4" />
             </MenuItem>
@@ -280,6 +284,10 @@
                 <MenuItem Header="Alles a_uswählen" Command="{Binding SelectAllCommand}" InputGestureText="Strg+A" />
                 <Separator />
                 <MenuItem Header="_Stille einfügen …" Command="{Binding InsertSilenceCommand}" />
+                <Separator />
+                <MenuItem Header="_Marker setzen" Command="{Binding AddMarkerKeyCommand}" InputGestureText="M" />
+                <MenuItem Header="Zum _vorherigen Marker" Command="{Binding PreviousMarkerKeyCommand}" InputGestureText="Bild↑" />
+                <MenuItem Header="Zum _nächsten Marker" Command="{Binding NextMarkerKeyCommand}" InputGestureText="Bild↓" />
                 <Separator />
                 <MenuItem Header="Ka_näle">
                     <MenuItem Header="Effekte auf _linken Kanal" IsCheckable="True" IsChecked="{Binding EditLeft, Mode=TwoWay}" IsEnabled="{Binding IsStereo}" />
@@ -349,6 +357,17 @@
                 <Separator />
                 <MenuItem Header="_Live-Effekte anzeigen (EQ, Kompressor, Echo, Hall)" IsCheckable="True"
                           IsChecked="{Binding IsEqualizerVisible, Mode=TwoWay}" InputGestureText="Strg+Umschalt+E" />
+            </MenuItem>
+            <MenuItem Header="_Hilfe">
+                <MenuItem Header="_Handbuch (PDF)" Command="{Binding OpenManualCommand}" InputGestureText="F1" />
+                <MenuItem Header="_Tastenkürzel …" Click="OnShortcutsClick" />
+                <Separator />
+                <MenuItem Header="Nach _Updates suchen" Command="{Binding CheckForUpdatesCommand}" />
+                <MenuItem Header="Beim Start nach Updates _suchen" IsCheckable="True" IsChecked="{Binding IsUpdateCheckEnabled, Mode=TwoWay}"
+                          ToolTip="Einmal am Tag wird bei GitHub nachgesehen, ob es eine neue Version gibt. Dabei werden keine persönlichen Daten gesendet." />
+                <Separator />
+                <MenuItem Header="MusicWorker im _Internet" Command="{Binding OpenProjectPageCommand}" />
+                <MenuItem Header="Ü_ber MusicWorker …" Command="{Binding ShowAboutCommand}" />
             </MenuItem>
         </Menu>
 
@@ -449,7 +468,42 @@
                     <TextBlock Style="{StaticResource Glyph}" Text="&#xE9A6;" />
                 </Button>
             </ToolBar>
+            <ToolBar Visibility="{Binding IsEditorTab, Converter={StaticResource BoolToVisibility}}">
+                <Button Style="{StaticResource ToolButton}" Command="{Binding AddMarkerCommand}"
+                        ToolTip="Marker an der aktuellen Position setzen (M). Fähnchen ziehen = verschieben, Doppelklick = umbenennen, Rechtsklick = Menü">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Style="{StaticResource Glyph}" Text="&#xE7C1;" Foreground="#E6A100" />
+                        <TextBlock Margin="4,0,0,0" Text="Marker" />
+                    </StackPanel>
+                </Button>
+                <Menu Background="Transparent" VerticalAlignment="Center">
+                    <MenuItem Header="Springen ▾" ItemsSource="{Binding MarkerItems}" IsEnabled="{Binding HasMarkers}"
+                              ToolTip="Zu einem Marker springen (Bild↑ / Bild↓: vorheriger / nächster)" ToolTipService.ShowOnDisabled="True">
+                        <MenuItem.ItemContainerStyle>
+                            <Style TargetType="MenuItem">
+                                <Setter Property="Header" Value="{Binding Header}" />
+                                <Setter Property="Command" Value="{Binding JumpCommand}" />
+                                <Setter Property="CommandParameter" Value="{Binding Index}" />
+                            </Style>
+                        </MenuItem.ItemContainerStyle>
+                    </MenuItem>
+                </Menu>
+            </ToolBar>
         </ToolBarTray>
+
+        <!-- Hinweis auf eine neue Version -->
+        <Border DockPanel.Dock="Top" Padding="10,6" Background="#E8F4FD" BorderBrush="#64B5F6" BorderThickness="0,0,0,1"
+                Visibility="{Binding HasUpdate, Converter={StaticResource BoolToVisibility}}">
+            <DockPanel>
+                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                    <Button Padding="10,2" FontWeight="SemiBold" Content="Setup herunterladen" Command="{Binding DownloadUpdateCommand}"
+                            ToolTip="Lädt das Setup der neuen Version im Browser herunter. Einfach starten – deine Projekte bleiben erhalten." />
+                    <Button Margin="6,0,0,0" Padding="10,2" Content="Was ist neu?" Command="{Binding ShowReleaseNotesCommand}" />
+                    <Button Margin="6,0,0,0" Padding="10,2" Content="Später" Command="{Binding DismissUpdateCommand}" />
+                </StackPanel>
+                <TextBlock VerticalAlignment="Center" FontWeight="SemiBold" Text="{Binding UpdateText}" />
+            </DockPanel>
+        </Border>
 
         <StatusBar DockPanel.Dock="Bottom">
             <StatusBarItem DockPanel.Dock="Right">
@@ -1071,7 +1125,9 @@
                                                    SeekCommand="{Binding SeekCommand}"
                                                    ActiveChannels="{Binding ActiveChannels}"
                                                    MutedChannels="{Binding MutedChannels}"
-                                                   FollowPlayhead="{Binding IsPlaying}" />
+                                                   FollowPlayhead="{Binding IsPlaying}"
+                                                   Markers="{Binding Markers}"
+                                                   MarkerCommand="{Binding EditorMarkerCommand}" />
                             <Border Grid.Row="1" BorderBrush="#3A3E48" BorderThickness="0,1,0,0"
                                     Visibility="{Binding IsSpectrogramVisible, Converter={StaticResource BoolToVisibility}}">
                                 <controls:SpectrogramView x:Name="Spectrogram"
@@ -1192,6 +1248,27 @@
                                 <TextBlock Style="{StaticResource Glyph}" Text="&#xE9A6;" />
                             </Button>
                             <TextBlock Margin="8,0" VerticalAlignment="Center" FontWeight="SemiBold" Text="{Binding Mixer.ProjectTitle}" />
+                        </ToolBar>
+                        <ToolBar Band="1">
+                            <Button Style="{StaticResource ToolButton}" Command="{Binding Mixer.AddMarkerCommand}"
+                                    ToolTip="Marker an der Abspielposition setzen (M). Fähnchen ziehen = verschieben, Doppelklick = umbenennen, Rechtsklick = Menü">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Style="{StaticResource Glyph}" Text="&#xE7C1;" Foreground="#E6A100" />
+                                    <TextBlock Margin="4,0,0,0" Text="Marker" />
+                                </StackPanel>
+                            </Button>
+                            <Menu Background="Transparent" VerticalAlignment="Center">
+                                <MenuItem Header="Springen ▾" ItemsSource="{Binding Mixer.MarkerItems}" IsEnabled="{Binding Mixer.HasMarkers}"
+                                          ToolTip="Zu einem Marker springen (Bild↑ / Bild↓: vorheriger / nächster)" ToolTipService.ShowOnDisabled="True">
+                                    <MenuItem.ItemContainerStyle>
+                                        <Style TargetType="MenuItem">
+                                            <Setter Property="Header" Value="{Binding Header}" />
+                                            <Setter Property="Command" Value="{Binding JumpCommand}" />
+                                            <Setter Property="CommandParameter" Value="{Binding Index}" />
+                                        </Style>
+                                    </MenuItem.ItemContainerStyle>
+                                </MenuItem>
+                            </Menu>
                         </ToolBar>
                         <ToolBar Band="1">
                             <Button Style="{StaticResource ToolButton}" Command="{Binding Mixer.UndoCommand}" ToolTip="Rückgängig im Mischpult (Strg+Z)">
@@ -1526,7 +1603,9 @@
                                                        IsEnvelopeMode="{Binding Mixer.IsEnvelopeMode}"
                                                        EditAutomationCommand="{Binding Mixer.EditAutomationCommand}"
                                                        CreateClipCommand="{Binding Mixer.CreateClipAtCommand}"
-                                                       RecordingStartFrame="{Binding Mixer.RecordingStartFrame}" />
+                                                       RecordingStartFrame="{Binding Mixer.RecordingStartFrame}"
+                                                       Markers="{Binding Mixer.Markers}"
+                                                       MarkerCommand="{Binding Mixer.MixerMarkerCommand}" />
                             </Grid>
                         </ScrollViewer>
 

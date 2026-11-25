@@ -53,6 +53,16 @@ public partial class MainWindow : Window
             return;
         }
 
+        // Bild↑ / Bild↓: vorheriger / nächster Marker (Editor und Mischpult).
+        if (!typing && Keyboard.Modifiers == ModifierKeys.None && e.Key is Key.PageUp or Key.PageDown &&
+            Keyboard.FocusedElement is not ComboBox)
+        {
+            var command = e.Key == Key.PageUp ? _viewModel.PreviousMarkerKeyCommand : _viewModel.NextMarkerKeyCommand;
+            command.Execute(null);
+            e.Handled = true;
+            return;
+        }
+
         if (!_viewModel.IsMixerTab || typing || Keyboard.Modifiers != ModifierKeys.Control)
         {
             return;
@@ -157,8 +167,19 @@ public partial class MainWindow : Window
     protected override void OnKeyDown(KeyEventArgs e)
     {
         base.OnKeyDown(e);
-        if (e.Handled || e.Key != Key.Space || Keyboard.Modifiers != ModifierKeys.None ||
-            Keyboard.FocusedElement is TextBoxBase)
+        if (e.Handled || Keyboard.Modifiers != ModifierKeys.None || Keyboard.FocusedElement is TextBoxBase)
+        {
+            return;
+        }
+
+        if (e.Key == Key.M)
+        {
+            _viewModel.AddMarkerKeyCommand.Execute(null); // Marker setzen (im Noten-Reiter spielt M einen Ton)
+            e.Handled = true;
+            return;
+        }
+
+        if (e.Key != Key.Space)
         {
             return;
         }
@@ -179,6 +200,8 @@ public partial class MainWindow : Window
     }
 
     private void OnExitClick(object sender, RoutedEventArgs e) => Close();
+
+    private void OnShortcutsClick(object sender, RoutedEventArgs e) => new Views.ShortcutsWindow { Owner = this }.Show();
 
     private void OnZoomInClick(object sender, RoutedEventArgs e) => Waveform.ZoomIn();
 

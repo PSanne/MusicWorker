@@ -25,6 +25,11 @@ public sealed class ReplaceBufferCommand : IEditCommand
         return _replacement;
     }
 
+    public long LengthAfter(long lengthBefore) => _replacement.FrameCount;
+
+    public IReadOnlyList<Marker> MapMarkers(IReadOnlyList<Marker> markers, long lengthBefore) =>
+        MarkerList.Scale(markers, lengthBefore, _replacement.FrameCount);
+
     public AudioBuffer Revert(AudioBuffer buffer) =>
         _previous ?? throw new InvalidOperationException("Der Befehl wurde noch nicht ausgeführt.");
 }

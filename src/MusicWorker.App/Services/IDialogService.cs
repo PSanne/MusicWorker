@@ -76,5 +76,11 @@ public interface IDialogService
 
     bool Confirm(string message, string title);
 
+    /// <summary>Fragt einen kurzen Text ab (z. B. Markername); null = abgebrochen.</summary>
+    string? AskText(string title, string prompt, string initialText);
+
+    /// <summary>Hinweis mit nur einem „OK“-Knopf.</summary>
+    void ShowInfo(string message, string title);
+
     void ShowError(string message);
 }

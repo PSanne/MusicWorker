@@ -3,7 +3,16 @@
 **MusicWorker** ist eine Windows-Anwendung zum Bearbeiten von Musik, geschrieben in C# mit WPF und .NET 8.
 
 Langfristig soll MusicWorker **Audio-Editor, Mehrspur-Mixer und Noten-Editor** in einem Programm vereinen.
-Version 0.3 bietet einen vollständigen Audio-Editor mit Live-Effekten **und ein Mehrspur-Mischpult** mit Fadern, Panorama, Sends, Effekt-Bussen, Gruppen und Projekten – seit 0.3.2 auch mit **Schnitt-Werkzeugen, Takt-Raster, Loop-Bereich und Rückgängig**, seit 0.4 mit **Hüllkurven (Automation) und Auto-Absenkung**, seit 0.5 mit **Noten-Editor, Instrumenten und MIDI**, seit 0.6 mit **Aufnahme, Metronom, Punch-In und Takes/Comping**, seit 0.7 mit **Autotune, Tonhöhen-Werkzeugen, Spektrogramm und Rauschentfernung**.
+Version 0.3 bietet einen vollständigen Audio-Editor mit Live-Effekten **und ein Mehrspur-Mischpult** mit Fadern, Panorama, Sends, Effekt-Bussen, Gruppen und Projekten – seit 0.3.2 auch mit **Schnitt-Werkzeugen, Takt-Raster, Loop-Bereich und Rückgängig**, seit 0.4 mit **Hüllkurven (Automation) und Auto-Absenkung**, seit 0.5 mit **Noten-Editor, Instrumenten und MIDI**, seit 0.6 mit **Aufnahme, Metronom, Punch-In und Takes/Comping**, seit 0.7 mit **Autotune, Tonhöhen-Werkzeugen, Spektrogramm und Rauschentfernung**, seit 0.8 mit **automatischer Sicherung, Markern, Handbuch und Update-Hinweis**.
+
+## Sicherheit & Hilfe (Version 0.8)
+
+| Bereich | Funktionen |
+|---|---|
+| **Automatische Sicherung** | Alle zwei Minuten wird ungespeicherte Arbeit (Editor und Mischpult) in einen eigenen Ordner gesichert. Stürzt MusicWorker ab oder fällt der Strom aus, bietet es beim nächsten Start die **Wiederherstellung** an. Ein-/ausschaltbar im Menü *Datei* |
+| **Marker** | Taste **M** (oder Knopf „Marker“) setzt einen Marker an der aktuellen Position – im Editor und im Mischpult, auch während der Wiedergabe · **Bild↑ / Bild↓** springt zum vorherigen / nächsten Marker, „Springen ▾“ listet alle · Fähnchen ziehen = verschieben, Doppelklick = umbenennen (z. B. „Refrain“), Rechtsklick = Menü · Marker wandern beim Schneiden mit, sind rückgängig machbar und werden im Projekt bzw. in **WAV-Dateien** gespeichert (auch andere Audioprogramme lesen sie) |
+| **Hilfe-Menü** | **Handbuch als PDF** (F1, liegt dem Programm bei – funktioniert auch ohne Internet) · **Tastenkürzel-Übersicht** · Nach Updates suchen · Über MusicWorker |
+| **Update-Hinweis** | Einmal am Tag prüft MusicWorker beim Start, ob es eine neue Version gibt, und zeigt dann oben einen Hinweis mit „Setup herunterladen“. Abschaltbar im Menü *Hilfe* |
 
 ## Mischpult (Version 0.3)
 
@@ -109,6 +118,10 @@ ganze Datei), laufen im Hintergrund und lassen sich mit Strg+Z zurücknehmen.
 | Löschen | Entf |
 | Alles auswählen / Zuschneiden | Strg+A / Strg+T |
 | Equalizer ein-/ausblenden | Strg+Umschalt+E |
+| Marker setzen | M (Editor und Mischpult) |
+| Zum vorherigen / nächsten Marker | Bild↑ / Bild↓ |
+| Marker verschieben / umbenennen / löschen | Fähnchen ziehen / Doppelklick / Rechtsklick |
+| Handbuch | F1 (Menü *Hilfe*; dort auch alle Tastenkürzel) |
 | EQ-Regler auf 0 dB | Doppelklick auf den Regler |
 | Drehregler (Hall) | hoch/runter ziehen (mit Umschalt feiner) · Mausrad · Pfeiltasten · Doppelklick = Standardwert |
 
@@ -176,11 +189,13 @@ dotnet test
 
 ```
 MusicWorker.sln
+├─ docs/Handbuch.pdf             Handbuch (wird mit dem Programm installiert, Taste F1)
 ├─ installer/                    Setup-Skript (Inno Setup), wird beim Release automatisch gebaut
 ├─ src/
 │  ├─ MusicWorker.Core/          Plattformunabhängiger Kern (ohne UI, voll testbar)
-│  │  ├─ Audio/                  AudioBuffer (unveränderlich), Dezibel-Umrechnung
-│  │  ├─ Editing/                AudioEditor, Auswahl, Rückgängig/Wiederholen (Command-Pattern)
+│  │  ├─ Audio/                  AudioBuffer (unveränderlich), Dezibel-Umrechnung, Marker in WAV-Dateien (cue/labl)
+│  │  ├─ Editing/                AudioEditor, Auswahl, Rückgängig/Wiederholen (Command-Pattern), Marker
+│  │  ├─ Persistence/            Automatische Sicherung & Wiederherstellung, Update-Prüfung (Versionsvergleich)
 │  │  ├─ Recording/              Takes & Comping (Zusammenstellen mit Überblendung), Metronom, Zuordnung von Aufnahmen zur Zeitleiste
 │  │  ├─ Notes/                  Noten (Ticks), Quantisieren, Humanisieren, Transponieren, Stimmaufteilung, MIDI-Dateien lesen/schreiben
 │  │  ├─ Synthesis/              Eingebauter Synthesizer (10 Instrumente), SoundFont-Wiedergabe, Noten → Audio
@@ -214,7 +229,18 @@ die Oberfläche nur in `MusicWorker.App`. So können Mehrspur- und Noten-Editor 
 - [x] **v0.5 – Noten, MIDI & Instrumente:** Piano-Roll, Bildschirmtastatur, Notenlängen-Anpassung, Quantisieren, Humanisierung, Anschlagstärke-Panel, Transponieren, Stimmaufteilung (Noten auf Stimmen verteilen), frei verfügbare SoundFont-Instrumente
 - [x] **v0.6 – Aufnahme:** Record, Neuaufnahme (Punch-In), Metronom, Takes mit Comping-Tool (inkl. Clear-Comp)
 - [x] **v0.7 – Tonhöhe & Spektrum:** Autotune, Tonhöhen-Korrektur, parametrische Tonhöhe, Stimmeffekte, Spektrogramm (Wasserfall-Ansicht der Fourier-Transformation), spektrale Rauschentfernung
-- [ ] **Nächster Schritt – Aussehen:** Gestaltung der Oberfläche (übernimmt der Auftraggeber zum Schluss)
+- [x] **v0.8 – Sicherheit & Hilfe (Sprint 1):** automatische Sicherung mit Wiederherstellung, Marker in Editor und Mischpult, Hilfe-Menü mit Handbuch (PDF) und Tastenkürzeln, Update-Hinweis
+- [ ] **v0.9 – Lautheit & Export (Sprint 2):** LUFS-Messung und -Normalisierung, FLAC/OGG/M4A, Einzelspuren (Stems), Ton aus Videos
+- [ ] **v0.10 – Mischpult-Komfort (Sprint 3):** Fade-Griffe am Clip, Mehrfachauswahl, Kopieren/Einfügen von Clips, Spuren sortieren, Farben, Spurhöhe
+- [ ] **v0.11 – Presets & Effekte (Sprint 4):** eigene und fertige Presets, Noise-Gate, Tremolo, Phaser, Stereo-Verbreiterung, Bandsättigung
+- [ ] **v0.12 – Restaurierung (Sprint 5):** Knackser- und Klickentfernung, spektrale Reparatur
+- [ ] **v0.13 – Musik-Assistent (Sprint 6):** Tempo- und Tonart-Erkennung, Tempospur, Akkorde, Arpeggiator, Schlagzeug-Raster
+- [ ] **v0.14 – Notenblatt & Aufnahme (Sprint 7):** Notenblatt mit Druck/PDF, Aufnahme mit geringer Latenz und Mithören
+- [ ] **v0.15 – Stimme & KI (Sprint 8):** De-Esser, Tonhöhe mit Formanterhalt, KI-Gesangstrennung
+- [ ] **v1.0 – Feinschliff (Sprint 9):** Handbuch auf den neuen Stand, Gesamttest
+- [ ] **Danach – Aussehen:** Gestaltung der Oberfläche (übernimmt der Auftraggeber zum Schluss)
+
+Den Sprint-Plan mit Status gibt es auch als Board in Miro (*MusicWorker – Sprint-Plan*).
 
 ## Entscheidungen
 
@@ -368,6 +394,37 @@ was bewusst so gebaut ist und was sich später leicht ändern lässt.
 - **Beim Aufnehmen läuft die Wiedergabe über das Projektende hinaus weiter, bis du *Stopp* drückst.** Vorher endete
   eine Aufnahme in einem leeren Projekt (oder hinter dem letzten Clip) sofort wieder. Grund: Beim Aufnehmen weiß
   MusicWorker vorher nicht, wie lang die Aufnahme wird – beim reinen Abspielen stoppt es weiterhin am Projektende.
+
+### v0.8 – Sprint-Plan, Sicherheit & Hilfe
+- **Reihenfolge der Sprints:** Zuerst kommt, was jede Sitzung betrifft und Arbeit schützt (Sicherung, Marker, Hilfe),
+  dann was jedes fertige Stück braucht (Lautheit, Formate), danach Arbeitsfluss, Effekte und Restaurierung.
+  Komponieren (Musik-Assistent, Notenblatt) und Spezialthemen (geringe Latenz braucht ein Audio-Interface zum
+  Testen) folgen. Stimme wurde als geringere Priorität gewünscht; die KI-Gesangstrennung ist am aufwendigsten
+  und kommt deshalb zuletzt.
+- **Automatische Sicherung alle 2 Minuten in einen eigenen Ordner** (`%LOCALAPPDATA%\MusicWorker\Wiederherstellung`),
+  nie über die Dateien des Nutzers. Grund: Ein automatisches Überschreiben könnte einen gewollten alten Stand
+  zerstören. Jede laufende Sitzung hat einen eigenen Unterordner, damit sich zwei geöffnete MusicWorker-Fenster
+  nicht in die Quere kommen. Geschrieben wird nur neues oder geändertes Audio, und die Beschreibung erst zum
+  Schluss (erst Hilfsdatei, dann umbenennen) – so ist eine Sicherung nie halb fertig.
+- **Nach einem Absturz genügt eine einzige Frage** („Wiederherstellen?“). Wiederhergestellte Arbeit gilt als
+  ungespeichert; ein Mischpult-Projekt behält seinen ursprünglichen Speicherort, sodass Strg+S wie gewohnt dorthin
+  speichert. Wer „Nein“ wählt, verwirft die Sicherung – sonst würde die Frage bei jedem Start wiederkommen.
+- **Marker werden in WAV-Dateien als „cue“-Marker gespeichert** (Namen im üblichen „labl“-Format). Grund: Das ist
+  der verbreitete Standard, den auch andere Audioprogramme lesen. MP3 kann keine Marker aufnehmen; im Mischpult
+  stehen sie in der Projektdatei.
+- **Marker wandern beim Schneiden mit:** Dahinterliegende rücken nach, Marker in einem gelöschten Bereich
+  verschwinden, bei einer Tempoänderung wandern sie anteilig mit. Alle Marker-Änderungen sind rückgängig machbar
+  und unterbrechen die Wiedergabe nicht – so kann man beim Anhören mit **M** Stellen markieren.
+- **Tasten M und Bild↑/Bild↓:** „M“ für Marker ist in vielen Musikprogrammen üblich, Bild↑/↓ erinnert ans
+  Kapitel-Springen. Im Noten-Reiter bleibt M ein Ton der Computer-Klaviatur.
+- **Handbuch als PDF neben dem Programm, geöffnet mit dem PDF-Programm von Windows.** Grund: Funktioniert ohne
+  Internet, lässt sich drucken, und MusicWorker braucht keinen eigenen PDF-Betrachter. Das Handbuch beschreibt
+  noch den Stand 0.7; es wird in Sprint 9 einmal komplett auf den neuen Stand gebracht, statt nach jedem Sprint
+  teilweise. Die neuen Tasten stehen schon in der Tastenkürzel-Übersicht.
+- **Update-Prüfung höchstens einmal am Tag, nur ein Abruf der öffentlichen Release-Liste bei GitHub** – ohne
+  persönliche Daten, abschaltbar. MusicWorker installiert nichts selbst, sondern bietet das Setup zum Herunterladen
+  an. Grund: Du behältst die Kontrolle, und weil das Setup nicht signiert ist, soll Windows' Sicherheitsabfrage
+  bewusst bestätigt werden.
 
 ## Verwendete Bibliotheken
 

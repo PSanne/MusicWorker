@@ -14,4 +14,10 @@ public interface IEditCommand
     AudioBuffer Apply(AudioBuffer buffer);
 
     AudioBuffer Revert(AudioBuffer buffer);
+
+    /// <summary>Länge des Puffers (in Frames) nach <see cref="Apply"/>.</summary>
+    long LengthAfter(long lengthBefore) => lengthBefore;
+
+    /// <summary>Wo die Marker nach der Bearbeitung liegen (Standard: unverändert).</summary>
+    IReadOnlyList<Marker> MapMarkers(IReadOnlyList<Marker> markers, long lengthBefore) => markers;
 }

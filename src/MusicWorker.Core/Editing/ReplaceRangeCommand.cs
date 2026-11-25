@@ -30,6 +30,11 @@ public sealed class ReplaceRangeCommand : IEditCommand
         return buffer.ReplaceRange(_startFrame, _frameCount, _replacement);
     }
 
+    public long LengthAfter(long lengthBefore) => lengthBefore - _frameCount + _replacement.FrameCount;
+
+    public IReadOnlyList<Marker> MapMarkers(IReadOnlyList<Marker> markers, long lengthBefore) =>
+        MarkerList.Replace(markers, _startFrame, _frameCount, _replacement.FrameCount);
+
     public AudioBuffer Revert(AudioBuffer buffer)
     {
         if (_removed is null)

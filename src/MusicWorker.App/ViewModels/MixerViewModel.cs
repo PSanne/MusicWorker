@@ -9,6 +9,7 @@ using MusicWorker.App.Audio;
 using MusicWorker.App.Helpers;
 using MusicWorker.App.Services;
 using MusicWorker.Core.Audio;
+using MusicWorker.Core.Editing;
 using MusicWorker.Core.Dsp;
 using MusicWorker.Core.Effects;
 using MusicWorker.Core.Mixing;
@@ -1703,7 +1704,15 @@ public sealed partial class MixerViewModel : ObservableObject, IDisposable
         try
         {
             await EnsureNotesRenderedAsync();
-            await Task.Run(() => _files.Export(RenderMixdown(), path));
+            var markers = Markers;
+            await Task.Run(() =>
+            {
+                _files.Export(RenderMixdown(), path);
+                if (AudioFileService.SupportsMarkers(path))
+                {
+                    WavMarkers.Append(path, markers);
+                }
+            });
             StatusText = $"Mixdown exportiert nach „{Path.GetFileName(path)}“.";
         }
         catch (Exception ex)
@@ -1772,6 +1781,7 @@ public sealed partial class MixerViewModel : ObservableObject, IDisposable
             IsSnapEnabled = project.Snap;
             LoopStart = project.LoopStart;
             LoopEnd = project.LoopEnd;
+            Markers = MarkerList.Sorted(project.Markers.Where(m => m.Frame >= 0).Select(m => new Marker(m.Name, m.Frame)));
 
             var duckSources = new List<(TrackViewModel Track, int Source)>();
             foreach (var g in project.Groups)
@@ -2038,6 +2048,7 @@ public sealed partial class MixerViewModel : ObservableObject, IDisposable
         LoopStart = LoopEnd = 0;
         Bpm = 120;
         BeatsPerBar = 4;
+        Markers = MarkerList.Empty;
         ClearUndo();
         PlayheadFrame = 0;
         _playStart = 0;
@@ -2081,23 +2092,7 @@ public sealed partial class MixerViewModel : ObservableObject, IDisposable
         IsBusy = true;
         StatusText = $"Speichere Projekt „{Path.GetFileNameWithoutExtension(path)}“ …";
 
-        var project = new ProjectFile
-        {
-            SampleRate = SampleRate,
-            MasterDb = MasterDb,
-            MasterEqLow = MasterEqLow,
-            MasterEqMid = MasterEqMid,
-            MasterEqHigh = MasterEqHigh,
-            MasterCompression = MasterCompression,
-            MasterLimiter = MasterLimiter,
-            Bpm = Bpm,
-            BeatsPerBar = BeatsPerBar,
-            Snap = IsSnapEnabled,
-            LoopStart = LoopStart,
-            LoopEnd = LoopEnd,
-            Groups = Groups.Select(g => new ProjectGroup { Name = g.Name, VolumeDb = g.VolumeDb, Mute = g.Mute }).ToList(),
-            Buses = [ToProjectBus(HallBus), ToProjectBus(EchoBus)],
-        };
+        var project = CreateProjectHeader();
 
         // Nur neues oder verändertes Audio wird geschrieben; Unverändertes behält seine Datei.
         var toWrite = new List<(ClipViewModel Clip, string File)>();
@@ -2106,37 +2101,7 @@ public sealed partial class MixerViewModel : ObservableObject, IDisposable
         for (int t = 0; t < Tracks.Count; t++)
         {
             var track = Tracks[t];
-            var data = new ProjectTrack
-            {
-                Name = track.Name,
-                VolumeDb = track.VolumeDb,
-                Pan = track.Pan,
-                Mute = track.Mute,
-                Solo = track.Solo,
-                SendHall = track.SendHall,
-                SendEcho = track.SendEcho,
-                GroupIndex = track.Group is null || track.Group.IsNone ? -1 : Groups.IndexOf(track.Group),
-                EqLow = track.EqLow,
-                EqMid = track.EqMid,
-                EqHigh = track.EqHigh,
-                HighPass = track.HighPassHz,
-                Compression = track.Compression,
-                DuckSource = DuckIndex(track),
-                DuckAmount = track.DuckAmount,
-                DuckThreshold = track.DuckThreshold,
-                ShownAutomation = track.ShownAutomation.ToString(),
-                Instrument = track.Instrument?.BuiltIn.ToString(),
-                SoundFont = track.Instrument?.SoundFontPath,
-                Bank = track.Instrument?.Bank ?? 0,
-                Preset = track.Instrument?.Preset ?? 0,
-                PresetName = track.Instrument?.PresetName,
-                Automation = track.Automation.Select(l => new ProjectAutomation
-                {
-                    Target = l.Target.ToString(),
-                    Frames = l.Points.Select(p => p.Frame).ToList(),
-                    Values = l.Points.Select(p => p.Value).ToList(),
-                }).ToList(),
-            };
+            var data = CreateProjectTrack(track);
 
             for (int c = 0; c < track.Clips.Count; c++)
             {
@@ -2261,6 +2226,59 @@ public sealed partial class MixerViewModel : ObservableObject, IDisposable
         }
     }
 
+    /// <summary>Projektdaten ohne Spuren (für Speichern und automatische Sicherung).</summary>
+    private ProjectFile CreateProjectHeader() => new()
+    {
+        SampleRate = SampleRate,
+        MasterDb = MasterDb,
+        MasterEqLow = MasterEqLow,
+        MasterEqMid = MasterEqMid,
+        MasterEqHigh = MasterEqHigh,
+        MasterCompression = MasterCompression,
+        MasterLimiter = MasterLimiter,
+        Bpm = Bpm,
+        BeatsPerBar = BeatsPerBar,
+        Snap = IsSnapEnabled,
+        LoopStart = LoopStart,
+        LoopEnd = LoopEnd,
+        Markers = Markers.Select(m => new ProjectMarker { Name = m.Name, Frame = m.Frame }).ToList(),
+        Groups = Groups.Select(g => new ProjectGroup { Name = g.Name, VolumeDb = g.VolumeDb, Mute = g.Mute }).ToList(),
+        Buses = [ToProjectBus(HallBus), ToProjectBus(EchoBus)],
+    };
+
+    /// <summary>Einstellungen einer Spur ohne Clips.</summary>
+    private ProjectTrack CreateProjectTrack(TrackViewModel track) => new()
+    {
+        Name = track.Name,
+        VolumeDb = track.VolumeDb,
+        Pan = track.Pan,
+        Mute = track.Mute,
+        Solo = track.Solo,
+        SendHall = track.SendHall,
+        SendEcho = track.SendEcho,
+        GroupIndex = track.Group is null || track.Group.IsNone ? -1 : Groups.IndexOf(track.Group),
+        EqLow = track.EqLow,
+        EqMid = track.EqMid,
+        EqHigh = track.EqHigh,
+        HighPass = track.HighPassHz,
+        Compression = track.Compression,
+        DuckSource = DuckIndex(track),
+        DuckAmount = track.DuckAmount,
+        DuckThreshold = track.DuckThreshold,
+        ShownAutomation = track.ShownAutomation.ToString(),
+        Instrument = track.Instrument?.BuiltIn.ToString(),
+        SoundFont = track.Instrument?.SoundFontPath,
+        Bank = track.Instrument?.Bank ?? 0,
+        Preset = track.Instrument?.Preset ?? 0,
+        PresetName = track.Instrument?.PresetName,
+        Automation = track.Automation.Select(l => new ProjectAutomation
+        {
+            Target = l.Target.ToString(),
+            Frames = l.Points.Select(p => p.Frame).ToList(),
+            Values = l.Points.Select(p => p.Value).ToList(),
+        }).ToList(),
+    };
+
     // ───────────── Rückgängig: Zustand sichern und wiederherstellen ─────────────
 
     private sealed record ClipState(
@@ -2276,7 +2294,7 @@ public sealed partial class MixerViewModel : ObservableObject, IDisposable
 
     private sealed record GroupState(string Name, double VolumeDb, bool Mute);
 
-    private sealed record MixerState(TrackState[] Tracks, GroupState[] Groups, int SelectedTrack, int SelectedClip, int NextColor);
+    private sealed record MixerState(TrackState[] Tracks, GroupState[] Groups, int SelectedTrack, int SelectedClip, int NextColor, IReadOnlyList<Marker> Markers);
 
     /// <summary>Merkt sich den aktuellen Zustand für „Rückgängig“ (höchstens 50 Schritte).</summary>
     private void RecordUndo()
@@ -2321,7 +2339,8 @@ public sealed partial class MixerViewModel : ObservableObject, IDisposable
             Groups.Select(g => new GroupState(g.Name, g.VolumeDb, g.Mute)).ToArray(),
             selectedTrack,
             selectedClip,
-            _nextColor);
+            _nextColor,
+            Markers);
     }
 
     private void Restore(MixerState state)
@@ -2395,6 +2414,7 @@ public sealed partial class MixerViewModel : ObservableObject, IDisposable
 
         _automationTrack = null;
         _nextColor = state.NextColor;
+        Markers = state.Markers;
         if (state.SelectedTrack >= 0 && state.SelectedTrack < Tracks.Count &&
             state.SelectedClip >= 0 && state.SelectedClip < Tracks[state.SelectedTrack].Clips.Count)
         {
@@ -2415,7 +2435,11 @@ public sealed partial class MixerViewModel : ObservableObject, IDisposable
 
     partial void OnMasterLimiterChanged(bool value) => OnMixChanged();
 
-    partial void OnSampleRateChanged(int value) => RenderNoteClips();
+    partial void OnSampleRateChanged(int value)
+    {
+        RenderNoteClips();
+        OnPropertyChanged(nameof(MarkerItems));
+    }
 
     partial void OnBpmChanged(double value)
     {

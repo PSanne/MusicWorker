@@ -15,6 +15,10 @@ public sealed class AudioFileService
 
     private static readonly int[] Mp3SampleRates = [32000, 44100, 48000];
 
+    /// <summary>Nur WAV-Dateien können Marker speichern.</summary>
+    public static bool SupportsMarkers(string path) =>
+        string.Equals(Path.GetExtension(path), ".wav", StringComparison.OrdinalIgnoreCase);
+
     /// <summary>
     /// Lädt WAV, MP3, AIFF sowie alles, was Windows Media Foundation versteht (FLAC, M4A/AAC, WMA …).
     /// </summary>

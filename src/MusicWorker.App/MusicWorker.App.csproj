@@ -16,6 +16,11 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- Handbuch (Menü „Hilfe → Handbuch“, Taste F1) liegt neben dem Programm. -->
+    <Content Include="..\..\docs\Handbuch.pdf" Link="Handbuch.pdf" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\MusicWorker.Core\MusicWorker.Core.csproj" />
   </ItemGroup>
 

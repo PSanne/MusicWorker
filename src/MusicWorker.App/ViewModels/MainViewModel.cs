@@ -733,7 +733,15 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         var buffer = Buffer;
         try
         {
-            await Task.Run(() => _files.Export(ApplyAll(liveEffects, buffer), path));
+            var markers = _editor.Markers;
+            await Task.Run(() =>
+            {
+                _files.Export(ApplyAll(liveEffects, buffer), path);
+                if (AudioFileService.SupportsMarkers(path))
+                {
+                    WavMarkers.Append(path, markers); // Marker bleiben in der WAV-Datei erhalten
+                }
+            });
             _editor.MarkSaved();
             FilePath = path;
             StatusText = $"Exportiert nach „{Path.GetFileName(path)}“.";
@@ -1617,8 +1625,10 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         StatusText = $"Lade „{Path.GetFileName(path)}“ …";
         try
         {
-            var buffer = await Task.Run(() => _files.Load(path));
-            _editor.Load(buffer);
+            var (buffer, markers) = await Task.Run(() => (
+                _files.Load(path),
+                AudioFileService.SupportsMarkers(path) ? WavMarkers.Read(path) : MarkerList.Empty));
+            _editor.Load(buffer, markers);
             FilePath = path;
             DocumentName = null;
             LinkedClip = null;
@@ -2681,6 +2691,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         OnPropertyChanged(nameof(ActiveChannels));
         OnPropertyChanged(nameof(MutedChannels));
         OnPropertyChanged(nameof(ChannelTargetText));
+        RefreshMarkerProperties();
         UpdateEqualizerCurve();
         RefreshCommands();
     }
@@ -2729,6 +2740,8 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         {
             command.NotifyCanExecuteChanged();
         }
+
+        RefreshMarkerCommands();
     }
 
     private string FormatFrame(int frame) => TimeFormatter.Format(Buffer.FrameToTime(frame));

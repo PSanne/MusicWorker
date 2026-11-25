@@ -4,6 +4,7 @@ using System.Windows.Input;
 using System.Windows.Media;
 using MusicWorker.App.Helpers;
 using MusicWorker.App.ViewModels;
+using MusicWorker.Core.Editing;
 using MusicWorker.Core.Mixing;
 using MusicWorker.Core.Visualization;
 
@@ -97,6 +98,13 @@ public sealed class TimelineView : FrameworkElement
         nameof(LoopEnd), typeof(long), typeof(TimelineView),
         new FrameworkPropertyMetadata(0L, FrameworkPropertyMetadataOptions.AffectsRender));
 
+    public static readonly DependencyProperty MarkersProperty = DependencyProperty.Register(
+        nameof(Markers), typeof(IReadOnlyList<Marker>), typeof(TimelineView),
+        new FrameworkPropertyMetadata(null, FrameworkPropertyMetadataOptions.AffectsRender));
+
+    public static readonly DependencyProperty MarkerCommandProperty = DependencyProperty.Register(
+        nameof(MarkerCommand), typeof(ICommand), typeof(TimelineView), new PropertyMetadata(null));
+
     private static readonly Brush BackgroundBrush = Frozen(new SolidColorBrush(Color.FromRgb(0x1B, 0x1D, 0x23)));
     private static readonly Brush[] LaneBrushes =
     [
@@ -128,6 +136,7 @@ public sealed class TimelineView : FrameworkElement
     private static readonly TimeSpan SeekThrottle = TimeSpan.FromMilliseconds(90);
 
     private readonly Dictionary<ClipViewModel, (ClipKey Key, Geometry Geometry)> _waveCache = [];
+    private readonly MarkerOverlay _markers = new();
 
     private double _viewStart;
     private double _viewLength;
@@ -149,6 +158,20 @@ public sealed class TimelineView : FrameworkElement
         Focusable = true;
         ClipToBounds = true;
         FocusVisualStyle = null;
+    }
+
+    /// <summary>Marker des Projekts (gelbe Fähnchen).</summary>
+    public IReadOnlyList<Marker>? Markers
+    {
+        get => (IReadOnlyList<Marker>?)GetValue(MarkersProperty);
+        set => SetValue(MarkersProperty, value);
+    }
+
+    /// <summary>Parameter: <see cref="MarkerAction"/>.</summary>
+    public ICommand? MarkerCommand
+    {
+        get => (ICommand?)GetValue(MarkerCommandProperty);
+        set => SetValue(MarkerCommandProperty, value);
     }
 
     public IList<TrackViewModel>? Tracks
@@ -372,6 +395,7 @@ public sealed class TimelineView : FrameworkElement
         {
             var hint = Text("Noch keine Spuren – Audiodateien hierher ziehen oder „Spur aus Datei …“ wählen.", 14, TextBrush, pixelsPerDip);
             dc.DrawText(hint, new Point((width - hint.Width) / 2, RulerHeight + (LaneHeight - hint.Height) / 2));
+            _markers.Draw(dc, Markers, f => FrameToX(f), RulerHeight, height, width, pixelsPerDip);
             DrawPlayhead(dc, width, height);
             return;
         }
@@ -460,6 +484,7 @@ public sealed class TimelineView : FrameworkElement
             _waveCache.Remove(stale);
         }
 
+        _markers.Draw(dc, Markers, f => FrameToX(f), RulerHeight, height, width, pixelsPerDip);
         DrawPlayhead(dc, width, height);
     }
 
@@ -836,6 +861,13 @@ public sealed class TimelineView : FrameworkElement
         var position = e.GetPosition(this);
         long frame = XToFrame(position.X);
 
+        if (_markers.MouseDown(position, e.ClickCount, Markers, MarkerCommand, this))
+        {
+            InvalidateVisual();
+            e.Handled = true;
+            return;
+        }
+
         if ((Keyboard.Modifiers & ModifierKeys.Shift) != 0)
         {
             // Umschalt+Ziehen: Loop-Bereich aufziehen
@@ -899,6 +931,13 @@ public sealed class TimelineView : FrameworkElement
         base.OnMouseMove(e);
         var position = e.GetPosition(this);
 
+        if (_markers.MouseMove(position, x => XToFrame(Math.Clamp(x, 0, ActualWidth))))
+        {
+            AutoScroll(position.X);
+            InvalidateVisual();
+            return;
+        }
+
         if (_isSeeking)
         {
             AutoScroll(position.X);
@@ -949,7 +988,8 @@ public sealed class TimelineView : FrameworkElement
             return;
         }
 
-        Cursor = (Keyboard.Modifiers & ModifierKeys.Shift) != 0 ? Cursors.IBeam
+        Cursor = _markers.HitTest(position) >= 0 ? Cursors.SizeWE
+            : (Keyboard.Modifiers & ModifierKeys.Shift) != 0 ? Cursors.IBeam
             : position.Y < RulerHeight ? Cursors.Hand
             : HitClip(position) is not null ? Cursors.SizeAll : Cursors.Arrow;
     }
@@ -957,6 +997,13 @@ public sealed class TimelineView : FrameworkElement
     protected override void OnMouseLeftButtonUp(MouseButtonEventArgs e)
     {
         base.OnMouseLeftButtonUp(e);
+        if (_markers.MouseUp(MarkerCommand, this))
+        {
+            InvalidateVisual();
+            e.Handled = true;
+            return;
+        }
+
         if (_isSeeking)
         {
             SendSeek(force: true);
@@ -984,9 +1031,20 @@ public sealed class TimelineView : FrameworkElement
         }
     }
 
+    /// <summary>Rechtsklick auf ein Marker-Fähnchen: Menü zum Springen, Umbenennen und Löschen.</summary>
+    protected override void OnMouseRightButtonUp(MouseButtonEventArgs e)
+    {
+        base.OnMouseRightButtonUp(e);
+        if (_markers.ShowMenu(e.GetPosition(this), Markers, MarkerCommand, this))
+        {
+            e.Handled = true;
+        }
+    }
+
     protected override void OnLostMouseCapture(MouseEventArgs e)
     {
         base.OnLostMouseCapture(e);
+        _markers.Cancel();
         _isSeeking = false;
         _isLoopDrag = false;
         _envelopeTrack = null;

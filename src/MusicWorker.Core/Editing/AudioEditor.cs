@@ -30,6 +30,9 @@ public sealed class AudioEditor
 
     public AudioBuffer? Clipboard { get; private set; }
 
+    /// <summary>Marker der Datei, nach Position sortiert. Sie wandern bei Schnitten mit und sind rückgängig machbar.</summary>
+    public IReadOnlyList<Marker> Markers { get; private set; } = MarkerList.Empty;
+
     /// <summary>Aktuelle Auswahl; wird automatisch auf die Pufferlänge begrenzt.</summary>
     public SelectionRange Selection
     {
@@ -54,15 +57,25 @@ public sealed class AudioEditor
     /// <summary>True, wenn es seit dem Laden bzw. letzten Speichern Änderungen gibt.</summary>
     public bool IsModified => _history.CurrentStateId != _savedStateId;
 
-    /// <summary>Lädt neues Audio und leert den Verlauf.</summary>
-    public void Load(AudioBuffer buffer)
+    /// <summary>Lädt neues Audio (optional mit Markern) und leert den Verlauf.</summary>
+    public void Load(AudioBuffer buffer, IReadOnlyList<Marker>? markers = null)
     {
         Buffer = buffer ?? throw new ArgumentNullException(nameof(buffer));
+        Markers = markers is null
+            ? MarkerList.Empty
+            : MarkerList.Sorted(markers.Where(m => m.Frame >= 0 && m.Frame <= buffer.FrameCount));
         _history.Clear();
         _savedStateId = _history.CurrentStateId;
         _selection = default;
         Changed?.Invoke(this, EventArgs.Empty);
         SelectionChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    /// <summary>Kennzeichnet das Dokument als ungespeichert (z. B. nach einer Wiederherstellung).</summary>
+    public void MarkUnsaved()
+    {
+        _savedStateId = -1;
+        Changed?.Invoke(this, EventArgs.Empty);
     }
 
     public void MarkSaved()
@@ -210,6 +223,50 @@ public sealed class AudioEditor
             new SelectionRange(position, position + frames));
     }
 
+    // ───────────── Marker ─────────────
+
+    /// <summary>Setzt einen Marker; liefert seinen Index in <see cref="Markers"/>.</summary>
+    public int AddMarker(long frame, string? name = null)
+    {
+        RequireAudio();
+        var marker = new Marker(
+            string.IsNullOrWhiteSpace(name) ? MarkerList.NextName(Markers) : name.Trim(),
+            Math.Clamp(frame, 0, Buffer.FrameCount));
+        ExecuteMarkers("Marker setzen", MarkerList.Add(Markers, marker));
+        return IndexOf(marker);
+    }
+
+    public void RenameMarker(int index, string name)
+    {
+        RequireMarker(index);
+        if (string.IsNullOrWhiteSpace(name) || name.Trim() == Markers[index].Name)
+        {
+            return;
+        }
+
+        ExecuteMarkers("Marker umbenennen", MarkerList.ReplaceAt(Markers, index, Markers[index] with { Name = name.Trim() }));
+    }
+
+    /// <summary>Verschiebt einen Marker; liefert seinen neuen Index.</summary>
+    public int MoveMarker(int index, long frame)
+    {
+        RequireMarker(index);
+        var moved = Markers[index] with { Frame = Math.Clamp(frame, 0, Buffer.FrameCount) };
+        if (moved.Frame == Markers[index].Frame)
+        {
+            return index;
+        }
+
+        ExecuteMarkers("Marker verschieben", MarkerList.ReplaceAt(Markers, index, moved));
+        return IndexOf(moved);
+    }
+
+    public void RemoveMarker(int index)
+    {
+        RequireMarker(index);
+        ExecuteMarkers("Marker löschen", MarkerList.RemoveAt(Markers, index));
+    }
+
     public void Undo()
     {
         if (!_history.TryUndo(out var entry))
@@ -218,6 +275,7 @@ public sealed class AudioEditor
         }
 
         Buffer = entry.Command.Revert(Buffer);
+        Markers = entry.MarkersBefore ?? Markers;
         _selection = entry.SelectionBefore.Clamp(Buffer.FrameCount);
         Changed?.Invoke(this, EventArgs.Empty);
         SelectionChanged?.Invoke(this, EventArgs.Empty);
@@ -231,6 +289,7 @@ public sealed class AudioEditor
         }
 
         Buffer = entry.Command.Apply(Buffer);
+        Markers = entry.MarkersAfter ?? Markers;
         _selection = entry.SelectionAfter.Clamp(Buffer.FrameCount);
         Changed?.Invoke(this, EventArgs.Empty);
         SelectionChanged?.Invoke(this, EventArgs.Empty);
@@ -239,8 +298,11 @@ public sealed class AudioEditor
     private void Execute(IEditCommand command, SelectionRange selectionAfter)
     {
         var before = _selection;
+        var markersBefore = Markers;
+        long lengthBefore = Buffer.FrameCount;
         Buffer = command.Apply(Buffer);
-        _history.Record(command, before, selectionAfter);
+        Markers = command.MapMarkers(markersBefore, lengthBefore);
+        _history.Record(command, before, selectionAfter, markersBefore, Markers);
         _selection = selectionAfter.Clamp(Buffer.FrameCount);
         Changed?.Invoke(this, EventArgs.Empty);
         SelectionChanged?.Invoke(this, EventArgs.Empty);
@@ -266,6 +328,30 @@ public sealed class AudioEditor
         }
     }
 
+    private void ExecuteMarkers(string description, IReadOnlyList<Marker> markers) =>
+        Execute(new MarkerEditCommand(description, markers), _selection);
+
+    private int IndexOf(Marker marker)
+    {
+        for (int i = 0; i < Markers.Count; i++)
+        {
+            if (ReferenceEquals(Markers[i], marker))
+            {
+                return i;
+            }
+        }
+
+        return -1;
+    }
+
+    private void RequireMarker(int index)
+    {
+        if (index < 0 || index >= Markers.Count)
+        {
+            throw new ArgumentOutOfRangeException(nameof(index), "Diesen Marker gibt es nicht.");
+        }
+    }
+
     private void RequireSelection()
     {
         if (!HasSelection)
@@ -276,4 +362,16 @@ public sealed class AudioEditor
 
     private static AudioBuffer EmptyLike(AudioBuffer buffer) =>
         AudioBuffer.CreateEmpty(buffer.SampleRate, buffer.Channels);
+
+    /// <summary>Ändert nur die Marker – das Audio bleibt gleich.</summary>
+    private sealed class MarkerEditCommand(string description, IReadOnlyList<Marker> markers) : IEditCommand
+    {
+        public string Description { get; } = description;
+
+        public AudioBuffer Apply(AudioBuffer buffer) => buffer;
+
+        public AudioBuffer Revert(AudioBuffer buffer) => buffer;
+
+        public IReadOnlyList<Marker> MapMarkers(IReadOnlyList<Marker> current, long lengthBefore) => markers;
+    }
 }

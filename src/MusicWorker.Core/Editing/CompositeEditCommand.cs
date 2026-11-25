@@ -25,6 +25,27 @@ public sealed class CompositeEditCommand : IEditCommand
         return buffer;
     }
 
+    public long LengthAfter(long lengthBefore)
+    {
+        foreach (var command in _commands)
+        {
+            lengthBefore = command.LengthAfter(lengthBefore);
+        }
+
+        return lengthBefore;
+    }
+
+    public IReadOnlyList<Marker> MapMarkers(IReadOnlyList<Marker> markers, long lengthBefore)
+    {
+        foreach (var command in _commands)
+        {
+            markers = command.MapMarkers(markers, lengthBefore);
+            lengthBefore = command.LengthAfter(lengthBefore);
+        }
+
+        return markers;
+    }
+
     public AudioBuffer Revert(AudioBuffer buffer)
     {
         for (int i = _commands.Count - 1; i >= 0; i--)
