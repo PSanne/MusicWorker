@@ -118,11 +118,10 @@ ganze Datei), laufen im Hintergrund und lassen sich mit Strg+Z zurücknehmen.
 > wenn du auf *In Audio übernehmen* klickst; beim Exportieren fragt MusicWorker, ob er eingerechnet werden soll.
 > Darüber zeigt das **Live-Spektrum**, was gerade zu hören ist (Stereo: blau = links, rosa = rechts), und in Orange die eingestellte EQ-Kurve.
 >
-> **Weitere Effekte:** Rechts neben dem EQ liegen Filter, Verzerrung, Kompressor, Chorus, Flanger, Echo und Hall
-> als Felder mit Drehreglern – alle gleichzeitig sichtbar und sofort hörbar (auf kleinen Bildschirmen seitlich
-> scrollbar). Ein grüner Punkt zeigt, welcher Effekt gerade wirkt. Live-Kette:
-> Filter → EQ → Verzerrung → Kompressor → Chorus → Flanger → Echo → Hall. Reihenfolge der Live-Kette:
-> Equalizer → Kompressor → Echo → Hall.
+> **Weitere Effekte:** Über dem EQ liegen Filter, Verzerrung, Kompressor, Chorus, Flanger, Echo und Hall
+> als gleich hohe Felder mit Drehreglern – alle gleichzeitig sichtbar und sofort hörbar (auf schmalen Fenstern
+> rutschen Felder in eine zweite Reihe). Ein grüner Punkt zeigt, welcher Effekt gerade wirkt. Reihenfolge der
+> Live-Kette: Filter → EQ → Verzerrung → Kompressor → Chorus → Flanger → Echo → Hall.
 >
 > **Pro-Kanal-EQ:** Mit „Links/rechts getrennt“ bekommt jeder Kanal seinen eigenen Equalizer. Über *Einstellen [L] [R]*
 > wählst du, welchen die Regler gerade zeigen; im Spektrum erscheinen beide Kurven (L blau, R rosa).
@@ -364,6 +363,11 @@ was bewusst so gebaut ist und was sich später leicht ändern lässt.
   mit dem gewohnten Player aufgehen; „Öffnen mit → MusicWorker“ funktioniert für Audiodateien trotzdem.
 - **Setup und Programm sind nicht digital signiert.** Grund: Ein Code-Signing-Zertifikat kostet jährlich Geld;
   deshalb kann Windows SmartScreen beim ersten Start warnen.
+
+### v0.7.3 – Fehlerbehebung Aufnahme
+- **Beim Aufnehmen läuft die Wiedergabe über das Projektende hinaus weiter, bis du *Stopp* drückst.** Vorher endete
+  eine Aufnahme in einem leeren Projekt (oder hinter dem letzten Clip) sofort wieder. Grund: Beim Aufnehmen weiß
+  MusicWorker vorher nicht, wie lang die Aufnahme wird – beim reinen Abspielen stoppt es weiterhin am Projektende.
 
 ## Verwendete Bibliotheken
 

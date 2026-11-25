@@ -1565,7 +1565,7 @@ public sealed partial class MixerViewModel : ObservableObject, IDisposable
         _engine.Seek(start);
         _provider = new MixEngineSampleProvider(
             _engine,
-            () => ProjectLength + TailFrames(),
+            () => IsRecording ? long.MaxValue : ProjectLength + TailFrames(), // beim Aufnehmen über das Projektende hinaus weiterlaufen
             () => (IsLooping, LoopStart, LoopEnd),
             () => (IsMetronomeEnabled, Bpm, BeatsPerBar),
             countInFrames);
