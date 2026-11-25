@@ -15,3 +15,6 @@ public enum MarkerActionKind
 
 /// <summary>Was mit einem Marker passieren soll (Index in der sortierten Markerliste).</summary>
 public sealed record MarkerAction(MarkerActionKind Kind, int Index, long Frame);
+
+/// <summary>Ein Frequenzbereich in Hz (z. B. 2 000 – 4 000 Hz), im Spektrogramm mit Strg+Ziehen markiert.</summary>
+public sealed record FrequencyBand(double LowHz, double HighHz);

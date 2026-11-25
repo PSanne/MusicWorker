@@ -48,6 +48,7 @@ public sealed class ShortcutsWindow : Window
             ("Strg+Umschalt+E", "Live-Effekte ein-/ausblenden"),
             ("Mausrad / Strg+Mausrad", "Scrollen / Zoomen"),
             ("Doppelklick auf einen Regler", "Regler auf den Standardwert zurücksetzen"),
+            ("Strg+Ziehen im Spektrogramm", "Zeit und Frequenzbereich markieren (für „Störgeräusch entfernen“)"),
         ]),
         ("Mischpult",
         [

@@ -2747,6 +2747,11 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
 
     private void OnEditorSelectionChanged(object? sender, EventArgs e)
     {
+        if (!_editor.HasSelection)
+        {
+            SpectralBand = null;
+        }
+
         OnPropertyChanged(nameof(Selection));
         OnPropertyChanged(nameof(HasSelection));
         OnPropertyChanged(nameof(SelectionText));
@@ -2783,7 +2788,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             ApplyChorusCommand, ApplyFlangerCommand, TempoPitchCommand,
             FadeInCommand, FadeOutCommand, ReverseCommand, MuteCommand,
             AnalyzePitchCommand, CorrectPitchCommand, AutotuneCommand, PitchRampCommand, VoiceEffectCommand,
-            MeasureLoudnessCommand, NormalizeLoudnessCommand,
+            MeasureLoudnessCommand, NormalizeLoudnessCommand, DeclickCommand, RepairSpectrumCommand,
             LearnNoiseProfileCommand, RemoveNoiseCommand,
         ];
         foreach (var command in commands)

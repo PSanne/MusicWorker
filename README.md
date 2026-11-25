@@ -3,7 +3,17 @@
 **MusicWorker** ist eine Windows-Anwendung zum Bearbeiten von Musik, geschrieben in C# mit WPF und .NET 8.
 
 Langfristig soll MusicWorker **Audio-Editor, Mehrspur-Mixer und Noten-Editor** in einem Programm vereinen.
-Version 0.3 bietet einen vollständigen Audio-Editor mit Live-Effekten **und ein Mehrspur-Mischpult** mit Fadern, Panorama, Sends, Effekt-Bussen, Gruppen und Projekten – seit 0.3.2 auch mit **Schnitt-Werkzeugen, Takt-Raster, Loop-Bereich und Rückgängig**, seit 0.4 mit **Hüllkurven (Automation) und Auto-Absenkung**, seit 0.5 mit **Noten-Editor, Instrumenten und MIDI**, seit 0.6 mit **Aufnahme, Metronom, Punch-In und Takes/Comping**, seit 0.7 mit **Autotune, Tonhöhen-Werkzeugen, Spektrogramm und Rauschentfernung**, seit 0.8 mit **automatischer Sicherung, Markern, Handbuch und Update-Hinweis**, seit 0.9 mit **Lautheit in LUFS, FLAC/OGG/M4A, Einzelspuren und Ton aus Videos**, seit 0.10 mit **Fade-Griffen, Mehrfachauswahl, Kopieren/Einfügen von Clips, Spurfarben, Spurhöhe und Umsortieren**, seit 0.11 mit **Presets und fünf neuen Effekten**.
+Version 0.3 bietet einen vollständigen Audio-Editor mit Live-Effekten **und ein Mehrspur-Mischpult** mit Fadern, Panorama, Sends, Effekt-Bussen, Gruppen und Projekten – seit 0.3.2 auch mit **Schnitt-Werkzeugen, Takt-Raster, Loop-Bereich und Rückgängig**, seit 0.4 mit **Hüllkurven (Automation) und Auto-Absenkung**, seit 0.5 mit **Noten-Editor, Instrumenten und MIDI**, seit 0.6 mit **Aufnahme, Metronom, Punch-In und Takes/Comping**, seit 0.7 mit **Autotune, Tonhöhen-Werkzeugen, Spektrogramm und Rauschentfernung**, seit 0.8 mit **automatischer Sicherung, Markern, Handbuch und Update-Hinweis**, seit 0.9 mit **Lautheit in LUFS, FLAC/OGG/M4A, Einzelspuren und Ton aus Videos**, seit 0.10 mit **Fade-Griffen, Mehrfachauswahl, Kopieren/Einfügen von Clips, Spurfarben, Spurhöhe und Umsortieren**, seit 0.11 mit **Presets und fünf neuen Effekten**, seit 0.12 mit **Knackser-Entfernung und spektraler Reparatur**.
+
+## Restaurierung (Version 0.12)
+
+Alles im neuen Menü **„Reparieren“** des Editors – wirkt auf die Auswahl (ohne Auswahl auf die ganze Datei) und ist mit Strg+Z rückgängig zu machen.
+
+| Bereich | Funktionen |
+|---|---|
+| **Knackser und Knistern entfernen** | Für digitalisierte Schallplatten und Kassetten oder Klicks von Schnitten: kurze Störungen werden gefunden und aus dem Klang davor und danach neu berechnet · Empfindlichkeit und größte Länge einstellbar · meldet, wie viele Knackser entfernt wurden |
+| **Störgeräusch entfernen** | Husten, Klingeln, Stuhlknarren: Stelle markieren → wird durch den Klang davor und danach ersetzt (oder nur leiser gemacht). Im **Spektrogramm mit Strg+Ziehen** lässt sich zusätzlich ein **Frequenzbereich** markieren – dann wird nur z. B. das Klingeln bei 3 kHz entfernt und alles andere bleibt unverändert |
+| **Rauschen entfernen** | Wie bisher (Rauschprofil lernen, dann entfernen) – jetzt ebenfalls im Menü „Reparieren“ |
 
 ## Presets & neue Effekte (Version 0.11)
 
@@ -161,6 +171,7 @@ ganze Datei), laufen im Hintergrund und lassen sich mit Strg+Z zurücknehmen.
 | Marker setzen | M (Editor und Mischpult) |
 | Zum vorherigen / nächsten Marker | Bild↑ / Bild↓ |
 | Marker verschieben / umbenennen / löschen | Fähnchen ziehen / Doppelklick / Rechtsklick |
+| Frequenzbereich markieren (Spektrogramm) | Strg + Ziehen – für *Reparieren → Störgeräusch entfernen* |
 | Handbuch | F1 (Menü *Hilfe*; dort auch alle Tastenkürzel) |
 | EQ-Regler auf 0 dB | Doppelklick auf den Regler |
 | Drehregler (Hall) | hoch/runter ziehen (mit Umschalt feiner) · Mausrad · Pfeiltasten · Doppelklick = Standardwert |
@@ -240,7 +251,7 @@ MusicWorker.sln
 │  │  ├─ Notes/                  Noten (Ticks), Quantisieren, Humanisieren, Transponieren, Stimmaufteilung, MIDI-Dateien lesen/schreiben
 │  │  ├─ Synthesis/              Eingebauter Synthesizer (10 Instrumente), SoundFont-Wiedergabe, Noten → Audio
 │  │  ├─ Mixing/                 Misch-Engine: Spuren, Panorama, Fader, Gruppen, Sends, Effekt-Busse, Inserts, Hüllkurven, Auto-Absenkung, Master, Mixdown, Einzelspuren
-│  │  ├─ Dsp/                    Biquad-Filter, 15-Band-Equalizer, Kompressor, Echo, Hall (Freeverb), FFT/STFT & Spektrumanalyse, Zeitstreckung (WSOLA), Resampler, Tonhöhenerkennung (YIN), Pitch-Shifter, Rauschentfernung, Lautheit (LUFS) & echte Spitzen, Noise-Gate, Tremolo, Phaser, Stereo-Breite, Bandsättigung
+│  │  ├─ Dsp/                    Biquad-Filter, 15-Band-Equalizer, Kompressor, Echo, Hall (Freeverb), FFT/STFT & Spektrumanalyse, Zeitstreckung (WSOLA), Resampler, Tonhöhenerkennung (YIN), Pitch-Shifter, Rauschentfernung, Lautheit (LUFS) & echte Spitzen, Noise-Gate, Tremolo, Phaser, Stereo-Breite, Bandsättigung, Knackser-Entfernung, spektrale Reparatur
 │  │  ├─ Effects/                Lautstärke, Normalisieren, Fades, Equalizer, Tempo/Tonhöhe, Umkehren, Autotune, Tonhöhen-Verlauf, Stimmeffekte
 │  │  └─ Visualization/          Wellenform-Spitzen, Spektrogramm
 │  └─ MusicWorker.App/           WPF-Anwendung (MVVM)
@@ -273,7 +284,7 @@ die Oberfläche nur in `MusicWorker.App`. So können Mehrspur- und Noten-Editor 
 - [x] **v0.9 – Lautheit & Export (Sprint 2):** LUFS-Messung und -Normalisierung, FLAC/OGG/M4A, Einzelspuren (Stems), Ton aus Videos
 - [x] **v0.10 – Mischpult-Komfort (Sprint 3):** Fade-Griffe am Clip, Mehrfachauswahl, Kopieren/Einfügen von Clips, Spuren sortieren, Farben, Spurhöhe
 - [x] **v0.11 – Presets & Effekte (Sprint 4):** eigene und fertige Presets, Noise-Gate, Tremolo, Phaser, Stereo-Verbreiterung, Bandsättigung
-- [ ] **v0.12 – Restaurierung (Sprint 5):** Knackser- und Klickentfernung, spektrale Reparatur
+- [x] **v0.12 – Restaurierung (Sprint 5):** Knackser- und Klickentfernung, spektrale Reparatur
 - [ ] **v0.13 – Musik-Assistent (Sprint 6):** Tempo- und Tonart-Erkennung, Tempospur, Akkorde, Arpeggiator, Schlagzeug-Raster
 - [ ] **v0.14 – Notenblatt & Aufnahme (Sprint 7):** Notenblatt mit Druck/PDF, Aufnahme mit geringer Latenz und Mithören
 - [ ] **v0.15 – Stimme & KI (Sprint 8):** De-Esser, Tonhöhe mit Formanterhalt, KI-Gesangstrennung
@@ -526,6 +537,21 @@ was bewusst so gebaut ist und was sich später leicht ändern lässt.
   „lauter“ bedeuten und man könnte den Klang nicht fair vergleichen.
 - **Die Bandsättigung bleibt auch bei viel Drive unter 0 dB.** Leise Stellen werden etwas lauter, Spitzen weich
   abgerundet – das ist der gewünschte „dichtere“ Klang, ohne zu übersteuern.
+
+### v0.12 – Restaurierung
+- **Knackser werden über eine lineare Vorhersage gefunden** (das Modell „errät“ jedes Sample aus den vorherigen; wo
+  es plötzlich weit daneben liegt, sitzt ein Knackser). Die Schwelle richtet sich nach der typischen Abweichung im
+  jeweiligen Abschnitt – so werden leise und laute Passagen gleich behandelt. Grund: Ein fester Pegel-Schwellwert
+  würde in lauten Stellen Musik und in leisen Stellen nichts erwischen.
+- **Reparierte Stellen werden aus beiden Richtungen vorhergesagt und überblendet.** Grund: Nur von vorne
+  vorhergesagt passt das Ende oft nicht zum Folgenden; aus beiden Richtungen entsteht ein nahtloser Übergang.
+- **Spektrale Reparatur macht nur leiser, nie lauter.** Grund: Störungen sollen verschwinden, aber es sollen keine
+  neuen Klänge entstehen. „Ersetzen“ nimmt den Klang von 0,3 s davor und danach als Vorbild, mit weichen Rändern in
+  Zeit und Frequenz, damit keine Kanten hörbar sind.
+- **Frequenzbereich per Strg+Ziehen im Spektrogramm.** Grund: Normales Ziehen markiert weiter nur die Zeit wie
+  gewohnt; wer gezielt eine Störung „ausschneiden“ will, kann sie im Spektrogramm einrahmen.
+- **Neues Menü „Reparieren“**, in das auch die Rauschentfernung umgezogen ist. Grund: Alles, was Aufnahmen
+  rettet, ist an einer Stelle zu finden.
 
 ## Verwendete Bibliotheken
 

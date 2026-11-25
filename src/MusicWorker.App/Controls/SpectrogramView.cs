@@ -3,6 +3,7 @@ using System.Windows;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
+using MusicWorker.App.ViewModels;
 using MusicWorker.Core.Audio;
 using MusicWorker.Core.Editing;
 using MusicWorker.Core.Visualization;
@@ -12,7 +13,8 @@ namespace MusicWorker.App.Controls;
 /// <summary>
 /// Spektrogramm: Zeit waagerecht (derselbe Ausschnitt wie die Wellenform darüber), Frequenz senkrecht
 /// (logarithmisch, 30 Hz … Nyquist), Lautstärke als Farbe (dunkel = leise, hell = laut). Ideal, um Brummen,
-/// Rauschen, Zischlaute oder Obertöne zu sehen. Klick setzt die Abspielposition, Ziehen markiert einen Bereich.
+/// Rauschen, Zischlaute oder Obertöne zu sehen. Klick setzt die Abspielposition, Ziehen markiert einen Bereich,
+/// Strg+Ziehen markiert zusätzlich einen Frequenzbereich (für „Störgeräusch entfernen“).
 /// </summary>
 public sealed class SpectrogramView : FrameworkElement
 {
@@ -32,6 +34,13 @@ public sealed class SpectrogramView : FrameworkElement
     public static readonly DependencyProperty SeekCommandProperty = DependencyProperty.Register(
         nameof(SeekCommand), typeof(ICommand), typeof(SpectrogramView), new PropertyMetadata(null));
 
+    public static readonly DependencyProperty FrequencyBandProperty = DependencyProperty.Register(
+        nameof(FrequencyBand), typeof(FrequencyBand), typeof(SpectrogramView),
+        new FrameworkPropertyMetadata(null, FrameworkPropertyMetadataOptions.AffectsRender | FrameworkPropertyMetadataOptions.BindsTwoWayByDefault));
+
+    private static readonly Brush BandBrush = Frozen(new SolidColorBrush(Color.FromArgb(0x50, 0x4F, 0xC3, 0xF7)));
+    private static readonly Pen BandPen = Frozen(new Pen(Frozen(new SolidColorBrush(Color.FromRgb(0x4F, 0xC3, 0xF7))), 1.5));
+
     private static readonly Brush Background = Frozen(new SolidColorBrush(Color.FromRgb(0x0B, 0x0B, 0x12)));
     private static readonly Brush AxisBrush = Frozen(new SolidColorBrush(Color.FromRgb(0x22, 0x25, 0x2C)));
     private static readonly Brush TextBrush = Frozen(new SolidColorBrush(Color.FromRgb(0x9A, 0xA0, 0xAA)));
@@ -48,6 +57,8 @@ public sealed class SpectrogramView : FrameworkElement
     private double _viewLength;
     private bool _dragging;
     private int _dragAnchor;
+    private bool _bandDrag;
+    private double _bandAnchorHz;
 
     public SpectrogramView()
     {
@@ -63,6 +74,9 @@ public sealed class SpectrogramView : FrameworkElement
 
     /// <summary>Parameter: Ziel-Frame (int).</summary>
     public ICommand? SeekCommand { get => (ICommand?)GetValue(SeekCommandProperty); set => SetValue(SeekCommandProperty, value); }
+
+    /// <summary>Mit Strg+Ziehen markierter Frequenzbereich (null = alle Frequenzen).</summary>
+    public FrequencyBand? FrequencyBand { get => (FrequencyBand?)GetValue(FrequencyBandProperty); set => SetValue(FrequencyBandProperty, value); }
 
     /// <summary>Denselben Ausschnitt wie die Wellenform zeigen.</summary>
     public void SetView(double start, double length)
@@ -102,7 +116,16 @@ public sealed class SpectrogramView : FrameworkElement
             double x1 = Math.Min(width, FrameToX(selection.End));
             if (x1 > x0)
             {
-                dc.DrawRectangle(SelectionBrush, null, new Rect(x0, 0, x1 - x0, height));
+                if (FrequencyBand is { } band && _spectrogram is not null)
+                {
+                    double y0 = HzToY(band.HighHz, height);
+                    double y1 = HzToY(band.LowHz, height);
+                    dc.DrawRectangle(BandBrush, BandPen, new Rect(x0, y0, x1 - x0, Math.Max(2, y1 - y0)));
+                }
+                else
+                {
+                    dc.DrawRectangle(SelectionBrush, null, new Rect(x0, 0, x1 - x0, height));
+                }
             }
         }
 
@@ -116,10 +139,14 @@ public sealed class SpectrogramView : FrameworkElement
     protected override void OnMouseLeftButtonDown(MouseButtonEventArgs e)
     {
         base.OnMouseLeftButtonDown(e);
-        int frame = XToFrame(e.GetPosition(this).X);
+        var position = e.GetPosition(this);
+        int frame = XToFrame(position.X);
         _dragAnchor = frame;
         _dragging = CaptureMouse();
+        _bandDrag = (Keyboard.Modifiers & ModifierKeys.Control) != 0 && _spectrogram is not null;
+        _bandAnchorHz = YToHz(position.Y);
         Selection = default;
+        FrequencyBand = null;
         if (SeekCommand is { } seek && seek.CanExecute(frame))
         {
             seek.Execute(frame);
@@ -133,8 +160,14 @@ public sealed class SpectrogramView : FrameworkElement
         base.OnMouseMove(e);
         if (_dragging)
         {
-            int frame = XToFrame(e.GetPosition(this).X);
+            var position = e.GetPosition(this);
+            int frame = XToFrame(position.X);
             Selection = new SelectionRange(Math.Min(frame, _dragAnchor), Math.Max(frame, _dragAnchor));
+            if (_bandDrag)
+            {
+                double hz = YToHz(position.Y);
+                FrequencyBand = new FrequencyBand(Math.Min(hz, _bandAnchorHz), Math.Max(hz, _bandAnchorHz));
+            }
         }
     }
 
@@ -144,6 +177,15 @@ public sealed class SpectrogramView : FrameworkElement
         _dragging = false;
         ReleaseMouseCapture();
     }
+
+    /// <summary>Senkrechte Position ↔ Frequenz (logarithmisch, oben = hohe Frequenzen).</summary>
+    private double HzToY(double hz, double height) => _spectrogram is { } s
+        ? Math.Clamp(Math.Log(Math.Max(hz, s.MinHz) / s.MaxHz) / Math.Log(s.MinHz / s.MaxHz), 0, 1) * height
+        : 0;
+
+    private double YToHz(double y) => _spectrogram is { } s
+        ? s.MaxHz * Math.Pow(s.MinHz / s.MaxHz, Math.Clamp(y / Math.Max(1, ActualHeight), 0, 1))
+        : 0;
 
     private double FrameToX(double frame) => AxisWidth + (frame - _viewStart) / Math.Max(1, _viewLength) * (ActualWidth - AxisWidth);
 

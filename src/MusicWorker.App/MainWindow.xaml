@@ -390,10 +390,17 @@
                 <MenuItem Header="Tonhöhen-_Verlauf …" Command="{Binding PitchRampCommand}" />
                 <MenuItem Header="_Stimmeffekte …" Command="{Binding VoiceEffectCommand}" />
                 <Separator />
-                <MenuItem Header="_Rauschprofil aus Auswahl lernen" Command="{Binding LearnNoiseProfileCommand}" />
+                <MenuItem Header="S_pektrogramm anzeigen" IsCheckable="True" IsChecked="{Binding IsSpectrogramVisible, Mode=TwoWay}" />
+            </MenuItem>
+            <MenuItem Header="_Reparieren">
+                <MenuItem Header="_Rauschprofil aus Auswahl lernen" Command="{Binding LearnNoiseProfileCommand}"
+                          ToolTip="Zuerst eine Stelle markieren, an der nur Rauschen zu hören ist" />
                 <MenuItem Header="Rauschen _entfernen …" Command="{Binding RemoveNoiseCommand}" />
                 <Separator />
-                <MenuItem Header="S_pektrogramm anzeigen" IsCheckable="True" IsChecked="{Binding IsSpectrogramVisible, Mode=TwoWay}" />
+                <MenuItem Header="_Knackser und Knistern entfernen …" Command="{Binding DeclickCommand}"
+                          ToolTip="Für Schallplatten, Kassetten und Klicks von Schnitten – wirkt auf die Auswahl oder die ganze Datei" />
+                <MenuItem Header="_Störgeräusch entfernen (Husten, Klingeln …) …" Command="{Binding RepairSpectrumCommand}"
+                          ToolTip="Markierte Stelle durch den Klang davor und danach ersetzen. Im Spektrogramm mit Strg+Ziehen auch nur einen Frequenzbereich markieren." />
             </MenuItem>
             <MenuItem Header="_Ansicht">
                 <MenuItem Header="_Vergrößern" Click="OnZoomInClick" InputGestureText="Strg+Mausrad" />
@@ -1457,10 +1464,11 @@
                                     Visibility="{Binding IsSpectrogramVisible, Converter={StaticResource BoolToVisibility}}">
                                 <controls:SpectrogramView x:Name="Spectrogram"
                                                           Buffer="{Binding Buffer}"
+                                                          FrequencyBand="{Binding SpectralBand}"
                                                           Selection="{Binding Selection}"
                                                           PlayheadFrame="{Binding PlayheadFrame}"
                                                           SeekCommand="{Binding SeekCommand}"
-                                                          ToolTip="Spektrogramm: Zeit waagerecht, Frequenz senkrecht, Helligkeit = Lautstärke" />
+                                                          ToolTip="Spektrogramm: Zeit waagerecht, Frequenz senkrecht, Helligkeit = Lautstärke. Strg+Ziehen markiert einen Frequenzbereich (z. B. ein Klingeln) für „Reparieren → Störgeräusch entfernen“." />
                             </Border>
                         </Grid>
 
