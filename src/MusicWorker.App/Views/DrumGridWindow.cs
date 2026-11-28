@@ -14,8 +14,15 @@ namespace MusicWorker.App.Views;
 public sealed class DrumGridWindow : Window
 {
     private static readonly Brush OnBrush = Freeze(new SolidColorBrush(Color.FromRgb(0xFF, 0x8A, 0x3D)));
-    private static readonly Brush BeatBrush = Freeze(new SolidColorBrush(Color.FromRgb(0xE4, 0xE7, 0xEC)));
-    private static readonly Brush OffBeatBrush = Freeze(new SolidColorBrush(Color.FromRgb(0xF6, 0xF7, 0xF9)));
+    private static readonly Brush LightBeatBrush = Freeze(new SolidColorBrush(Color.FromRgb(0xE4, 0xE7, 0xEC)));
+    private static readonly Brush LightOffBeatBrush = Freeze(new SolidColorBrush(Color.FromRgb(0xF6, 0xF7, 0xF9)));
+    private static readonly Brush DarkBeatBrush = Freeze(new SolidColorBrush(Color.FromRgb(0x4A, 0x4E, 0x57)));
+    private static readonly Brush DarkOffBeatBrush = Freeze(new SolidColorBrush(Color.FromRgb(0x3A, 0x3D, 0x44)));
+
+    // Schläge abwechselnd etwas heller/dunkler – passend zum hellen oder dunklen Design
+    private static Brush BeatBrush => Themes.ThemeManager.IsDark ? DarkBeatBrush : LightBeatBrush;
+
+    private static Brush OffBeatBrush => Themes.ThemeManager.IsDark ? DarkOffBeatBrush : LightOffBeatBrush;
 
     private readonly DrumPattern _pattern;
     private readonly ToggleButton[,] _cells;
@@ -117,7 +124,7 @@ public sealed class DrumGridWindow : Window
                     Height = 24,
                     Margin = new Thickness(c % 4 == 0 ? 4 : 1, 1, 0, 1),
                     Background = (c / 4) % 2 == 0 ? BeatBrush : OffBeatBrush,
-                    BorderBrush = Brushes.Silver,
+                    BorderBrush = Themes.ThemeManager.IsDark ? Brushes.DimGray : Brushes.Silver,
                     ToolTip = $"{DrumPattern.Sounds[s].Name} – Schlag {(c / 4) + 1}, {(c % 4) + 1}. Sechzehntel",
                 };
                 cell.Checked += (_, _) => Toggle(cell, sound, step, true, presets);

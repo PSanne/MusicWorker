@@ -6,6 +6,7 @@ using System.Windows.Markup;
 using System.Windows.Threading;
 using MusicWorker.App.Audio;
 using MusicWorker.App.Services;
+using MusicWorker.App.Themes;
 using MusicWorker.App.ViewModels;
 using MusicWorker.Core.Persistence;
 using NAudio.MediaFoundation;
@@ -32,6 +33,7 @@ public partial class App : Application
 
         var viewModel = new MainViewModel(
             new WpfDialogService(), new AudioFileService(), new PlaybackService(), new SettingsService());
+        ThemeManager.Apply(viewModel.Theme); // vor dem Fenster, damit es gleich im richtigen Design erscheint
         var window = new MainWindow(viewModel);
         MainWindow = window;
         window.Show();

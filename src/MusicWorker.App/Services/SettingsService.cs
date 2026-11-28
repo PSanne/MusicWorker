@@ -125,6 +125,9 @@ public sealed class AppSettings
     /// <summary>Eingang beim Aufnehmen mithören.</summary>
     public bool InputMonitoring { get; set; }
 
+    /// <summary>Design der Oberfläche.</summary>
+    public AppTheme Theme { get; set; } = AppTheme.Light;
+
     /// <summary>Zuletzt geladene SoundFont-Datei (.sf2).</summary>
     public string? LastSoundFont { get; set; }
 
@@ -262,4 +265,12 @@ public sealed class SettingsService
 
         return new AppSettings();
     }
+}
+
+/// <summary>Design der Oberfläche: hell, dunkel oder wie in Windows eingestellt.</summary>
+public enum AppTheme
+{
+    Light,
+    Dark,
+    System,
 }

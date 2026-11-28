@@ -390,6 +390,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         _tremoloStereo = saved.TremoloStereo;
         _isWidenerEnabled = saved.WidenerEnabled;
         _widenerWidth = saved.WidenerWidth;
+        _theme = saved.Theme;
         RefreshOutputDevices(saved.OutputDeviceName);
         Mixer.SelectAudioDriver(saved.AudioDriverName, saved.AudioBufferMs);
         Mixer.RecordingLatencyMs = saved.RecordingLatencyMs;

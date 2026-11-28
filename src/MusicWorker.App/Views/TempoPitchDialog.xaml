@@ -55,7 +55,7 @@
             <!-- Rechter Kanal (nur im Pro-Kanal-Modus) -->
             <GroupBox x:Name="RightGroup" Margin="12,0,0,0" Padding="10,8" Visibility="Collapsed">
                 <GroupBox.Header>
-                    <TextBlock FontWeight="Bold" Foreground="#C2185B" Text="Rechts" />
+                    <TextBlock FontWeight="Bold" Foreground="{DynamicResource Theme.Pink}" Text="Rechts" />
                 </GroupBox.Header>
                 <StackPanel Width="330">
                     <TextBlock Style="{StaticResource Caption}" Text="Tempo (ohne die Tonhöhe zu verändern):" />
@@ -84,7 +84,7 @@
         </StackPanel>
 
         <!-- Vorschau der neuen Länge -->
-        <Border Margin="0,12,0,0" Padding="10,6" Background="#F3F6FA" BorderBrush="#D6DEE8" BorderThickness="1" CornerRadius="3">
+        <Border Margin="0,12,0,0" Padding="10,6" Background="{DynamicResource Theme.HintBackground}" BorderBrush="{DynamicResource Theme.HintBorder}" BorderThickness="1" CornerRadius="3">
             <TextBlock x:Name="LengthText" TextWrapping="Wrap" MaxWidth="680" />
         </Border>
 

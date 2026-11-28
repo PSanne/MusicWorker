@@ -34,11 +34,15 @@ public sealed class Knob : FrameworkElement
         nameof(Accent), typeof(Brush), typeof(Knob),
         new FrameworkPropertyMetadata(Frozen(new SolidColorBrush(Color.FromRgb(0x00, 0x78, 0xD4))), FrameworkPropertyMetadataOptions.AffectsRender));
 
+    /// <summary>Farbe der Skala (kommt aus dem Design, siehe Themes/*.xaml).</summary>
+    public static readonly DependencyProperty TrackBrushProperty = DependencyProperty.Register(
+        nameof(TrackBrush), typeof(Brush), typeof(Knob),
+        new FrameworkPropertyMetadata(Frozen(new SolidColorBrush(Color.FromRgb(0xD5, 0xD7, 0xDD))), FrameworkPropertyMetadataOptions.AffectsRender));
+
     private const double StartAngle = -135;
     private const double SweepAngle = 270;
     private const double DragPixelsForFullRange = 200;
 
-    private static readonly Brush TrackBrush = Frozen(new SolidColorBrush(Color.FromRgb(0xD5, 0xD7, 0xDD)));
     private static readonly Brush BodyBrush = Frozen(new RadialGradientBrush(Color.FromRgb(0x5A, 0x5F, 0x6A), Color.FromRgb(0x2B, 0x2E, 0x35))
     {
         GradientOrigin = new Point(0.35, 0.3),
@@ -56,6 +60,13 @@ public sealed class Knob : FrameworkElement
         Focusable = true;
         Cursor = Cursors.SizeNS;
         FocusVisualStyle = null;
+        SetResourceReference(TrackBrushProperty, "Theme.KnobTrack");
+    }
+
+    public Brush TrackBrush
+    {
+        get => (Brush)GetValue(TrackBrushProperty);
+        set => SetValue(TrackBrushProperty, value);
     }
 
     public double Value

@@ -3,6 +3,9 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Input;
+using Microsoft.Win32;
+using MusicWorker.App.Services;
+using MusicWorker.App.Themes;
 using MusicWorker.App.ViewModels;
 
 namespace MusicWorker.App;
@@ -20,13 +23,34 @@ public partial class MainWindow : Window
         viewModel.DocumentLoaded += (_, _) => Waveform.ZoomToFit();
         Waveform.ViewChanged += (_, _) => Spectrogram.SetView(Waveform.VisibleStart, Waveform.VisibleLength); // gleicher Ausschnitt
         viewModel.Mixer.PropertyChanged += OnMixerPropertyChanged;
+        viewModel.PropertyChanged += OnViewModelPropertyChanged;
+        SystemEvents.UserPreferenceChanged += OnUserPreferenceChanged;
         Loaded += (_, _) => Waveform.Focus();
         Deactivated += (_, _) => viewModel.Notes.ReleaseAllKeys(); // keine „hängenden“ Töne beim Fensterwechsel
         Closed += (_, _) =>
         {
             viewModel.Mixer.PropertyChanged -= OnMixerPropertyChanged;
+            viewModel.PropertyChanged -= OnViewModelPropertyChanged;
+            SystemEvents.UserPreferenceChanged -= OnUserPreferenceChanged;
             viewModel.Dispose();
         };
+    }
+
+    private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(MainViewModel.Theme))
+        {
+            ThemeManager.Apply(_viewModel.Theme);
+        }
+    }
+
+    /// <summary>„Wie Windows“: Wechselt Windows zwischen hell und dunkel, zieht MusicWorker mit.</summary>
+    private void OnUserPreferenceChanged(object? sender, UserPreferenceChangedEventArgs e)
+    {
+        if (_viewModel.Theme == AppTheme.System && e.Category is UserPreferenceCategory.General or UserPreferenceCategory.VisualStyle)
+        {
+            Dispatcher.BeginInvoke(() => ThemeManager.Apply(AppTheme.System));
+        }
     }
 
     private void OnMixerPropertyChanged(object? sender, PropertyChangedEventArgs e)

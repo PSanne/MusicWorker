@@ -31,18 +31,7 @@
             <Setter Property="VerticalAlignment" Value="Center" />
         </Style>
 
-        <Style x:Key="ToolButton" TargetType="Button" BasedOn="{StaticResource {x:Static ToolBar.ButtonStyleKey}}">
-            <Setter Property="Focusable" Value="False" />
-            <Setter Property="Padding" Value="7,4" />
-            <Setter Property="ToolTipService.ShowOnDisabled" Value="True" />
-        </Style>
-
-        <Style x:Key="ChannelToggle" TargetType="ToggleButton" BasedOn="{StaticResource {x:Static ToolBar.ToggleButtonStyleKey}}">
-            <Setter Property="Focusable" Value="False" />
-            <Setter Property="MinWidth" Value="26" />
-            <Setter Property="Padding" Value="6,3" />
-            <Setter Property="FontWeight" Value="Bold" />
-        </Style>
+        <!-- Knopf-Stile der Werkzeugleisten (ToolButton, ChannelToggle) liegen im Design (Themes/Light.xaml, Themes/Dark.xaml). -->
 
         <Style x:Key="ReverbDimWhenOff" TargetType="FrameworkElement">
             <Style.Triggers>
@@ -138,7 +127,7 @@
             <Setter Property="Height" Value="7" />
             <Setter Property="Margin" Value="6,0,0,0" />
             <Setter Property="VerticalAlignment" Value="Center" />
-            <Setter Property="Fill" Value="#2E7D32" />
+            <Setter Property="Fill" Value="{DynamicResource Theme.Green}" />
             <Setter Property="ToolTip" Value="Dieser Effekt ist gerade hörbar" />
         </Style>
         <Style x:Key="KnobValue" TargetType="TextBlock">
@@ -419,6 +408,13 @@
                 <MenuItem Header="_Ganze Datei" Click="OnZoomFitClick" />
                 <MenuItem Header="_Auswahl einpassen" Click="OnZoomSelectionClick" />
                 <Separator />
+                <MenuItem Header="_Design">
+                    <MenuItem Header="_Hell" IsChecked="{Binding IsLightTheme, Mode=OneWay}" Command="{Binding SetThemeCommand}" CommandParameter="Light" />
+                    <MenuItem Header="_Dunkel" IsChecked="{Binding IsDarkTheme, Mode=OneWay}" Command="{Binding SetThemeCommand}" CommandParameter="Dark" />
+                    <MenuItem Header="_Wie Windows" IsChecked="{Binding IsSystemTheme, Mode=OneWay}" Command="{Binding SetThemeCommand}" CommandParameter="System"
+                              ToolTip="Folgt der Einstellung „App-Modus“ unter Windows-Einstellungen → Personalisierung → Farben" />
+                </MenuItem>
+                <Separator />
                 <MenuItem Header="_Live-Effekte anzeigen (EQ, Hall, Kompressor, Gate …)" IsCheckable="True"
                           IsChecked="{Binding IsEqualizerVisible, Mode=TwoWay}" InputGestureText="Strg+Umschalt+E" />
             </MenuItem>
@@ -437,30 +433,30 @@
 
         <ToolBarTray DockPanel.Dock="Top">
             <ToolBar>
-                <Button Style="{StaticResource ToolButton}" Command="{Binding OpenCommand}" ToolTip="Öffnen (Strg+O)">
+                <Button Style="{DynamicResource ToolButton}" Command="{Binding OpenCommand}" ToolTip="Öffnen (Strg+O)">
                     <TextBlock Style="{StaticResource Glyph}" Text="&#xE8E5;" />
                 </Button>
-                <Button Style="{StaticResource ToolButton}" Command="{Binding ExportCommand}" ToolTip="Exportieren als WAV, FLAC, MP3, M4A oder OGG (Strg+E)">
+                <Button Style="{DynamicResource ToolButton}" Command="{Binding ExportCommand}" ToolTip="Exportieren als WAV, FLAC, MP3, M4A oder OGG (Strg+E)">
                     <TextBlock Style="{StaticResource Glyph}" Text="&#xE74E;" />
                 </Button>
             </ToolBar>
             <ToolBar Visibility="{Binding IsEditorTab, Converter={StaticResource BoolToVisibility}}">
-                <Button Style="{StaticResource ToolButton}" Command="{Binding SkipBackCommand}" ToolTip="5 Sekunden zurück (Strg+←)">
+                <Button Style="{DynamicResource ToolButton}" Command="{Binding SkipBackCommand}" ToolTip="5 Sekunden zurück (Strg+←)">
                     <TextBlock Style="{StaticResource Glyph}" Text="&#xEB9E;" />
                 </Button>
-                <Button Style="{StaticResource ToolButton}" Command="{Binding PlayCommand}" ToolTip="Abspielen (Leertaste) – spielt die Auswahl oder ab dem Cursor">
+                <Button Style="{DynamicResource ToolButton}" Command="{Binding PlayCommand}" ToolTip="Abspielen (Leertaste) – spielt die Auswahl oder ab dem Cursor">
                     <TextBlock Style="{StaticResource Glyph}" Text="&#xE768;" />
                 </Button>
-                <Button Style="{StaticResource ToolButton}" Command="{Binding PauseCommand}" ToolTip="Pause (Leertaste)">
+                <Button Style="{DynamicResource ToolButton}" Command="{Binding PauseCommand}" ToolTip="Pause (Leertaste)">
                     <TextBlock Style="{StaticResource Glyph}" Text="&#xE769;" />
                 </Button>
-                <Button Style="{StaticResource ToolButton}" Command="{Binding StopCommand}" ToolTip="Stopp (Esc)">
+                <Button Style="{DynamicResource ToolButton}" Command="{Binding StopCommand}" ToolTip="Stopp (Esc)">
                     <TextBlock Style="{StaticResource Glyph}" Text="&#xE71A;" />
                 </Button>
-                <Button Style="{StaticResource ToolButton}" Command="{Binding SkipForwardCommand}" ToolTip="5 Sekunden vor (Strg+→)">
+                <Button Style="{DynamicResource ToolButton}" Command="{Binding SkipForwardCommand}" ToolTip="5 Sekunden vor (Strg+→)">
                     <TextBlock Style="{StaticResource Glyph}" Text="&#xEB9D;" />
                 </Button>
-                <ToggleButton Focusable="False" Padding="7,4" Style="{StaticResource {x:Static ToolBar.ToggleButtonStyleKey}}"
+                <ToggleButton Focusable="False" Padding="7,4" Style="{DynamicResource {x:Static ToolBar.ToggleButtonStyleKey}}"
                               IsChecked="{Binding IsLooping, Mode=TwoWay}"
                               ToolTip="Schleife (Strg+L): die Auswahl – ohne Auswahl die ganze Datei – endlos wiederholen">
                     <TextBlock Style="{StaticResource Glyph}" Text="&#xE8EE;" />
@@ -469,73 +465,73 @@
             <ToolBar Visibility="{Binding IsEditorTab, Converter={StaticResource BoolToVisibility}}" IsEnabled="{Binding IsStereo}" ToolTipService.ShowOnDisabled="True"
                      ToolTip="Kanal-Werkzeuge (nur für Stereo-Dateien)">
                 <TextBlock Margin="2,0,4,0" VerticalAlignment="Center" Text="Bearbeiten:" />
-                <ToggleButton Style="{StaticResource ChannelToggle}" Content="L" Foreground="#0277BD"
+                <ToggleButton Style="{DynamicResource ChannelToggle}" Content="L" Foreground="{DynamicResource Theme.Blue}"
                               IsChecked="{Binding EditLeft, Mode=TwoWay}"
                               ToolTip="Effekte wirken auf den linken Kanal. (Schneiden und Einfügen betreffen immer beide Kanäle.)" />
-                <ToggleButton Style="{StaticResource ChannelToggle}" Content="R" Foreground="#C2185B"
+                <ToggleButton Style="{DynamicResource ChannelToggle}" Content="R" Foreground="{DynamicResource Theme.Pink}"
                               IsChecked="{Binding EditRight, Mode=TwoWay}"
                               ToolTip="Effekte wirken auf den rechten Kanal. (Schneiden und Einfügen betreffen immer beide Kanäle.)" />
                 <Separator />
                 <TextBlock Margin="4,0,4,0" VerticalAlignment="Center" Text="Hören:" />
-                <ToggleButton Style="{StaticResource ChannelToggle}" Content="L" Foreground="#0277BD"
+                <ToggleButton Style="{DynamicResource ChannelToggle}" Content="L" Foreground="{DynamicResource Theme.Blue}"
                               IsChecked="{Binding HearLeft, Mode=TwoWay}"
                               ToolTip="Linken Kanal abhören (aus = beim Abspielen stumm; die Datei bleibt unverändert)" />
-                <ToggleButton Style="{StaticResource ChannelToggle}" Content="R" Foreground="#C2185B"
+                <ToggleButton Style="{DynamicResource ChannelToggle}" Content="R" Foreground="{DynamicResource Theme.Pink}"
                               IsChecked="{Binding HearRight, Mode=TwoWay}"
                               ToolTip="Rechten Kanal abhören (aus = beim Abspielen stumm; die Datei bleibt unverändert)" />
             </ToolBar>
             <ToolBar Visibility="{Binding IsEditorTab, Converter={StaticResource BoolToVisibility}}">
-                <Button Style="{StaticResource ToolButton}" Command="{Binding UndoCommand}" ToolTip="Rückgängig (Strg+Z)">
+                <Button Style="{DynamicResource ToolButton}" Command="{Binding UndoCommand}" ToolTip="Rückgängig (Strg+Z)">
                     <TextBlock Style="{StaticResource Glyph}" Text="&#xE7A7;" />
                 </Button>
-                <Button Style="{StaticResource ToolButton}" Command="{Binding RedoCommand}" ToolTip="Wiederholen (Strg+Y)">
+                <Button Style="{DynamicResource ToolButton}" Command="{Binding RedoCommand}" ToolTip="Wiederholen (Strg+Y)">
                     <TextBlock Style="{StaticResource Glyph}" Text="&#xE7A6;" />
                 </Button>
                 <Separator />
-                <Button Style="{StaticResource ToolButton}" Command="{Binding CutCommand}" ToolTip="Ausschneiden (Strg+X)">
+                <Button Style="{DynamicResource ToolButton}" Command="{Binding CutCommand}" ToolTip="Ausschneiden (Strg+X)">
                     <TextBlock Style="{StaticResource Glyph}" Text="&#xE8C6;" />
                 </Button>
-                <Button Style="{StaticResource ToolButton}" Command="{Binding CopyCommand}" ToolTip="Kopieren (Strg+C)">
+                <Button Style="{DynamicResource ToolButton}" Command="{Binding CopyCommand}" ToolTip="Kopieren (Strg+C)">
                     <TextBlock Style="{StaticResource Glyph}" Text="&#xE8C8;" />
                 </Button>
-                <Button Style="{StaticResource ToolButton}" Command="{Binding PasteCommand}" ToolTip="Einfügen (Strg+V)">
+                <Button Style="{DynamicResource ToolButton}" Command="{Binding PasteCommand}" ToolTip="Einfügen (Strg+V)">
                     <TextBlock Style="{StaticResource Glyph}" Text="&#xE77F;" />
                 </Button>
-                <Button Style="{StaticResource ToolButton}" Command="{Binding DeleteCommand}" ToolTip="Löschen (Entf)">
+                <Button Style="{DynamicResource ToolButton}" Command="{Binding DeleteCommand}" ToolTip="Löschen (Entf)">
                     <TextBlock Style="{StaticResource Glyph}" Text="&#xE74D;" />
                 </Button>
-                <Button Style="{StaticResource ToolButton}" Command="{Binding TrimCommand}" ToolTip="Auf Auswahl zuschneiden (Strg+T)">
+                <Button Style="{DynamicResource ToolButton}" Command="{Binding TrimCommand}" ToolTip="Auf Auswahl zuschneiden (Strg+T)">
                     <TextBlock Style="{StaticResource Glyph}" Text="&#xE7A8;" />
                 </Button>
             </ToolBar>
             <ToolBar Visibility="{Binding IsEditorTab, Converter={StaticResource BoolToVisibility}}">
-                <Button Style="{StaticResource ToolButton}" Command="{Binding ChangeGainCommand}" ToolTip="Lautstärke ändern …">
+                <Button Style="{DynamicResource ToolButton}" Command="{Binding ChangeGainCommand}" ToolTip="Lautstärke ändern …">
                     <TextBlock Style="{StaticResource Glyph}" Text="&#xE767;" />
                 </Button>
-                <Button Style="{StaticResource ToolButton}" Command="{Binding NormalizeCommand}" Content="Normalisieren" ToolTip="Lauteste Spitze auf -1 dB bringen" />
-                <Button Style="{StaticResource ToolButton}" Command="{Binding NormalizeLoudnessCommand}" Content="Lautheit …"
+                <Button Style="{DynamicResource ToolButton}" Command="{Binding NormalizeCommand}" Content="Normalisieren" ToolTip="Lauteste Spitze auf -1 dB bringen" />
+                <Button Style="{DynamicResource ToolButton}" Command="{Binding NormalizeLoudnessCommand}" Content="Lautheit …"
                         ToolTip="Auf Lautheit normalisieren (LUFS): z. B. -14 für Spotify/YouTube, -16 für Podcasts – richtet sich danach, wie laut wir es empfinden" />
                 <ToggleButton Focusable="False" Padding="7,4" Content="Effekte"
-                              Style="{StaticResource {x:Static ToolBar.ToggleButtonStyleKey}}"
+                              Style="{DynamicResource {x:Static ToolBar.ToggleButtonStyleKey}}"
                               IsChecked="{Binding IsEqualizerVisible, Mode=TwoWay}"
                               ToolTip="Live-Effekte (Equalizer, Kompressor, Echo, Hall) ein-/ausblenden (Strg+Umschalt+E)" />
-                <Button Style="{StaticResource ToolButton}" Command="{Binding TempoPitchCommand}" Content="Tempo/Tonhöhe" ToolTip="Tempo und Tonhöhe unabhängig voneinander ändern" />
-                <Button Style="{StaticResource ToolButton}" Command="{Binding FadeInCommand}" Content="Fade In" ToolTip="Auswahl einblenden" />
-                <Button Style="{StaticResource ToolButton}" Command="{Binding FadeOutCommand}" Content="Fade Out" ToolTip="Auswahl ausblenden" />
+                <Button Style="{DynamicResource ToolButton}" Command="{Binding TempoPitchCommand}" Content="Tempo/Tonhöhe" ToolTip="Tempo und Tonhöhe unabhängig voneinander ändern" />
+                <Button Style="{DynamicResource ToolButton}" Command="{Binding FadeInCommand}" Content="Fade In" ToolTip="Auswahl einblenden" />
+                <Button Style="{DynamicResource ToolButton}" Command="{Binding FadeOutCommand}" Content="Fade Out" ToolTip="Auswahl ausblenden" />
             </ToolBar>
             <ToolBar Visibility="{Binding IsEditorTab, Converter={StaticResource BoolToVisibility}}">
-                <Button Style="{StaticResource ToolButton}" Click="OnZoomInClick" ToolTip="Vergrößern (Strg+Mausrad)">
+                <Button Style="{DynamicResource ToolButton}" Click="OnZoomInClick" ToolTip="Vergrößern (Strg+Mausrad)">
                     <TextBlock Style="{StaticResource Glyph}" Text="&#xE8A3;" />
                 </Button>
-                <Button Style="{StaticResource ToolButton}" Click="OnZoomOutClick" ToolTip="Verkleinern (Strg+Mausrad)">
+                <Button Style="{DynamicResource ToolButton}" Click="OnZoomOutClick" ToolTip="Verkleinern (Strg+Mausrad)">
                     <TextBlock Style="{StaticResource Glyph}" Text="&#xE71F;" />
                 </Button>
-                <Button Style="{StaticResource ToolButton}" Click="OnZoomFitClick" ToolTip="Ganze Datei anzeigen">
+                <Button Style="{DynamicResource ToolButton}" Click="OnZoomFitClick" ToolTip="Ganze Datei anzeigen">
                     <TextBlock Style="{StaticResource Glyph}" Text="&#xE9A6;" />
                 </Button>
             </ToolBar>
             <ToolBar Visibility="{Binding IsEditorTab, Converter={StaticResource BoolToVisibility}}">
-                <Button Style="{StaticResource ToolButton}" Command="{Binding AddMarkerCommand}"
+                <Button Style="{DynamicResource ToolButton}" Command="{Binding AddMarkerCommand}"
                         ToolTip="Marker an der aktuellen Position setzen (M). Fähnchen ziehen = verschieben, Doppelklick = umbenennen, Rechtsklick = Menü">
                     <StackPanel Orientation="Horizontal">
                         <TextBlock Style="{StaticResource Glyph}" Text="&#xE7C1;" Foreground="#E6A100" />
@@ -558,7 +554,7 @@
         </ToolBarTray>
 
         <!-- Hinweis auf eine neue Version -->
-        <Border DockPanel.Dock="Top" Padding="10,6" Background="#E8F4FD" BorderBrush="#64B5F6" BorderThickness="0,0,0,1"
+        <Border DockPanel.Dock="Top" Padding="10,6" Background="{DynamicResource Theme.InfoBackground}" BorderBrush="{DynamicResource Theme.InfoBorder}" BorderThickness="0,0,0,1"
                 Visibility="{Binding HasUpdate, Converter={StaticResource BoolToVisibility}}">
             <DockPanel>
                 <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
@@ -580,10 +576,10 @@
                            FontFamily="Consolas" ToolTip="Empfundene Lautheit der letzten 3 Sekunden (LUFS). Spotify/YouTube spielen mit -14, Podcasts mit -16 LUFS." />
             </StatusBarItem>
             <StatusBarItem DockPanel.Dock="Right">
-                <TextBlock Visibility="{Binding IsEditorTab, Converter={StaticResource BoolToVisibility}}" Text="{Binding ChannelTargetText}" Margin="8,0" Foreground="#C2185B" FontWeight="SemiBold" />
+                <TextBlock Visibility="{Binding IsEditorTab, Converter={StaticResource BoolToVisibility}}" Text="{Binding ChannelTargetText}" Margin="8,0" Foreground="{DynamicResource Theme.Pink}" FontWeight="SemiBold" />
             </StatusBarItem>
             <StatusBarItem DockPanel.Dock="Right">
-                <TextBlock Text="{Binding EqualizerIndicator}" Margin="8,0" Foreground="#0078D4" FontWeight="SemiBold"
+                <TextBlock Text="{Binding EqualizerIndicator}" Margin="8,0" Foreground="{DynamicResource Theme.Accent}" FontWeight="SemiBold"
                            ToolTip="Live-Effekte verändern gerade den Klang der Wiedergabe." />
             </StatusBarItem>
             <Separator DockPanel.Dock="Right" />
@@ -608,7 +604,7 @@
             <TabItem Header="  Editor  ">
                 <DockPanel>
                     <!-- Hinweis, wenn ein Clip aus dem Mischpult bearbeitet wird -->
-                    <Border DockPanel.Dock="Top" Padding="10,6" Background="#FFF4E5" BorderBrush="#FFB74D" BorderThickness="0,0,0,1"
+                    <Border DockPanel.Dock="Top" Padding="10,6" Background="{DynamicResource Theme.WarnBackground}" BorderBrush="{DynamicResource Theme.WarnBorder}" BorderThickness="0,0,0,1"
                             Visibility="{Binding HasLinkedClip, Converter={StaticResource BoolToVisibility}}">
                         <DockPanel>
                             <Button DockPanel.Dock="Right" Padding="10,2" FontWeight="SemiBold" Content="In Spur übernehmen"
@@ -620,7 +616,7 @@
                     <Border DockPanel.Dock="Bottom"
                             Visibility="{Binding IsEqualizerVisible, Converter={StaticResource BoolToVisibility}}"
                             MaxHeight="{Binding ActualHeight, RelativeSource={RelativeSource AncestorType=DockPanel}, Converter={StaticResource Fraction}, ConverterParameter=0.7}"
-                            Background="#F7F7F9" BorderBrush="#D9D9DE" BorderThickness="0,1,0,0">
+                            Background="{DynamicResource Theme.Panel}" BorderBrush="{DynamicResource Theme.PanelBorder}" BorderThickness="0,1,0,0">
                         <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
                         <StackPanel Margin="12,8">
                             <!-- Klang-Presets: alle Effekte auf einmal einstellen -->
@@ -631,7 +627,7 @@
                                               ItemContainerStyle="{StaticResource PresetItem}"
                                               ToolTip="Stellt alle Effekte auf einmal ein – z. B. „Podcast-Stimme“ – oder speichert deine aktuelle Einstellung als eigenes Klang-Preset" />
                                 </Menu>
-                                <TextBlock Margin="8,0,0,0" VerticalAlignment="Center" FontSize="11" Foreground="#666"
+                                <TextBlock Margin="8,0,0,0" VerticalAlignment="Center" FontSize="11" Foreground="{DynamicResource Theme.ForegroundDim}"
                                            Text="Fertige Klänge wie „Podcast-Stimme“ laden oder die aktuelle Einstellung aller Effekte als eigenes Preset speichern (z. B. „Meine Stimme“)." />
                             </StackPanel>
                             <!-- Effekte über dem EQ: alle Felder gleich hoch, Reglerreihen auf gleicher Höhe (gemeinsame Zeilenhöhen) -->
@@ -660,7 +656,7 @@
                                         <UniformGrid Grid.Row="1" VerticalAlignment="Top" Margin="0,8,0,0" Columns="2" Style="{StaticResource ReverbDimWhenOff}">
                                                     <StackPanel Margin="0,0,0,6" ToolTip="Hall-Stärke links (bei Mono: des einzigen Kanals) – Doppelklick für 0">
                                                         <controls:Knob Width="42" Height="42" Minimum="0" Maximum="100" DefaultValue="0"
-                                                                       Value="{Binding ReverbLeft}" Accent="#0277BD" />
+                                                                       Value="{Binding ReverbLeft}" Accent="{DynamicResource Theme.Blue}" />
                                                         <TextBlock Style="{StaticResource KnobValue}" Text="{Binding ReverbLeft, StringFormat={}{0:0} %}" />
                                                         <TextBlock Style="{StaticResource KnobLabel}">
                                                             <TextBlock.Text>
@@ -674,19 +670,19 @@
                                                     </StackPanel>
                                                     <StackPanel Margin="0,0,0,6" IsEnabled="{Binding IsStereo}" ToolTipService.ShowOnDisabled="True" ToolTip="Hall-Stärke rechts (nur bei Stereo) – Doppelklick für 0">
                                                         <controls:Knob Width="42" Height="42" Minimum="0" Maximum="100" DefaultValue="0"
-                                                                       Value="{Binding ReverbRight}" Accent="#C2185B" />
+                                                                       Value="{Binding ReverbRight}" Accent="{DynamicResource Theme.Pink}" />
                                                         <TextBlock Style="{StaticResource KnobValue}" Text="{Binding ReverbRight, StringFormat={}{0:0} %}" />
                                                         <TextBlock Style="{StaticResource KnobLabel}" Text="Stärke R" />
                                                     </StackPanel>
                                                     <StackPanel Margin="0,0,0,6" ToolTip="Raumgröße: klein = kurzer, groß = langer Nachhall – Doppelklick für 50 %">
                                                         <controls:Knob Width="42" Height="42" Minimum="0" Maximum="100" DefaultValue="50"
-                                                                       Value="{Binding ReverbRoomSize}" Accent="#6A1B9A" />
+                                                                       Value="{Binding ReverbRoomSize}" Accent="{DynamicResource Theme.Purple}" />
                                                         <TextBlock Style="{StaticResource KnobValue}" Text="{Binding ReverbRoomSize, StringFormat={}{0:0} %}" />
                                                         <TextBlock Style="{StaticResource KnobLabel}" Text="Raum" />
                                                     </StackPanel>
                                                     <StackPanel Margin="0,0,0,6" ToolTip="Dämpfung: wenig = heller, viel = dunkler Hall – Doppelklick für 50 %">
                                                         <controls:Knob Width="42" Height="42" Minimum="0" Maximum="100" DefaultValue="50"
-                                                                       Value="{Binding ReverbDamping}" Accent="#EF6C00" />
+                                                                       Value="{Binding ReverbDamping}" Accent="{DynamicResource Theme.Orange}" />
                                                         <TextBlock Style="{StaticResource KnobValue}" Text="{Binding ReverbDamping, StringFormat={}{0:0} %}" />
                                                         <TextBlock Style="{StaticResource KnobLabel}" Text="Dämpfung" />
                                                     </StackPanel>
@@ -727,12 +723,12 @@
                                                     <RowDefinition Height="Auto" />
                                                     <RowDefinition Height="Auto" />
                                                 </Grid.RowDefinitions>
-                                                <TextBlock Grid.Row="0" Margin="0,0,6,0" FontSize="11" FontWeight="Bold" Foreground="#0277BD" Text="L" />
-                                                <ProgressBar Grid.Row="0" Grid.Column="1" Height="7" Maximum="24" Foreground="#EF6C00" Value="{Binding CompressorReductionLeft, Mode=OneWay}" />
+                                                <TextBlock Grid.Row="0" Margin="0,0,6,0" FontSize="11" FontWeight="Bold" Foreground="{DynamicResource Theme.Blue}" Text="L" />
+                                                <ProgressBar Grid.Row="0" Grid.Column="1" Height="7" Maximum="24" Foreground="{DynamicResource Theme.Orange}" Value="{Binding CompressorReductionLeft, Mode=OneWay}" />
                                                 <TextBlock Grid.Row="0" Grid.Column="2" Margin="6,0,0,0" FontSize="10" FontFamily="Consolas" Text="{Binding CompressorReductionLeft, StringFormat={}-{0:0.0} dB}" />
-                                                <TextBlock Grid.Row="1" Margin="0,2,6,0" FontSize="11" FontWeight="Bold" Foreground="#C2185B" Text="R"
+                                                <TextBlock Grid.Row="1" Margin="0,2,6,0" FontSize="11" FontWeight="Bold" Foreground="{DynamicResource Theme.Pink}" Text="R"
                                                            Visibility="{Binding IsStereo, Converter={StaticResource BoolToVisibility}}" />
-                                                <ProgressBar Grid.Row="1" Grid.Column="1" Margin="0,2,0,0" Height="7" Maximum="24" Foreground="#EF6C00"
+                                                <ProgressBar Grid.Row="1" Grid.Column="1" Margin="0,2,0,0" Height="7" Maximum="24" Foreground="{DynamicResource Theme.Orange}"
                                                              Value="{Binding CompressorReductionRight, Mode=OneWay}" Visibility="{Binding IsStereo, Converter={StaticResource BoolToVisibility}}" />
                                                 <TextBlock Grid.Row="1" Grid.Column="2" Margin="6,2,0,0" FontSize="10" FontFamily="Consolas"
                                                            Text="{Binding CompressorReductionRight, StringFormat={}-{0:0.0} dB}" Visibility="{Binding IsStereo, Converter={StaticResource BoolToVisibility}}" />
@@ -741,37 +737,37 @@
                                         <UniformGrid Grid.Row="1" VerticalAlignment="Top" Margin="0,8,0,0" Columns="4" Style="{StaticResource CompressorDimWhenOff}">
                                                     <StackPanel Margin="0,0,0,6" ToolTip="Ab diesem Pegel wird leiser geregelt – Doppelklick für -18 dB">
                                                         <controls:Knob Width="42" Height="42" Minimum="-60" Maximum="0" DefaultValue="-18"
-                                                                       Value="{Binding CompressorThreshold}" Accent="#2E7D32" />
+                                                                       Value="{Binding CompressorThreshold}" Accent="{DynamicResource Theme.Green}" />
                                                         <TextBlock Style="{StaticResource KnobValue}" Text="{Binding CompressorThreshold, StringFormat={}{0:0} dB}" />
                                                         <TextBlock Style="{StaticResource KnobLabel}" Text="Schwelle" />
                                                     </StackPanel>
                                                     <StackPanel Margin="0,0,0,6" ToolTip="4:1 = 4 dB über der Schwelle werden zu 1 dB – Doppelklick für 4:1">
                                                         <controls:Knob Width="42" Height="42" Minimum="1" Maximum="20" DefaultValue="4"
-                                                                       Value="{Binding CompressorRatio}" Accent="#6A1B9A" />
+                                                                       Value="{Binding CompressorRatio}" Accent="{DynamicResource Theme.Purple}" />
                                                         <TextBlock Style="{StaticResource KnobValue}" Text="{Binding CompressorRatio, StringFormat={}{0:0.#}:1}" />
                                                         <TextBlock Style="{StaticResource KnobLabel}" Text="Verhältnis" />
                                                     </StackPanel>
                                                     <StackPanel Margin="0,0,0,6" ToolTip="Wie schnell die Regelung einsetzt – Doppelklick für 10 ms">
                                                         <controls:Knob Width="42" Height="42" Minimum="1" Maximum="100" DefaultValue="10"
-                                                                       Value="{Binding CompressorAttack}" Accent="#EF6C00" />
+                                                                       Value="{Binding CompressorAttack}" Accent="{DynamicResource Theme.Orange}" />
                                                         <TextBlock Style="{StaticResource KnobValue}" Text="{Binding CompressorAttack, StringFormat={}{0:0.#} ms}" />
                                                         <TextBlock Style="{StaticResource KnobLabel}" Text="Attack" />
                                                     </StackPanel>
                                                     <StackPanel Margin="0,0,0,6" ToolTip="Wie schnell die Regelung loslässt – Doppelklick für 150 ms">
                                                         <controls:Knob Width="42" Height="42" Minimum="20" Maximum="1000" DefaultValue="150"
-                                                                       Value="{Binding CompressorRelease}" Accent="#EF6C00" />
+                                                                       Value="{Binding CompressorRelease}" Accent="{DynamicResource Theme.Orange}" />
                                                         <TextBlock Style="{StaticResource KnobValue}" Text="{Binding CompressorRelease, StringFormat={}{0:0} ms}" />
                                                         <TextBlock Style="{StaticResource KnobLabel}" Text="Release" />
                                                     </StackPanel>
                                                     <StackPanel Margin="0,0,0,6" ToolTip="Aufholverstärkung nach der Kompression – Doppelklick für 0 dB">
                                                         <controls:Knob Width="42" Height="42" Minimum="0" Maximum="24" DefaultValue="0"
-                                                                       Value="{Binding CompressorMakeup}" Accent="#00838F" />
+                                                                       Value="{Binding CompressorMakeup}" Accent="{DynamicResource Theme.Teal}" />
                                                         <TextBlock Style="{StaticResource KnobValue}" Text="{Binding CompressorMakeup, StringFormat={}+{0:0.#} dB}" />
                                                         <TextBlock Style="{StaticResource KnobLabel}" Text="Aufholen" />
                                                     </StackPanel>
                                                     <StackPanel Margin="0,0,0,6" ToolTip="Stärke links (100 % = voll komprimiert, 0 % = unverändert)">
                                                         <controls:Knob Width="42" Height="42" Minimum="0" Maximum="100" DefaultValue="100"
-                                                                       Value="{Binding CompressorMixLeft}" Accent="#0277BD" />
+                                                                       Value="{Binding CompressorMixLeft}" Accent="{DynamicResource Theme.Blue}" />
                                                         <TextBlock Style="{StaticResource KnobValue}" Text="{Binding CompressorMixLeft, StringFormat={}{0:0} %}" />
                                                         <TextBlock Style="{StaticResource KnobLabel}">
                                                             <TextBlock.Text>
@@ -785,7 +781,7 @@
                                                     </StackPanel>
                                                     <StackPanel Margin="0,0,0,6" IsEnabled="{Binding IsStereo}" ToolTipService.ShowOnDisabled="True" ToolTip="Stärke rechts (nur bei Stereo)">
                                                         <controls:Knob Width="42" Height="42" Minimum="0" Maximum="100" DefaultValue="100"
-                                                                       Value="{Binding CompressorMixRight}" Accent="#C2185B" />
+                                                                       Value="{Binding CompressorMixRight}" Accent="{DynamicResource Theme.Pink}" />
                                                         <TextBlock Style="{StaticResource KnobValue}" Text="{Binding CompressorMixRight, StringFormat={}{0:0} %}" />
                                                         <TextBlock Style="{StaticResource KnobLabel}" Text="Stärke R" />
                                                     </StackPanel>
@@ -820,7 +816,7 @@
                                         <UniformGrid Grid.Row="1" VerticalAlignment="Top" Margin="0,8,0,0" Columns="3" Style="{StaticResource DelayDimWhenOff}">
                                                     <StackPanel Margin="0,0,0,6" ToolTip="Verzögerung links (bei Mono: des einzigen Kanals) – Umschalt+Ziehen für feine Schritte">
                                                         <controls:Knob Width="42" Height="42" Minimum="20" Maximum="2000" DefaultValue="375"
-                                                                       Value="{Binding DelayTimeLeft}" Accent="#0277BD" />
+                                                                       Value="{Binding DelayTimeLeft}" Accent="{DynamicResource Theme.Blue}" />
                                                         <TextBlock Style="{StaticResource KnobValue}" Text="{Binding DelayTimeLeft, StringFormat={}{0:0} ms}" />
                                                         <TextBlock Style="{StaticResource KnobLabel}">
                                                             <TextBlock.Text>
@@ -834,19 +830,19 @@
                                                     </StackPanel>
                                                     <StackPanel Margin="0,0,0,6" IsEnabled="{Binding IsStereo}" ToolTipService.ShowOnDisabled="True" ToolTip="Verzögerung rechts (nur bei Stereo)">
                                                         <controls:Knob Width="42" Height="42" Minimum="20" Maximum="2000" DefaultValue="375"
-                                                                       Value="{Binding DelayTimeRight}" Accent="#C2185B" />
+                                                                       Value="{Binding DelayTimeRight}" Accent="{DynamicResource Theme.Pink}" />
                                                         <TextBlock Style="{StaticResource KnobValue}" Text="{Binding DelayTimeRight, StringFormat={}{0:0} ms}" />
                                                         <TextBlock Style="{StaticResource KnobLabel}" Text="Zeit R" />
                                                     </StackPanel>
                                                     <StackPanel Margin="0,0,0,6" ToolTip="Rückkopplung: wie viele Wiederholungen – Doppelklick für 35 %">
                                                         <controls:Knob Width="42" Height="42" Minimum="0" Maximum="90" DefaultValue="35"
-                                                                       Value="{Binding DelayFeedback}" Accent="#6A1B9A" />
+                                                                       Value="{Binding DelayFeedback}" Accent="{DynamicResource Theme.Purple}" />
                                                         <TextBlock Style="{StaticResource KnobValue}" Text="{Binding DelayFeedback, StringFormat={}{0:0} %}" />
                                                         <TextBlock Style="{StaticResource KnobLabel}" Text="Rückkoppl." />
                                                     </StackPanel>
                                                     <StackPanel Margin="0,0,0,6" ToolTip="Lautstärke des Echos links">
                                                         <controls:Knob Width="42" Height="42" Minimum="0" Maximum="100" DefaultValue="30"
-                                                                       Value="{Binding DelayMixLeft}" Accent="#0277BD" />
+                                                                       Value="{Binding DelayMixLeft}" Accent="{DynamicResource Theme.Blue}" />
                                                         <TextBlock Style="{StaticResource KnobValue}" Text="{Binding DelayMixLeft, StringFormat={}{0:0} %}" />
                                                         <TextBlock Style="{StaticResource KnobLabel}">
                                                             <TextBlock.Text>
@@ -860,13 +856,13 @@
                                                     </StackPanel>
                                                     <StackPanel Margin="0,0,0,6" IsEnabled="{Binding IsStereo}" ToolTipService.ShowOnDisabled="True" ToolTip="Lautstärke des Echos rechts (nur bei Stereo)">
                                                         <controls:Knob Width="42" Height="42" Minimum="0" Maximum="100" DefaultValue="30"
-                                                                       Value="{Binding DelayMixRight}" Accent="#C2185B" />
+                                                                       Value="{Binding DelayMixRight}" Accent="{DynamicResource Theme.Pink}" />
                                                         <TextBlock Style="{StaticResource KnobValue}" Text="{Binding DelayMixRight, StringFormat={}{0:0} %}" />
                                                         <TextBlock Style="{StaticResource KnobLabel}" Text="Stärke R" />
                                                     </StackPanel>
                                                     <StackPanel Margin="0,0,0,6" ToolTip="Jede Wiederholung wird dumpfer, wie bei einem Bandecho – Doppelklick für 30 %">
                                                         <controls:Knob Width="42" Height="42" Minimum="0" Maximum="100" DefaultValue="30"
-                                                                       Value="{Binding DelayDamping}" Accent="#EF6C00" />
+                                                                       Value="{Binding DelayDamping}" Accent="{DynamicResource Theme.Orange}" />
                                                         <TextBlock Style="{StaticResource KnobValue}" Text="{Binding DelayDamping, StringFormat={}{0:0} %}" />
                                                         <TextBlock Style="{StaticResource KnobLabel}" Text="Dämpfung" />
                                                     </StackPanel>
@@ -899,13 +895,13 @@
                                         <UniformGrid Grid.Row="1" VerticalAlignment="Top" Margin="0,8,0,0" Columns="2" Style="{StaticResource FilterDimWhenOff}">
                                             <StackPanel Margin="0,0,0,6" ToolTip="Hochpass: schneidet tiefe Frequenzen (Brummen, Rumpeln) ab – ganz links = aus, Doppelklick = aus">
                                                 <controls:Knob Width="42" Height="42" Minimum="0" Maximum="100" DefaultValue="0"
-                                                               Value="{Binding FilterHighPassPosition}" Accent="#00838F" />
+                                                               Value="{Binding FilterHighPassPosition}" Accent="{DynamicResource Theme.Teal}" />
                                                 <TextBlock Style="{StaticResource KnobValue}" Text="{Binding FilterHighPassText}" />
                                                 <TextBlock Style="{StaticResource KnobLabel}" Text="Hochpass" />
                                             </StackPanel>
                                             <StackPanel Margin="0,0,0,6" ToolTip="Tiefpass: schneidet hohe Frequenzen (Rauschen, Zischen) ab – ganz rechts = aus, Doppelklick = aus">
                                                 <controls:Knob Width="42" Height="42" Minimum="0" Maximum="100" DefaultValue="100"
-                                                               Value="{Binding FilterLowPassPosition}" Accent="#6A1B9A" />
+                                                               Value="{Binding FilterLowPassPosition}" Accent="{DynamicResource Theme.Purple}" />
                                                 <TextBlock Style="{StaticResource KnobValue}" Text="{Binding FilterLowPassText}" />
                                                 <TextBlock Style="{StaticResource KnobLabel}" Text="Tiefpass" />
                                             </StackPanel>
@@ -940,19 +936,19 @@
                                         <UniformGrid Grid.Row="1" VerticalAlignment="Top" Margin="0,8,0,0" Columns="2" Style="{StaticResource DistortionDimWhenOff}">
                                             <StackPanel Margin="0,0,0,6" ToolTip="Wie stark verzerrt wird – Doppelklick für 50 %">
                                                 <controls:Knob Width="42" Height="42" Minimum="0" Maximum="100" DefaultValue="50"
-                                                               Value="{Binding DistortionDrive}" Accent="#D84315" />
+                                                               Value="{Binding DistortionDrive}" Accent="{DynamicResource Theme.DeepOrange}" />
                                                 <TextBlock Style="{StaticResource KnobValue}" Text="{Binding DistortionDrive, StringFormat={}{0:0} %}" />
                                                 <TextBlock Style="{StaticResource KnobLabel}" Text="Drive" />
                                             </StackPanel>
                                             <StackPanel Margin="0,0,0,6" ToolTip="Klangfarbe: wenig = dumpf, viel = hell – Doppelklick für 70 %">
                                                 <controls:Knob Width="42" Height="42" Minimum="0" Maximum="100" DefaultValue="70"
-                                                               Value="{Binding DistortionTone}" Accent="#EF6C00" />
+                                                               Value="{Binding DistortionTone}" Accent="{DynamicResource Theme.Orange}" />
                                                 <TextBlock Style="{StaticResource KnobValue}" Text="{Binding DistortionTone, StringFormat={}{0:0} %}" />
                                                 <TextBlock Style="{StaticResource KnobLabel}" Text="Ton" />
                                             </StackPanel>
                                             <StackPanel Margin="0,0,0,6" ToolTip="Anteil der Verzerrung links (bei Mono: des einzigen Kanals)">
                                                 <controls:Knob Width="42" Height="42" Minimum="0" Maximum="100" DefaultValue="100"
-                                                               Value="{Binding DistortionMixLeft}" Accent="#0277BD" />
+                                                               Value="{Binding DistortionMixLeft}" Accent="{DynamicResource Theme.Blue}" />
                                                 <TextBlock Style="{StaticResource KnobValue}" Text="{Binding DistortionMixLeft, StringFormat={}{0:0} %}" />
                                                 <TextBlock Style="{StaticResource KnobLabel}">
                                                     <TextBlock.Text>
@@ -966,7 +962,7 @@
                                             </StackPanel>
                                             <StackPanel Margin="0,0,0,6" IsEnabled="{Binding IsStereo}" ToolTipService.ShowOnDisabled="True" ToolTip="Anteil der Verzerrung rechts (nur bei Stereo)">
                                                 <controls:Knob Width="42" Height="42" Minimum="0" Maximum="100" DefaultValue="100"
-                                                               Value="{Binding DistortionMixRight}" Accent="#C2185B" />
+                                                               Value="{Binding DistortionMixRight}" Accent="{DynamicResource Theme.Pink}" />
                                                 <TextBlock Style="{StaticResource KnobValue}" Text="{Binding DistortionMixRight, StringFormat={}{0:0} %}" />
                                                 <TextBlock Style="{StaticResource KnobLabel}" Text="Stärke R" />
                                             </StackPanel>
@@ -999,19 +995,19 @@
                                         <UniformGrid Grid.Row="1" VerticalAlignment="Top" Margin="0,8,0,0" Columns="2" Style="{StaticResource ChorusDimWhenOff}">
                                             <StackPanel Margin="0,0,0,6" ToolTip="Wie schnell die Stimmen schwanken – Doppelklick für 0,8 Hz">
                                                 <controls:Knob Width="42" Height="42" Minimum="0.1" Maximum="5" DefaultValue="0.8"
-                                                               Value="{Binding ChorusRate}" Accent="#2E7D32" />
+                                                               Value="{Binding ChorusRate}" Accent="{DynamicResource Theme.Green}" />
                                                 <TextBlock Style="{StaticResource KnobValue}" Text="{Binding ChorusRate, StringFormat={}{0:0.0} Hz}" />
                                                 <TextBlock Style="{StaticResource KnobLabel}" Text="Tempo" />
                                             </StackPanel>
                                             <StackPanel Margin="0,0,0,6" ToolTip="Wie stark die Stimmen schwanken – Doppelklick für 50 %">
                                                 <controls:Knob Width="42" Height="42" Minimum="0" Maximum="100" DefaultValue="50"
-                                                               Value="{Binding ChorusDepth}" Accent="#6A1B9A" />
+                                                               Value="{Binding ChorusDepth}" Accent="{DynamicResource Theme.Purple}" />
                                                 <TextBlock Style="{StaticResource KnobValue}" Text="{Binding ChorusDepth, StringFormat={}{0:0} %}" />
                                                 <TextBlock Style="{StaticResource KnobLabel}" Text="Tiefe" />
                                             </StackPanel>
                                             <StackPanel Margin="0,0,0,6" ToolTip="Chorus-Anteil links (bei Mono: des einzigen Kanals)">
                                                 <controls:Knob Width="42" Height="42" Minimum="0" Maximum="100" DefaultValue="70"
-                                                               Value="{Binding ChorusMixLeft}" Accent="#0277BD" />
+                                                               Value="{Binding ChorusMixLeft}" Accent="{DynamicResource Theme.Blue}" />
                                                 <TextBlock Style="{StaticResource KnobValue}" Text="{Binding ChorusMixLeft, StringFormat={}{0:0} %}" />
                                                 <TextBlock Style="{StaticResource KnobLabel}">
                                                     <TextBlock.Text>
@@ -1025,7 +1021,7 @@
                                             </StackPanel>
                                             <StackPanel Margin="0,0,0,6" IsEnabled="{Binding IsStereo}" ToolTipService.ShowOnDisabled="True" ToolTip="Chorus-Anteil rechts (nur bei Stereo)">
                                                 <controls:Knob Width="42" Height="42" Minimum="0" Maximum="100" DefaultValue="70"
-                                                               Value="{Binding ChorusMixRight}" Accent="#C2185B" />
+                                                               Value="{Binding ChorusMixRight}" Accent="{DynamicResource Theme.Pink}" />
                                                 <TextBlock Style="{StaticResource KnobValue}" Text="{Binding ChorusMixRight, StringFormat={}{0:0} %}" />
                                                 <TextBlock Style="{StaticResource KnobLabel}" Text="Stärke R" />
                                             </StackPanel>
@@ -1058,25 +1054,25 @@
                                         <UniformGrid Grid.Row="1" VerticalAlignment="Top" Margin="0,8,0,0" Columns="3" Style="{StaticResource FlangerDimWhenOff}">
                                             <StackPanel Margin="0,0,0,6" ToolTip="Wie schnell der Effekt wandert – Doppelklick für 0,3 Hz">
                                                 <controls:Knob Width="42" Height="42" Minimum="0.1" Maximum="2" DefaultValue="0.3"
-                                                               Value="{Binding FlangerRate}" Accent="#2E7D32" />
+                                                               Value="{Binding FlangerRate}" Accent="{DynamicResource Theme.Green}" />
                                                 <TextBlock Style="{StaticResource KnobValue}" Text="{Binding FlangerRate, StringFormat={}{0:0.0} Hz}" />
                                                 <TextBlock Style="{StaticResource KnobLabel}" Text="Tempo" />
                                             </StackPanel>
                                             <StackPanel Margin="0,0,0,6" ToolTip="Wie weit der Effekt wandert – Doppelklick für 70 %">
                                                 <controls:Knob Width="42" Height="42" Minimum="0" Maximum="100" DefaultValue="70"
-                                                               Value="{Binding FlangerDepth}" Accent="#6A1B9A" />
+                                                               Value="{Binding FlangerDepth}" Accent="{DynamicResource Theme.Purple}" />
                                                 <TextBlock Style="{StaticResource KnobValue}" Text="{Binding FlangerDepth, StringFormat={}{0:0} %}" />
                                                 <TextBlock Style="{StaticResource KnobLabel}" Text="Tiefe" />
                                             </StackPanel>
                                             <StackPanel Margin="0,0,0,6" ToolTip="Rückkopplung: macht den Klang schärfer, „metallischer“ – Doppelklick für 50 %">
                                                 <controls:Knob Width="42" Height="42" Minimum="0" Maximum="90" DefaultValue="50"
-                                                               Value="{Binding FlangerFeedback}" Accent="#EF6C00" />
+                                                               Value="{Binding FlangerFeedback}" Accent="{DynamicResource Theme.Orange}" />
                                                 <TextBlock Style="{StaticResource KnobValue}" Text="{Binding FlangerFeedback, StringFormat={}{0:0} %}" />
                                                 <TextBlock Style="{StaticResource KnobLabel}" Text="Rückk." />
                                             </StackPanel>
                                             <StackPanel Margin="0,0,0,6" ToolTip="Flanger-Anteil links (bei Mono: des einzigen Kanals)">
                                                 <controls:Knob Width="42" Height="42" Minimum="0" Maximum="100" DefaultValue="70"
-                                                               Value="{Binding FlangerMixLeft}" Accent="#0277BD" />
+                                                               Value="{Binding FlangerMixLeft}" Accent="{DynamicResource Theme.Blue}" />
                                                 <TextBlock Style="{StaticResource KnobValue}" Text="{Binding FlangerMixLeft, StringFormat={}{0:0} %}" />
                                                 <TextBlock Style="{StaticResource KnobLabel}">
                                                     <TextBlock.Text>
@@ -1090,7 +1086,7 @@
                                             </StackPanel>
                                             <StackPanel Margin="0,0,0,6" IsEnabled="{Binding IsStereo}" ToolTipService.ShowOnDisabled="True" ToolTip="Flanger-Anteil rechts (nur bei Stereo)">
                                                 <controls:Knob Width="42" Height="42" Minimum="0" Maximum="100" DefaultValue="70"
-                                                               Value="{Binding FlangerMixRight}" Accent="#C2185B" />
+                                                               Value="{Binding FlangerMixRight}" Accent="{DynamicResource Theme.Pink}" />
                                                 <TextBlock Style="{StaticResource KnobValue}" Text="{Binding FlangerMixRight, StringFormat={}{0:0} %}" />
                                                 <TextBlock Style="{StaticResource KnobLabel}" Text="Stärke R" />
                                             </StackPanel>
@@ -1123,25 +1119,25 @@
                                         <UniformGrid Grid.Row="1" VerticalAlignment="Top" Margin="0,8,0,0" Columns="2" Style="{StaticResource GateDimWhenOff}">
                                             <StackPanel Margin="0,0,0,6" ToolTip="Unter dieser Lautstärke gilt es als Pause – Doppelklick für -50 dB">
                                                 <controls:Knob Width="42" Height="42" Minimum="-80" Maximum="-10" DefaultValue="-50"
-                                                               Value="{Binding GateThreshold}" Accent="#2E7D32" />
+                                                               Value="{Binding GateThreshold}" Accent="{DynamicResource Theme.Green}" />
                                                 <TextBlock Style="{StaticResource KnobValue}" Text="{Binding GateThreshold, StringFormat={}{0:0} dB}" />
                                                 <TextBlock Style="{StaticResource KnobLabel}" Text="Schwelle" />
                                             </StackPanel>
                                             <StackPanel Margin="0,0,0,6" ToolTip="So viel leiser werden Pausen (80 dB = stumm) – Doppelklick für 40 dB">
                                                 <controls:Knob Width="42" Height="42" Minimum="0" Maximum="80" DefaultValue="40"
-                                                               Value="{Binding GateReduction}" Accent="#6A1B9A" />
+                                                               Value="{Binding GateReduction}" Accent="{DynamicResource Theme.Purple}" />
                                                 <TextBlock Style="{StaticResource KnobValue}" Text="{Binding GateReduction, StringFormat={}-{0:0} dB}" />
                                                 <TextBlock Style="{StaticResource KnobLabel}" Text="Absenkung" />
                                             </StackPanel>
                                             <StackPanel Margin="0,0,0,6" ToolTip="So lange bleibt das Gate nach dem letzten lauten Moment offen – verhindert abgehackte Wortenden">
                                                 <controls:Knob Width="42" Height="42" Minimum="0" Maximum="500" DefaultValue="60"
-                                                               Value="{Binding GateHold}" Accent="#EF6C00" />
+                                                               Value="{Binding GateHold}" Accent="{DynamicResource Theme.Orange}" />
                                                 <TextBlock Style="{StaticResource KnobValue}" Text="{Binding GateHold, StringFormat={}{0:0} ms}" />
                                                 <TextBlock Style="{StaticResource KnobLabel}" Text="Halten" />
                                             </StackPanel>
                                             <StackPanel Margin="0,0,0,6" ToolTip="So sanft wird danach leiser – Doppelklick für 150 ms">
                                                 <controls:Knob Width="42" Height="42" Minimum="10" Maximum="1000" DefaultValue="150"
-                                                               Value="{Binding GateRelease}" Accent="#00838F" />
+                                                               Value="{Binding GateRelease}" Accent="{DynamicResource Theme.Teal}" />
                                                 <TextBlock Style="{StaticResource KnobValue}" Text="{Binding GateRelease, StringFormat={}{0:0} ms}" />
                                                 <TextBlock Style="{StaticResource KnobLabel}" Text="Release" />
                                             </StackPanel>
@@ -1174,19 +1170,19 @@
                                         <UniformGrid Grid.Row="1" VerticalAlignment="Top" Margin="0,8,0,0" Columns="3" Style="{StaticResource SaturationDimWhenOff}">
                                             <StackPanel Margin="0,0,0,6" ToolTip="Wie stark in die Sättigung gefahren wird – mehr = wärmer und dichter">
                                                 <controls:Knob Width="42" Height="42" Minimum="0" Maximum="24" DefaultValue="6"
-                                                               Value="{Binding SaturationDrive}" Accent="#C62828" />
+                                                               Value="{Binding SaturationDrive}" Accent="{DynamicResource Theme.Red}" />
                                                 <TextBlock Style="{StaticResource KnobValue}" Text="{Binding SaturationDrive, StringFormat={}+{0:0.#} dB}" />
                                                 <TextBlock Style="{StaticResource KnobLabel}" Text="Drive" />
                                             </StackPanel>
                                             <StackPanel Margin="0,0,0,6" ToolTip="Dämpft die Höhen wie ein Tonband – Doppelklick für 40 %">
                                                 <controls:Knob Width="42" Height="42" Minimum="0" Maximum="100" DefaultValue="40"
-                                                               Value="{Binding SaturationWarmth}" Accent="#EF6C00" />
+                                                               Value="{Binding SaturationWarmth}" Accent="{DynamicResource Theme.Orange}" />
                                                 <TextBlock Style="{StaticResource KnobValue}" Text="{Binding SaturationWarmth, StringFormat={}{0:0} %}" />
                                                 <TextBlock Style="{StaticResource KnobLabel}" Text="Wärme" />
                                             </StackPanel>
                                             <StackPanel Margin="0,0,0,6" ToolTip="Anteil des gesättigten Klangs – Doppelklick für 100 %">
                                                 <controls:Knob Width="42" Height="42" Minimum="0" Maximum="100" DefaultValue="100"
-                                                               Value="{Binding SaturationMix}" Accent="#0277BD" />
+                                                               Value="{Binding SaturationMix}" Accent="{DynamicResource Theme.Blue}" />
                                                 <TextBlock Style="{StaticResource KnobValue}" Text="{Binding SaturationMix, StringFormat={}{0:0} %}" />
                                                 <TextBlock Style="{StaticResource KnobLabel}" Text="Anteil" />
                                             </StackPanel>
@@ -1219,25 +1215,25 @@
                                         <UniformGrid Grid.Row="1" VerticalAlignment="Top" Margin="0,8,0,0" Columns="2" Style="{StaticResource PhaserDimWhenOff}">
                                             <StackPanel Margin="0,0,0,6" ToolTip="Wie schnell der Effekt wandert – Doppelklick für 0,5 Hz">
                                                 <controls:Knob Width="42" Height="42" Minimum="0.05" Maximum="5" DefaultValue="0.5"
-                                                               Value="{Binding PhaserRate}" Accent="#2E7D32" />
+                                                               Value="{Binding PhaserRate}" Accent="{DynamicResource Theme.Green}" />
                                                 <TextBlock Style="{StaticResource KnobValue}" Text="{Binding PhaserRate, StringFormat={}{0:0.00} Hz}" />
                                                 <TextBlock Style="{StaticResource KnobLabel}" Text="Tempo" />
                                             </StackPanel>
                                             <StackPanel Margin="0,0,0,6" ToolTip="Wie weit der Effekt wandert – Doppelklick für 70 %">
                                                 <controls:Knob Width="42" Height="42" Minimum="0" Maximum="100" DefaultValue="70"
-                                                               Value="{Binding PhaserDepth}" Accent="#6A1B9A" />
+                                                               Value="{Binding PhaserDepth}" Accent="{DynamicResource Theme.Purple}" />
                                                 <TextBlock Style="{StaticResource KnobValue}" Text="{Binding PhaserDepth, StringFormat={}{0:0} %}" />
                                                 <TextBlock Style="{StaticResource KnobLabel}" Text="Tiefe" />
                                             </StackPanel>
                                             <StackPanel Margin="0,0,0,6" ToolTip="Rückkopplung: macht den Effekt deutlicher – Doppelklick für 40 %">
                                                 <controls:Knob Width="42" Height="42" Minimum="0" Maximum="90" DefaultValue="40"
-                                                               Value="{Binding PhaserFeedback}" Accent="#EF6C00" />
+                                                               Value="{Binding PhaserFeedback}" Accent="{DynamicResource Theme.Orange}" />
                                                 <TextBlock Style="{StaticResource KnobValue}" Text="{Binding PhaserFeedback, StringFormat={}{0:0} %}" />
                                                 <TextBlock Style="{StaticResource KnobLabel}" Text="Rückk." />
                                             </StackPanel>
                                             <StackPanel Margin="0,0,0,6" ToolTip="Anteil des Effekts – Doppelklick für 50 %">
                                                 <controls:Knob Width="42" Height="42" Minimum="0" Maximum="100" DefaultValue="50"
-                                                               Value="{Binding PhaserMix}" Accent="#0277BD" />
+                                                               Value="{Binding PhaserMix}" Accent="{DynamicResource Theme.Blue}" />
                                                 <TextBlock Style="{StaticResource KnobValue}" Text="{Binding PhaserMix, StringFormat={}{0:0} %}" />
                                                 <TextBlock Style="{StaticResource KnobLabel}" Text="Anteil" />
                                             </StackPanel>
@@ -1272,13 +1268,13 @@
                                         <UniformGrid Grid.Row="1" VerticalAlignment="Top" Margin="0,8,0,0" Columns="2" Style="{StaticResource TremoloDimWhenOff}">
                                             <StackPanel Margin="0,0,0,6" ToolTip="Wie oft pro Sekunde die Lautstärke schwankt – Doppelklick für 5 Hz">
                                                 <controls:Knob Width="42" Height="42" Minimum="0.5" Maximum="15" DefaultValue="5"
-                                                               Value="{Binding TremoloRate}" Accent="#2E7D32" />
+                                                               Value="{Binding TremoloRate}" Accent="{DynamicResource Theme.Green}" />
                                                 <TextBlock Style="{StaticResource KnobValue}" Text="{Binding TremoloRate, StringFormat={}{0:0.0} Hz}" />
                                                 <TextBlock Style="{StaticResource KnobLabel}" Text="Tempo" />
                                             </StackPanel>
                                             <StackPanel Margin="0,0,0,6" ToolTip="Wie stark die Lautstärke schwankt – Doppelklick für 50 %">
                                                 <controls:Knob Width="42" Height="42" Minimum="0" Maximum="100" DefaultValue="50"
-                                                               Value="{Binding TremoloDepth}" Accent="#6A1B9A" />
+                                                               Value="{Binding TremoloDepth}" Accent="{DynamicResource Theme.Purple}" />
                                                 <TextBlock Style="{StaticResource KnobValue}" Text="{Binding TremoloDepth, StringFormat={}{0:0} %}" />
                                                 <TextBlock Style="{StaticResource KnobLabel}" Text="Tiefe" />
                                             </StackPanel>
@@ -1307,13 +1303,13 @@
                                         </Grid.RowDefinitions>
                                         <StackPanel Grid.Row="0">
                                             <CheckBox Content="Ein" IsChecked="{Binding IsWidenerEnabled}" ToolTip="Stereo-Breite ein/aus: macht den Klang breiter oder schmaler (bis Mono)" />
-                                            <TextBlock Margin="0,3,0,0" FontSize="10" Foreground="#666" TextWrapping="Wrap" Text="Nur bei Stereo-Dateien"
+                                            <TextBlock Margin="0,3,0,0" FontSize="10" Foreground="{DynamicResource Theme.ForegroundDim}" TextWrapping="Wrap" Text="Nur bei Stereo-Dateien"
                                                        Visibility="{Binding IsStereo, Converter={StaticResource InverseBoolToVisibility}}" />
                                         </StackPanel>
                                         <UniformGrid Grid.Row="1" VerticalAlignment="Top" Margin="0,8,0,0" Columns="1" Style="{StaticResource WidenerDimWhenOff}">
                                             <StackPanel Margin="0,0,0,6" ToolTip="0 % = Mono, 100 % = unverändert, 200 % = doppelt so breit – Doppelklick für 100 %">
                                                 <controls:Knob Width="42" Height="42" Minimum="0" Maximum="200" DefaultValue="100"
-                                                               Value="{Binding WidenerWidth}" Accent="#0277BD" />
+                                                               Value="{Binding WidenerWidth}" Accent="{DynamicResource Theme.Blue}" />
                                                 <TextBlock Style="{StaticResource KnobValue}" Text="{Binding WidenerWidth, StringFormat={}{0:0} %}" />
                                                 <TextBlock Style="{StaticResource KnobLabel}" Text="Breite" />
                                             </StackPanel>
@@ -1335,10 +1331,10 @@
                                               ToolTip="Pro-Kanal-EQ: links und rechts getrennt einstellen (nur bei Stereo)" />
                                     <StackPanel Orientation="Horizontal" Visibility="{Binding UsesPerChannelEqualizer, Converter={StaticResource BoolToVisibility}}">
                                         <TextBlock VerticalAlignment="Center" Text="Einstellen:" />
-                                        <RadioButton Margin="6,0,0,0" GroupName="EqChannel" Content="L" FontWeight="Bold" Foreground="#0277BD"
+                                        <RadioButton Margin="6,0,0,0" GroupName="EqChannel" Content="L" FontWeight="Bold" Foreground="{DynamicResource Theme.Blue}"
                                                      Style="{StaticResource {x:Type ToggleButton}}" MinWidth="28"
                                                      IsChecked="{Binding EqualizerEditsLeft}" ToolTip="Regler zeigen den EQ des linken Kanals" />
-                                        <RadioButton Margin="3,0,0,0" GroupName="EqChannel" Content="R" FontWeight="Bold" Foreground="#C2185B"
+                                        <RadioButton Margin="3,0,0,0" GroupName="EqChannel" Content="R" FontWeight="Bold" Foreground="{DynamicResource Theme.Pink}"
                                                      Style="{StaticResource {x:Type ToggleButton}}" MinWidth="28"
                                                      IsChecked="{Binding EqualizerEditsRight}" ToolTip="Regler zeigen den EQ des rechten Kanals" />
                                         <Button Margin="6,0,0,0" Padding="6,1" Content="Auf anderen Kanal kopieren"
@@ -1393,14 +1389,14 @@
                                                             <Condition Binding="{Binding UsesPerChannelEqualizer}" Value="True" />
                                                             <Condition Binding="{Binding EqualizerEditsRight}" Value="False" />
                                                         </MultiDataTrigger.Conditions>
-                                                        <Setter Property="Foreground" Value="#0277BD" />
+                                                        <Setter Property="Foreground" Value="{DynamicResource Theme.Blue}" />
                                                     </MultiDataTrigger>
                                                     <MultiDataTrigger>
                                                         <MultiDataTrigger.Conditions>
                                                             <Condition Binding="{Binding UsesPerChannelEqualizer}" Value="True" />
                                                             <Condition Binding="{Binding EqualizerEditsRight}" Value="True" />
                                                         </MultiDataTrigger.Conditions>
-                                                        <Setter Property="Foreground" Value="#C2185B" />
+                                                        <Setter Property="Foreground" Value="{DynamicResource Theme.Pink}" />
                                                     </MultiDataTrigger>
                                                 </Style.Triggers>
                                             </Style>
@@ -1414,7 +1410,7 @@
                                         <TextBlock Style="{StaticResource EqBandLabel}" FontWeight="SemiBold" Text="Pegel" />
                                     </StackPanel>
 
-                                    <Border Grid.Row="2" Grid.Column="1" Width="1" Margin="6,0" Background="#D9D9DE" />
+                                    <Border Grid.Row="2" Grid.Column="1" Width="1" Margin="6,0" Background="{DynamicResource Theme.PanelBorder}" />
 
                                     <ItemsControl Grid.Row="2" Grid.Column="2" ItemsSource="{Binding CurrentEqualizer.Bands}" Focusable="False"
                                                   Style="{StaticResource EqDimWhenOff}">
@@ -1498,22 +1494,22 @@
                     <!-- Mischpult-Werkzeugleiste -->
                     <ToolBarTray DockPanel.Dock="Top" IsLocked="True">
                         <ToolBar>
-                            <Button Style="{StaticResource ToolButton}" Command="{Binding TransportSkipBackCommand}" ToolTip="5 Sekunden zurück (Strg+←)">
+                            <Button Style="{DynamicResource ToolButton}" Command="{Binding TransportSkipBackCommand}" ToolTip="5 Sekunden zurück (Strg+←)">
                                 <TextBlock Style="{StaticResource Glyph}" Text="&#xEB9E;" />
                             </Button>
-                            <Button Style="{StaticResource ToolButton}" Command="{Binding Mixer.PlayCommand}" ToolTip="Projekt abspielen (Leertaste)">
+                            <Button Style="{DynamicResource ToolButton}" Command="{Binding Mixer.PlayCommand}" ToolTip="Projekt abspielen (Leertaste)">
                                 <TextBlock Style="{StaticResource Glyph}" Text="&#xE768;" />
                             </Button>
-                            <Button Style="{StaticResource ToolButton}" Command="{Binding Mixer.PauseCommand}" ToolTip="Pause (Leertaste)">
+                            <Button Style="{DynamicResource ToolButton}" Command="{Binding Mixer.PauseCommand}" ToolTip="Pause (Leertaste)">
                                 <TextBlock Style="{StaticResource Glyph}" Text="&#xE769;" />
                             </Button>
-                            <Button Style="{StaticResource ToolButton}" Command="{Binding Mixer.StopCommand}" ToolTip="Stopp (Esc) – zurück zur Startposition">
+                            <Button Style="{DynamicResource ToolButton}" Command="{Binding Mixer.StopCommand}" ToolTip="Stopp (Esc) – zurück zur Startposition">
                                 <TextBlock Style="{StaticResource Glyph}" Text="&#xE71A;" />
                             </Button>
-                            <Button Style="{StaticResource ToolButton}" Command="{Binding TransportSkipForwardCommand}" ToolTip="5 Sekunden vor (Strg+→)">
+                            <Button Style="{DynamicResource ToolButton}" Command="{Binding TransportSkipForwardCommand}" ToolTip="5 Sekunden vor (Strg+→)">
                                 <TextBlock Style="{StaticResource Glyph}" Text="&#xEB9D;" />
                             </Button>
-                            <ToggleButton Style="{StaticResource ChannelToggle}" Margin="4,0,0,0" IsChecked="{Binding Mixer.IsRecording, Mode=OneWay}"
+                            <ToggleButton Style="{DynamicResource ChannelToggle}" Margin="4,0,0,0" IsChecked="{Binding Mixer.IsRecording, Mode=OneWay}"
                                           Command="{Binding Mixer.ToggleRecordCommand}"
                                           ToolTip="Aufnahme starten/beenden (Strg+R) – auf die scharfgeschalteten Spuren (●), sonst auf eine neue Spur">
                                 <StackPanel Orientation="Horizontal">
@@ -1524,26 +1520,26 @@
                             <TextBlock Margin="8,0" VerticalAlignment="Center" FontFamily="Consolas" Text="{Binding Mixer.PositionText}" />
                         </ToolBar>
                         <ToolBar Band="1">
-                            <ToggleButton Style="{StaticResource ChannelToggle}" IsChecked="{Binding Mixer.IsMetronomeEnabled}" ToolTip="Metronom beim Abspielen und Aufnehmen (nicht im Mixdown)">
+                            <ToggleButton Style="{DynamicResource ChannelToggle}" IsChecked="{Binding Mixer.IsMetronomeEnabled}" ToolTip="Metronom beim Abspielen und Aufnehmen (nicht im Mixdown)">
                                 <StackPanel Orientation="Horizontal">
                                     <TextBlock Style="{StaticResource Glyph}" Text="&#xE916;" />
                                     <TextBlock Margin="4,0,0,0" Text="Metronom" />
                                 </StackPanel>
                             </ToggleButton>
-                            <ToggleButton Style="{StaticResource ChannelToggle}" Margin="4,0,0,0" Content="Vorzähler" IsChecked="{Binding Mixer.IsCountInEnabled}"
+                            <ToggleButton Style="{DynamicResource ChannelToggle}" Margin="4,0,0,0" Content="Vorzähler" IsChecked="{Binding Mixer.IsCountInEnabled}"
                                           ToolTip="Vor der Aufnahme einen Takt einzählen" />
-                            <ToggleButton Style="{StaticResource ChannelToggle}" Margin="4,0,0,0" Content="Punch-In" IsChecked="{Binding Mixer.IsPunchEnabled}"
+                            <ToggleButton Style="{DynamicResource ChannelToggle}" Margin="4,0,0,0" Content="Punch-In" IsChecked="{Binding Mixer.IsPunchEnabled}"
                                           ToolTip="Neuaufnahme nur im Loop-Bereich (Umschalt+Ziehen): davor läuft ein Takt Vorlauf, außerhalb bleibt alles unverändert. Mit eingeschaltetem Loop entsteht bei jedem Durchgang ein neuer Take." />
                             <Separator />
                             <TextBlock Margin="4,0" VerticalAlignment="Center" Text="Eingang" />
                             <ComboBox Width="170" VerticalAlignment="Center" ItemsSource="{Binding Mixer.InputDevices}" SelectedItem="{Binding Mixer.SelectedInputDevice}"
                                       ToolTip="Aufnahmegerät (Mikrofon, Line-In, Audio-Interface)" />
-                            <Button Style="{StaticResource ToolButton}" Command="{Binding Mixer.RefreshInputDevicesCommand}" ToolTip="Liste der Aufnahmegeräte aktualisieren">
+                            <Button Style="{DynamicResource ToolButton}" Command="{Binding Mixer.RefreshInputDevicesCommand}" ToolTip="Liste der Aufnahmegeräte aktualisieren">
                                 <TextBlock Style="{StaticResource Glyph}" Text="&#xE72C;" />
                             </Button>
                             <ProgressBar Width="70" Height="8" Margin="4,0" VerticalAlignment="Center" Minimum="0" Maximum="1" Value="{Binding Mixer.InputLevel, Mode=OneWay}"
                                          Foreground="#66BB6A" Background="#15171C" ToolTip="Eingangspegel (sichtbar, sobald eine Audiospur scharfgeschaltet ist)" />
-                            <ToggleButton Style="{StaticResource ChannelToggle}" Margin="4,0,0,0" IsChecked="{Binding Mixer.IsInputMonitoringEnabled}"
+                            <ToggleButton Style="{DynamicResource ChannelToggle}" Margin="4,0,0,0" IsChecked="{Binding Mixer.IsInputMonitoringEnabled}"
                                           ToolTip="Mithören: Den Eingang (Mikrofon, Gitarre …) beim Aufnehmen über Kopfhörer hören. Lautstärke = Fader der scharfgeschalteten Spur. Bitte Kopfhörer benutzen, sonst pfeift es.">
                                 <StackPanel Orientation="Horizontal">
                                     <TextBlock Style="{StaticResource Glyph}" Text="&#xE7F6;" />
@@ -1558,57 +1554,57 @@
                             <ComboBox Width="58" VerticalAlignment="Center" ItemsSource="{Binding Mixer.BufferChoices}" SelectedItem="{Binding Mixer.BufferMs}"
                                       ItemStringFormat="{}{0} ms" IsEnabled="{Binding Mixer.CanChooseBuffer}"
                                       ToolTip="{Binding Mixer.EngineText}" ToolTipService.ShowOnDisabled="True" />
-                            <Button Style="{StaticResource ToolButton}" Command="{Binding Mixer.ShowAsioPanelCommand}" Content="ASIO …"
+                            <Button Style="{DynamicResource ToolButton}" Command="{Binding Mixer.ShowAsioPanelCommand}" Content="ASIO …"
                                     Visibility="{Binding Mixer.IsAsio, Converter={StaticResource BoolToVisibility}}"
                                     ToolTip="Einstellungen des ASIO-Treibers öffnen (Puffergröße, Eingänge)" />
                             <Separator />
-                            <Button Style="{StaticResource ToolButton}" Command="{Binding Mixer.EditTakesCommand}" Content="Takes …"
+                            <Button Style="{DynamicResource ToolButton}" Command="{Binding Mixer.EditTakesCommand}" Content="Takes …"
                                     ToolTip="Takes &amp; Comping des gewählten Clips (oder Doppelklick auf einen Clip mit Takes)" />
                         </ToolBar>
                         <ToolBar>
-                            <Button Style="{StaticResource ToolButton}" Command="{Binding Mixer.NewProjectCommand}" Content="Neu" ToolTip="Neues, leeres Projekt" />
-                            <Button Style="{StaticResource ToolButton}" Command="{Binding Mixer.OpenProjectCommand}" ToolTip="Projekt öffnen …">
+                            <Button Style="{DynamicResource ToolButton}" Command="{Binding Mixer.NewProjectCommand}" Content="Neu" ToolTip="Neues, leeres Projekt" />
+                            <Button Style="{DynamicResource ToolButton}" Command="{Binding Mixer.OpenProjectCommand}" ToolTip="Projekt öffnen …">
                                 <TextBlock Style="{StaticResource Glyph}" Text="&#xE8E5;" />
                             </Button>
-                            <Button Style="{StaticResource ToolButton}" Command="{Binding Mixer.SaveProjectCommand}" ToolTip="Projekt speichern (Strg+S)">
+                            <Button Style="{DynamicResource ToolButton}" Command="{Binding Mixer.SaveProjectCommand}" ToolTip="Projekt speichern (Strg+S)">
                                 <TextBlock Style="{StaticResource Glyph}" Text="&#xE74E;" />
                             </Button>
-                            <Button Style="{StaticResource ToolButton}" Command="{Binding Mixer.SaveProjectAsCommand}" Content="Speichern unter …" />
+                            <Button Style="{DynamicResource ToolButton}" Command="{Binding Mixer.SaveProjectAsCommand}" Content="Speichern unter …" />
                         </ToolBar>
                         <ToolBar>
-                            <Button Style="{StaticResource ToolButton}" Command="{Binding Mixer.AddTrackFromFileCommand}" Content="+ Spur aus Datei …"
+                            <Button Style="{DynamicResource ToolButton}" Command="{Binding Mixer.AddTrackFromFileCommand}" Content="+ Spur aus Datei …"
                                     ToolTip="Audiodatei als neue Spur laden (auch per Drag &amp; Drop möglich)" />
-                            <Button Style="{StaticResource ToolButton}" Command="{Binding AddEditorAudioAsTrackCommand}" Content="+ Editor-Datei"
+                            <Button Style="{DynamicResource ToolButton}" Command="{Binding AddEditorAudioAsTrackCommand}" Content="+ Editor-Datei"
                                     ToolTip="Das Audio aus dem Editor (inkl. Bearbeitungen) als neue Spur übernehmen" />
-                            <Button Style="{StaticResource ToolButton}" Command="{Binding Mixer.OpenSelectedClipInEditorCommand}" Content="Clip im Editor"
+                            <Button Style="{DynamicResource ToolButton}" Command="{Binding Mixer.OpenSelectedClipInEditorCommand}" Content="Clip im Editor"
                                     ToolTip="Gewählten Clip im Editor bearbeiten (oder Doppelklick auf den Clip)" />
-                            <Button Style="{StaticResource ToolButton}" Command="{Binding Mixer.DeleteSelectedClipCommand}" Content="Clip löschen"
+                            <Button Style="{DynamicResource ToolButton}" Command="{Binding Mixer.DeleteSelectedClipCommand}" Content="Clip löschen"
                                     ToolTip="Gewählten Clip löschen (Entf)" />
-                            <Button Style="{StaticResource ToolButton}" Command="{Binding Mixer.AddNoteTrackCommand}" Content="+ Notenspur"
+                            <Button Style="{DynamicResource ToolButton}" Command="{Binding Mixer.AddNoteTrackCommand}" Content="+ Notenspur"
                                     ToolTip="Neue Notenspur (Instrument) mit einem leeren Clip – öffnet den Noten-Editor" />
-                            <Button Style="{StaticResource ToolButton}" Command="{Binding Mixer.ImportMidiCommand}" Content="MIDI importieren …"
+                            <Button Style="{DynamicResource ToolButton}" Command="{Binding Mixer.ImportMidiCommand}" Content="MIDI importieren …"
                                     ToolTip="MIDI-Datei (.mid) als Notenspuren laden – Klänge werden passend zugeordnet" />
-                            <Button Style="{StaticResource ToolButton}" Command="{Binding Mixer.ExportMidiCommand}" Content="MIDI exportieren …"
+                            <Button Style="{DynamicResource ToolButton}" Command="{Binding Mixer.ExportMidiCommand}" Content="MIDI exportieren …"
                                     ToolTip="Alle Notenspuren als MIDI-Datei speichern" />
-                            <Button Style="{StaticResource ToolButton}" Command="{Binding Mixer.AddGroupCommand}" Content="+ Gruppe"
+                            <Button Style="{DynamicResource ToolButton}" Command="{Binding Mixer.AddGroupCommand}" Content="+ Gruppe"
                                     ToolTip="Neue Gruppe anlegen – Spuren im Kanalzug zuordnen" />
                         </ToolBar>
                         <ToolBar>
-                            <Button Style="{StaticResource ToolButton}" Command="{Binding Mixer.ExportMixdownCommand}" Content="Mixdown exportieren …"
+                            <Button Style="{DynamicResource ToolButton}" Command="{Binding Mixer.ExportMixdownCommand}" Content="Mixdown exportieren …"
                                     ToolTip="Alle Spuren zu einer Stereo-Datei mischen (WAV, FLAC, MP3, M4A, OGG) – auf Wunsch mit Lautheitsziel, z. B. -14 LUFS" />
-                            <Button Style="{StaticResource ToolButton}" Command="{Binding Mixer.ExportStemsCommand}" Content="Einzelspuren …"
+                            <Button Style="{DynamicResource ToolButton}" Command="{Binding Mixer.ExportStemsCommand}" Content="Einzelspuren …"
                                     ToolTip="Jede Spur als eigene, gleich lange Datei (Stems) – zum Weiterarbeiten in anderen Programmen" />
-                            <Button Style="{StaticResource ToolButton}" Command="{Binding OpenMixdownInEditorCommand}" Content="Mixdown im Editor"
+                            <Button Style="{DynamicResource ToolButton}" Command="{Binding OpenMixdownInEditorCommand}" Content="Mixdown im Editor"
                                     ToolTip="Den Mixdown im Editor öffnen und dort weiterbearbeiten" />
                         </ToolBar>
                         <ToolBar>
-                            <Button Style="{StaticResource ToolButton}" Click="OnTimelineZoomInClick" ToolTip="Vergrößern (Strg+Mausrad)">
+                            <Button Style="{DynamicResource ToolButton}" Click="OnTimelineZoomInClick" ToolTip="Vergrößern (Strg+Mausrad)">
                                 <TextBlock Style="{StaticResource Glyph}" Text="&#xE8A3;" />
                             </Button>
-                            <Button Style="{StaticResource ToolButton}" Click="OnTimelineZoomOutClick" ToolTip="Verkleinern (Strg+Mausrad)">
+                            <Button Style="{DynamicResource ToolButton}" Click="OnTimelineZoomOutClick" ToolTip="Verkleinern (Strg+Mausrad)">
                                 <TextBlock Style="{StaticResource Glyph}" Text="&#xE71F;" />
                             </Button>
-                            <Button Style="{StaticResource ToolButton}" Click="OnTimelineZoomFitClick" ToolTip="Ganzes Projekt anzeigen">
+                            <Button Style="{DynamicResource ToolButton}" Click="OnTimelineZoomFitClick" ToolTip="Ganzes Projekt anzeigen">
                                 <TextBlock Style="{StaticResource Glyph}" Text="&#xE9A6;" />
                             </Button>
                             <TextBlock Margin="8,0,4,0" VerticalAlignment="Center" Text="Spurhöhe" />
@@ -1617,7 +1613,7 @@
                             <TextBlock Margin="8,0" VerticalAlignment="Center" FontWeight="SemiBold" Text="{Binding Mixer.ProjectTitle}" />
                         </ToolBar>
                         <ToolBar Band="1">
-                            <Button Style="{StaticResource ToolButton}" Command="{Binding Mixer.AddMarkerCommand}"
+                            <Button Style="{DynamicResource ToolButton}" Command="{Binding Mixer.AddMarkerCommand}"
                                     ToolTip="Marker an der Abspielposition setzen (M). Fähnchen ziehen = verschieben, Doppelklick = umbenennen, Rechtsklick = Menü">
                                 <StackPanel Orientation="Horizontal">
                                     <TextBlock Style="{StaticResource Glyph}" Text="&#xE7C1;" Foreground="#E6A100" />
@@ -1638,32 +1634,32 @@
                             </Menu>
                         </ToolBar>
                         <ToolBar Band="1">
-                            <Button Style="{StaticResource ToolButton}" Command="{Binding Mixer.UndoCommand}" ToolTip="Rückgängig im Mischpult (Strg+Z)">
+                            <Button Style="{DynamicResource ToolButton}" Command="{Binding Mixer.UndoCommand}" ToolTip="Rückgängig im Mischpult (Strg+Z)">
                                 <TextBlock Style="{StaticResource Glyph}" Text="&#xE7A7;" />
                             </Button>
-                            <Button Style="{StaticResource ToolButton}" Command="{Binding Mixer.RedoCommand}" ToolTip="Wiederholen im Mischpult (Strg+Y)">
+                            <Button Style="{DynamicResource ToolButton}" Command="{Binding Mixer.RedoCommand}" ToolTip="Wiederholen im Mischpult (Strg+Y)">
                                 <TextBlock Style="{StaticResource Glyph}" Text="&#xE7A6;" />
                             </Button>
                             <Separator />
-                            <Button Style="{StaticResource ToolButton}" Command="{Binding Mixer.SplitClipCommand}" ToolTip="Trenner: Clip an der Abspielposition (roter Griff) teilen (Strg+T)">
+                            <Button Style="{DynamicResource ToolButton}" Command="{Binding Mixer.SplitClipCommand}" ToolTip="Trenner: Clip an der Abspielposition (roter Griff) teilen (Strg+T)">
                                 <StackPanel Orientation="Horizontal">
                                     <TextBlock Style="{StaticResource Glyph}" Text="&#xE8C6;" />
                                     <TextBlock Margin="4,0,0,0" Text="Teilen" />
                                 </StackPanel>
                             </Button>
-                            <Button Style="{StaticResource ToolButton}" Command="{Binding Mixer.MergeWithNextClipCommand}" Content="Verbinden"
+                            <Button Style="{DynamicResource ToolButton}" Command="{Binding Mixer.MergeWithNextClipCommand}" Content="Verbinden"
                                     ToolTip="Clip-Zusammenführung: den gewählten Clip mit dem nächsten Clip derselben Spur zu einem Clip verbinden" />
-                            <Button Style="{StaticResource ToolButton}" Command="{Binding Mixer.AutoTrimClipCommand}" Content="Auto-Zuschnitt"
+                            <Button Style="{DynamicResource ToolButton}" Command="{Binding Mixer.AutoTrimClipCommand}" Content="Auto-Zuschnitt"
                                     ToolTip="Stille am Anfang und Ende des gewählten Clips entfernen" />
-                            <Button Style="{StaticResource ToolButton}" Command="{Binding Mixer.ArrangeClipsCommand}" Content="Aneinanderreihen …"
+                            <Button Style="{DynamicResource ToolButton}" Command="{Binding Mixer.ArrangeClipsCommand}" Content="Aneinanderreihen …"
                                     ToolTip="Alle Clips der Spur lückenlos hintereinanderlegen – auf Wunsch mit Überblendung (Mixtape)" />
-                            <Button Style="{StaticResource ToolButton}" Command="{Binding Mixer.BounceCommand}" Content="Zusammenmischen"
+                            <Button Style="{DynamicResource ToolButton}" Command="{Binding Mixer.BounceCommand}" Content="Zusammenmischen"
                                     ToolTip="Clip-Mischung: alle hörbaren Spuren zu einer neuen Spur mischen (Quellen werden stummgeschaltet)" />
-                            <Button Style="{StaticResource ToolButton}" Command="{Binding Mixer.SeparateClipVocalsCommand}" Content="Gesang trennen (KI)"
+                            <Button Style="{DynamicResource ToolButton}" Command="{Binding Mixer.SeparateClipVocalsCommand}" Content="Gesang trennen (KI)"
                                     ToolTip="Gesang und Begleitung des gewählten Clips per KI auf zwei neue Spuren trennen (das Original wird stummgeschaltet)" />
                         </ToolBar>
                         <ToolBar Band="1">
-                            <ToggleButton Style="{StaticResource ChannelToggle}" Content="Raster" IsChecked="{Binding Mixer.ShowGrid}"
+                            <ToggleButton Style="{DynamicResource ChannelToggle}" Content="Raster" IsChecked="{Binding Mixer.ShowGrid}"
                                           ToolTip="Takt-Raster in der Spuransicht anzeigen" />
                             <TextBlock Margin="8,0,4,0" VerticalAlignment="Center" Text="Tempo" />
                             <TextBox Width="44" VerticalAlignment="Center" HorizontalContentAlignment="Right" Text="{Binding Mixer.BpmText, UpdateSourceTrigger=LostFocus}"
@@ -1690,31 +1686,31 @@
                             </Menu>
                             <ComboBox Width="52" VerticalAlignment="Center" ItemsSource="{Binding Mixer.BeatsPerBarChoices}" SelectedItem="{Binding Mixer.BeatsPerBar}"
                                       ItemStringFormat="{}{0}/4" ToolTip="Taktart (Schläge pro Takt)" />
-                            <ToggleButton Style="{StaticResource ChannelToggle}" Margin="6,0,0,0" Content="Einrasten" IsChecked="{Binding Mixer.IsSnapEnabled}"
+                            <ToggleButton Style="{DynamicResource ChannelToggle}" Margin="6,0,0,0" Content="Einrasten" IsChecked="{Binding Mixer.IsSnapEnabled}"
                                           ToolTip="Clips und Loop-Bereich rasten beim Verschieben auf die Schläge des Rasters ein" />
                             <Separator />
-                            <ToggleButton Style="{StaticResource ChannelToggle}" IsChecked="{Binding Mixer.IsLooping}"
+                            <ToggleButton Style="{DynamicResource ChannelToggle}" IsChecked="{Binding Mixer.IsLooping}"
                                           ToolTip="Loop-Bereich wiederholen (Strg+L) – Bereich mit Umschalt+Ziehen in der Spuransicht festlegen">
                                 <StackPanel Orientation="Horizontal">
                                     <TextBlock Style="{StaticResource Glyph}" Text="&#xE8EE;" />
                                     <TextBlock Margin="4,0,0,0" Text="Loop" />
                                 </StackPanel>
                             </ToggleButton>
-                            <Button Style="{StaticResource ToolButton}" Command="{Binding Mixer.LoopSelectedClipCommand}" Content="Loop = Clip"
+                            <Button Style="{DynamicResource ToolButton}" Command="{Binding Mixer.LoopSelectedClipCommand}" Content="Loop = Clip"
                                     ToolTip="Den gewählten Clip als Loop-Bereich übernehmen" />
                             <Separator />
-                            <ToggleButton Style="{StaticResource ChannelToggle}" Content="Inserts" IsChecked="{Binding Mixer.ShowInserts}"
+                            <ToggleButton Style="{DynamicResource ChannelToggle}" Content="Inserts" IsChecked="{Binding Mixer.ShowInserts}"
                                           ToolTip="EQ, Hochpass und Kompressor in den Kanalzügen ein-/ausblenden" />
                         </ToolBar>
                         <ToolBar Band="1">
-                            <ToggleButton Style="{StaticResource ChannelToggle}" IsChecked="{Binding Mixer.IsEnvelopeMode}"
+                            <ToggleButton Style="{DynamicResource ChannelToggle}" IsChecked="{Binding Mixer.IsEnvelopeMode}"
                                           ToolTip="Hüllkurven bearbeiten: Klick setzt einen Punkt, Ziehen verschiebt, Doppel- oder Rechtsklick löscht. Welche Kurve gezeigt wird, wählst du links in der Spurliste.">
                                 <StackPanel Orientation="Horizontal">
                                     <TextBlock Style="{StaticResource Glyph}" Text="&#xE9D2;" />
                                     <TextBlock Margin="4,0,0,0" Text="Hüllkurven" />
                                 </StackPanel>
                             </ToggleButton>
-                            <Button Style="{StaticResource ToolButton}" Command="{Binding Mixer.ClearAutomationCommand}" Content="Kurve löschen"
+                            <Button Style="{DynamicResource ToolButton}" Command="{Binding Mixer.ClearAutomationCommand}" Content="Kurve löschen"
                                     ToolTip="Die gezeigte Hüllkurve der zuletzt bearbeiteten (bzw. gewählten) Spur löschen – dann gilt wieder der Regler" />
                         </ToolBar>
                     </ToolBarTray>
@@ -1847,11 +1843,11 @@
                                         <TextBlock Style="{StaticResource StripText}" FontFamily="Consolas" Text="{Binding VolumeText}" />
                                         <UniformGrid Margin="0,8,0,0" Columns="2">
                                             <StackPanel ToolTip="Raumgröße – Doppelklick für 60 %">
-                                                <controls:Knob Width="30" Height="30" Minimum="0" Maximum="100" DefaultValue="60" Value="{Binding RoomSize}" Accent="#6A1B9A" />
+                                                <controls:Knob Width="30" Height="30" Minimum="0" Maximum="100" DefaultValue="60" Value="{Binding RoomSize}" Accent="{DynamicResource Theme.Purple}" />
                                                 <TextBlock Style="{StaticResource StripSmall}" Text="Raum" />
                                             </StackPanel>
                                             <StackPanel ToolTip="Dämpfung – Doppelklick für 40 %">
-                                                <controls:Knob Width="30" Height="30" Minimum="0" Maximum="100" DefaultValue="40" Value="{Binding Damping}" Accent="#EF6C00" />
+                                                <controls:Knob Width="30" Height="30" Minimum="0" Maximum="100" DefaultValue="40" Value="{Binding Damping}" Accent="{DynamicResource Theme.Orange}" />
                                                 <TextBlock Style="{StaticResource StripSmall}" Text="Dämpf." />
                                             </StackPanel>
                                         </UniformGrid>
@@ -1874,11 +1870,11 @@
                                                 <TextBlock Style="{StaticResource StripSmall}" Text="Zeit R" />
                                             </StackPanel>
                                             <StackPanel ToolTip="Rückkopplung – Doppelklick für 35 %">
-                                                <controls:Knob Width="30" Height="30" Minimum="0" Maximum="90" DefaultValue="35" Value="{Binding Feedback}" Accent="#6A1B9A" />
+                                                <controls:Knob Width="30" Height="30" Minimum="0" Maximum="90" DefaultValue="35" Value="{Binding Feedback}" Accent="{DynamicResource Theme.Purple}" />
                                                 <TextBlock Style="{StaticResource StripSmall}" Text="Rückk." />
                                             </StackPanel>
                                             <StackPanel ToolTip="Dämpfung – Doppelklick für 40 %">
-                                                <controls:Knob Width="30" Height="30" Minimum="0" Maximum="100" DefaultValue="40" Value="{Binding Damping}" Accent="#EF6C00" />
+                                                <controls:Knob Width="30" Height="30" Minimum="0" Maximum="100" DefaultValue="40" Value="{Binding Damping}" Accent="{DynamicResource Theme.Orange}" />
                                                 <TextBlock Style="{StaticResource StripSmall}" Text="Dämpf." />
                                             </StackPanel>
                                         </UniformGrid>
@@ -2067,21 +2063,21 @@
                 <DockPanel>
                     <ToolBarTray DockPanel.Dock="Top" IsLocked="True">
                         <ToolBar>
-                            <Button Style="{StaticResource ToolButton}" Command="{Binding Mixer.PlayCommand}" ToolTip="Projekt ab der Abspielposition abspielen (Leertaste)">
+                            <Button Style="{DynamicResource ToolButton}" Command="{Binding Mixer.PlayCommand}" ToolTip="Projekt ab der Abspielposition abspielen (Leertaste)">
                                 <TextBlock Style="{StaticResource Glyph}" Text="&#xE768;" />
                             </Button>
-                            <Button Style="{StaticResource ToolButton}" Command="{Binding Mixer.PauseCommand}" ToolTip="Pause (Leertaste)">
+                            <Button Style="{DynamicResource ToolButton}" Command="{Binding Mixer.PauseCommand}" ToolTip="Pause (Leertaste)">
                                 <TextBlock Style="{StaticResource Glyph}" Text="&#xE769;" />
                             </Button>
-                            <Button Style="{StaticResource ToolButton}" Command="{Binding Mixer.StopCommand}" ToolTip="Stopp (Esc)">
+                            <Button Style="{DynamicResource ToolButton}" Command="{Binding Mixer.StopCommand}" ToolTip="Stopp (Esc)">
                                 <TextBlock Style="{StaticResource Glyph}" Text="&#xE71A;" />
                             </Button>
-                            <ToggleButton Style="{StaticResource ChannelToggle}" Margin="4,0,0,0" IsChecked="{Binding Mixer.IsRecording, Mode=OneWay}"
+                            <ToggleButton Style="{DynamicResource ChannelToggle}" Margin="4,0,0,0" IsChecked="{Binding Mixer.IsRecording, Mode=OneWay}"
                                           Command="{Binding Mixer.ToggleRecordCommand}"
                                           ToolTip="Echtzeit-Aufnahme (Strg+R): Notenspur im Mischpult scharfschalten (●) und auf der Tastatur bzw. dem MIDI-Keyboard spielen">
                                 <Ellipse Width="11" Height="11" Fill="#E53935" />
                             </ToggleButton>
-                            <ToggleButton Style="{StaticResource ChannelToggle}" Margin="4,0,0,0" IsChecked="{Binding Mixer.IsMetronomeEnabled}" ToolTip="Metronom">
+                            <ToggleButton Style="{DynamicResource ChannelToggle}" Margin="4,0,0,0" IsChecked="{Binding Mixer.IsMetronomeEnabled}" ToolTip="Metronom">
                                 <TextBlock Style="{StaticResource Glyph}" Text="&#xE916;" />
                             </ToggleButton>
                             <TextBlock Margin="8,0" VerticalAlignment="Center" FontWeight="SemiBold" Text="{Binding Notes.Title}" />
@@ -2096,19 +2092,19 @@
                                     </DataTemplate>
                                 </ComboBox.ItemTemplate>
                             </ComboBox>
-                            <Button Style="{StaticResource ToolButton}" Command="{Binding Notes.LoadSoundFontCommand}" Content="SoundFont …" IsEnabled="{Binding Notes.HasClip}"
+                            <Button Style="{DynamicResource ToolButton}" Command="{Binding Notes.LoadSoundFontCommand}" Content="SoundFont …" IsEnabled="{Binding Notes.HasClip}"
                                     ToolTip="Eigene Klänge aus einer SoundFont-Datei (.sf2) laden – z. B. „GeneralUser GS“ oder „FluidR3 GM“" />
                             <ComboBox Width="200" VerticalAlignment="Center" ItemsSource="{Binding Notes.Presets}" SelectedItem="{Binding Notes.SelectedPreset}"
                                       Visibility="{Binding Notes.HasSoundFont, Converter={StaticResource BoolToVisibility}}"
                                       ToolTip="{Binding Notes.SoundFontName}" />
-                            <Button Style="{StaticResource ToolButton}" Command="{Binding Notes.UseBuiltInCommand}" Content="Eingebaut"
+                            <Button Style="{DynamicResource ToolButton}" Command="{Binding Notes.UseBuiltInCommand}" Content="Eingebaut"
                                     Visibility="{Binding Notes.HasSoundFont, Converter={StaticResource BoolToVisibility}}"
                                     ToolTip="Zurück zum eingebauten Instrument" />
                             <Separator />
                             <TextBlock Margin="4,0" VerticalAlignment="Center" Text="MIDI-Eingang" />
                             <ComboBox Width="150" VerticalAlignment="Center" ItemsSource="{Binding Notes.MidiInputs}" SelectedItem="{Binding Notes.SelectedMidiInput}"
                                       ToolTip="Angeschlossenes MIDI-Keyboard zum Spielen und für die Schritt-Aufnahme" />
-                            <Button Style="{StaticResource ToolButton}" Command="{Binding Notes.RefreshMidiInputsCommand}" ToolTip="Liste der MIDI-Geräte aktualisieren">
+                            <Button Style="{DynamicResource ToolButton}" Command="{Binding Notes.RefreshMidiInputsCommand}" ToolTip="Liste der MIDI-Geräte aktualisieren">
                                 <TextBlock Style="{StaticResource Glyph}" Text="&#xE72C;" />
                             </Button>
                         </ToolBar>
@@ -2116,13 +2112,13 @@
                             <TextBlock Margin="4,0" VerticalAlignment="Center" Text="Raster" />
                             <ComboBox Width="58" VerticalAlignment="Center" ItemsSource="{Binding Notes.GridChoices}" DisplayMemberPath="Name" SelectedItem="{Binding Notes.Grid}"
                                       ToolTip="Notenwert für neue Noten, Einrasten und Quantisieren" />
-                            <ToggleButton Style="{StaticResource ChannelToggle}" Margin="4,0,0,0" Content="Triole" IsChecked="{Binding Notes.IsTriplet}" ToolTip="Triolen-Raster (drei Noten im Platz von zwei)" />
-                            <ToggleButton Style="{StaticResource ChannelToggle}" Margin="4,0,0,0" Content="Einrasten" IsChecked="{Binding Notes.IsSnapEnabled}" ToolTip="Noten rasten beim Setzen und Verschieben auf das Raster ein" />
+                            <ToggleButton Style="{DynamicResource ChannelToggle}" Margin="4,0,0,0" Content="Triole" IsChecked="{Binding Notes.IsTriplet}" ToolTip="Triolen-Raster (drei Noten im Platz von zwei)" />
+                            <ToggleButton Style="{DynamicResource ChannelToggle}" Margin="4,0,0,0" Content="Einrasten" IsChecked="{Binding Notes.IsSnapEnabled}" ToolTip="Noten rasten beim Setzen und Verschieben auf das Raster ein" />
                             <TextBlock Margin="10,0,4,0" VerticalAlignment="Center" Text="Länge" />
                             <TextBox Width="40" VerticalAlignment="Center" HorizontalContentAlignment="Right" Text="{Binding Notes.LengthBarsText, UpdateSourceTrigger=LostFocus}"
                                      KeyDown="OnCommitTextBoxKeyDown" IsEnabled="{Binding Notes.HasClip}" ToolTip="Länge des Notenclips in Takten (mit Eingabetaste übernehmen)" />
                             <TextBlock Margin="4,0,8,0" VerticalAlignment="Center" Text="Takte" />
-                            <ToggleButton Style="{StaticResource ChannelToggle}" IsChecked="{Binding Notes.IsStepRecording}" IsEnabled="{Binding Notes.HasClip}"
+                            <ToggleButton Style="{DynamicResource ChannelToggle}" IsChecked="{Binding Notes.IsStepRecording}" IsEnabled="{Binding Notes.HasClip}"
                                           ToolTip="Schritt-Aufnahme: Gespielte Töne (Bildschirmtastatur, Computertastatur oder MIDI-Keyboard) werden am grünen Cursor eingefügt, danach rückt er einen Rasterschritt weiter. Klick ins Taktlineal setzt den Cursor.">
                                 <StackPanel Orientation="Horizontal">
                                     <Ellipse Width="10" Height="10" Fill="#E53935" />
@@ -2130,64 +2126,64 @@
                                 </StackPanel>
                             </ToggleButton>
                             <Separator />
-                            <Button Style="{StaticResource ToolButton}" Command="{Binding Notes.UndoCommand}" ToolTip="Notenbearbeitung rückgängig (Strg+Z)">
+                            <Button Style="{DynamicResource ToolButton}" Command="{Binding Notes.UndoCommand}" ToolTip="Notenbearbeitung rückgängig (Strg+Z)">
                                 <TextBlock Style="{StaticResource Glyph}" Text="&#xE7A7;" />
                             </Button>
-                            <Button Style="{StaticResource ToolButton}" Command="{Binding Notes.RedoCommand}" ToolTip="Wiederholen (Strg+Y)">
+                            <Button Style="{DynamicResource ToolButton}" Command="{Binding Notes.RedoCommand}" ToolTip="Wiederholen (Strg+Y)">
                                 <TextBlock Style="{StaticResource Glyph}" Text="&#xE7A6;" />
                             </Button>
-                            <Button Style="{StaticResource ToolButton}" Command="{Binding Notes.SelectAllCommand}" Content="Alle" ToolTip="Alle Noten auswählen (Strg+A)" />
-                            <Button Style="{StaticResource ToolButton}" Command="{Binding Notes.DeleteSelectedCommand}" ToolTip="Gewählte Noten löschen (Entf)">
+                            <Button Style="{DynamicResource ToolButton}" Command="{Binding Notes.SelectAllCommand}" Content="Alle" ToolTip="Alle Noten auswählen (Strg+A)" />
+                            <Button Style="{DynamicResource ToolButton}" Command="{Binding Notes.DeleteSelectedCommand}" ToolTip="Gewählte Noten löschen (Entf)">
                                 <TextBlock Style="{StaticResource Glyph}" Text="&#xE74D;" />
                             </Button>
-                            <TextBlock Margin="8,0" VerticalAlignment="Center" Foreground="#80868F" Text="{Binding Notes.SelectionText}" />
+                            <TextBlock Margin="8,0" VerticalAlignment="Center" Foreground="{DynamicResource Theme.ForegroundDim}" Text="{Binding Notes.SelectionText}" />
                         </ToolBar>
                         <ToolBar Band="2">
-                            <Button Style="{StaticResource ToolButton}" Command="{Binding Notes.QuantizeCommand}" Content="Quantisieren …"
+                            <Button Style="{DynamicResource ToolButton}" Command="{Binding Notes.QuantizeCommand}" Content="Quantisieren …"
                                     ToolTip="Notenanfänge auf das Raster rücken (wirkt auf die Auswahl, ohne Auswahl auf alle Noten)" />
-                            <Button Style="{StaticResource ToolButton}" Command="{Binding Notes.HumanizeCommand}" Content="Humanisieren …"
+                            <Button Style="{DynamicResource ToolButton}" Command="{Binding Notes.HumanizeCommand}" Content="Humanisieren …"
                                     ToolTip="Timing und Anschlag leicht zufällig verändern – klingt lebendiger" />
                             <Separator />
                             <TextBlock Margin="4,0" VerticalAlignment="Center" Text="Transponieren" />
-                            <Button Style="{StaticResource ToolButton}" Command="{Binding Notes.TransposeCommand}" CommandParameter="1" Content="+1" ToolTip="Einen Halbton höher (Pfeil hoch)" />
-                            <Button Style="{StaticResource ToolButton}" Command="{Binding Notes.TransposeCommand}" CommandParameter="-1" Content="−1" ToolTip="Einen Halbton tiefer (Pfeil runter)" />
-                            <Button Style="{StaticResource ToolButton}" Command="{Binding Notes.TransposeCommand}" CommandParameter="12" Content="+Okt" ToolTip="Eine Oktave höher (Umschalt+Pfeil hoch)" />
-                            <Button Style="{StaticResource ToolButton}" Command="{Binding Notes.TransposeCommand}" CommandParameter="-12" Content="−Okt" ToolTip="Eine Oktave tiefer (Umschalt+Pfeil runter)" />
-                            <Button Style="{StaticResource ToolButton}" Command="{Binding Notes.TransposeByCommand}" Content="…" ToolTip="Um beliebig viele Halbtöne transponieren" />
+                            <Button Style="{DynamicResource ToolButton}" Command="{Binding Notes.TransposeCommand}" CommandParameter="1" Content="+1" ToolTip="Einen Halbton höher (Pfeil hoch)" />
+                            <Button Style="{DynamicResource ToolButton}" Command="{Binding Notes.TransposeCommand}" CommandParameter="-1" Content="−1" ToolTip="Einen Halbton tiefer (Pfeil runter)" />
+                            <Button Style="{DynamicResource ToolButton}" Command="{Binding Notes.TransposeCommand}" CommandParameter="12" Content="+Okt" ToolTip="Eine Oktave höher (Umschalt+Pfeil hoch)" />
+                            <Button Style="{DynamicResource ToolButton}" Command="{Binding Notes.TransposeCommand}" CommandParameter="-12" Content="−Okt" ToolTip="Eine Oktave tiefer (Umschalt+Pfeil runter)" />
+                            <Button Style="{DynamicResource ToolButton}" Command="{Binding Notes.TransposeByCommand}" Content="…" ToolTip="Um beliebig viele Halbtöne transponieren" />
                             <Separator />
                             <TextBlock Margin="4,0" VerticalAlignment="Center" Text="Länge" />
-                            <Button Style="{StaticResource ToolButton}" Command="{Binding Notes.ScaleLengthCommand}" CommandParameter="0.5" Content="×½" ToolTip="Notenlängen halbieren (kürzer, staccato)" />
-                            <Button Style="{StaticResource ToolButton}" Command="{Binding Notes.ScaleLengthCommand}" CommandParameter="2" Content="×2" ToolTip="Notenlängen verdoppeln" />
-                            <Button Style="{StaticResource ToolButton}" Command="{Binding Notes.LengthToGridCommand}" Content="= Raster" ToolTip="Alle Längen auf den Rasterwert setzen" />
-                            <Button Style="{StaticResource ToolButton}" Command="{Binding Notes.LegatoCommand}" Content="Legato" ToolTip="Jede Note klingt bis zur nächsten (gebunden)" />
+                            <Button Style="{DynamicResource ToolButton}" Command="{Binding Notes.ScaleLengthCommand}" CommandParameter="0.5" Content="×½" ToolTip="Notenlängen halbieren (kürzer, staccato)" />
+                            <Button Style="{DynamicResource ToolButton}" Command="{Binding Notes.ScaleLengthCommand}" CommandParameter="2" Content="×2" ToolTip="Notenlängen verdoppeln" />
+                            <Button Style="{DynamicResource ToolButton}" Command="{Binding Notes.LengthToGridCommand}" Content="= Raster" ToolTip="Alle Längen auf den Rasterwert setzen" />
+                            <Button Style="{DynamicResource ToolButton}" Command="{Binding Notes.LegatoCommand}" Content="Legato" ToolTip="Jede Note klingt bis zur nächsten (gebunden)" />
                             <Separator />
                             <TextBlock Margin="4,0" VerticalAlignment="Center" Text="Anschlag" />
-                            <Button Style="{StaticResource ToolButton}" Command="{Binding Notes.SetVelocityToCommand}" Content="Setzen …" ToolTip="Anschlagstärke festlegen (einzelne Noten im Anschlag-Feld unten ziehen)" />
-                            <Button Style="{StaticResource ToolButton}" Command="{Binding Notes.CrescendoCommand}" CommandParameter="up" Content="Cresc." ToolTip="Crescendo: allmählich lauter" />
-                            <Button Style="{StaticResource ToolButton}" Command="{Binding Notes.CrescendoCommand}" CommandParameter="down" Content="Decresc." ToolTip="Decrescendo: allmählich leiser" />
+                            <Button Style="{DynamicResource ToolButton}" Command="{Binding Notes.SetVelocityToCommand}" Content="Setzen …" ToolTip="Anschlagstärke festlegen (einzelne Noten im Anschlag-Feld unten ziehen)" />
+                            <Button Style="{DynamicResource ToolButton}" Command="{Binding Notes.CrescendoCommand}" CommandParameter="up" Content="Cresc." ToolTip="Crescendo: allmählich lauter" />
+                            <Button Style="{DynamicResource ToolButton}" Command="{Binding Notes.CrescendoCommand}" CommandParameter="down" Content="Decresc." ToolTip="Decrescendo: allmählich leiser" />
                             <Separator />
-                            <Button Style="{StaticResource ToolButton}" Command="{Binding Notes.SplitVoicesCommand}" Content="Stimmen aufteilen …"
+                            <Button Style="{DynamicResource ToolButton}" Command="{Binding Notes.SplitVoicesCommand}" Content="Stimmen aufteilen …"
                                     ToolTip="Gleichzeitige Noten auf mehrere Spuren verteilen (z. B. Melodie und Begleitung)" />
                             <Separator />
                             <TextBlock Margin="4,0" VerticalAlignment="Center" Text="Komponieren" />
-                            <Button Style="{StaticResource ToolButton}" Command="{Binding Notes.InsertChordCommand}" Content="Akkord …"
+                            <Button Style="{DynamicResource ToolButton}" Command="{Binding Notes.InsertChordCommand}" Content="Akkord …"
                                     ToolTip="Einen Akkord (z. B. Am, G7) am grünen Cursor einfügen – danach rückt der Cursor weiter" />
-                            <Button Style="{StaticResource ToolButton}" Command="{Binding Notes.InsertProgressionCommand}" Content="Akkordfolge …"
+                            <Button Style="{DynamicResource ToolButton}" Command="{Binding Notes.InsertProgressionCommand}" Content="Akkordfolge …"
                                     ToolTip="Eine ganze Akkordfolge in einer Tonart einfügen (Pop, Blues, Jazz …)" />
-                            <Button Style="{StaticResource ToolButton}" Command="{Binding Notes.ArpeggiateCommand}" Content="Arpeggiator …"
+                            <Button Style="{DynamicResource ToolButton}" Command="{Binding Notes.ArpeggiateCommand}" Content="Arpeggiator …"
                                     ToolTip="Akkorde als gebrochene Akkorde spielen (aufwärts, abwärts, Alberti …)" />
-                            <Button Style="{StaticResource ToolButton}" Command="{Binding Notes.EditDrumsCommand}" Content="Schlagzeug-Raster …"
+                            <Button Style="{DynamicResource ToolButton}" Command="{Binding Notes.EditDrumsCommand}" Content="Schlagzeug-Raster …"
                                     ToolTip="Schlagzeug-Rhythmus im Raster anklicken oder einen fertigen Rhythmus wählen (Rock, Pop, Hip-Hop …)" />
-                            <Button Style="{StaticResource ToolButton}" Command="{Binding Notes.ShowSheetMusicCommand}" Content="Notenblatt …"
+                            <Button Style="{DynamicResource ToolButton}" Command="{Binding Notes.ShowSheetMusicCommand}" Content="Notenblatt …"
                                     ToolTip="Alle Notenspuren als Noten anzeigen – zum Drucken oder als PDF speichern" />
                             <Separator />
-                            <Button Style="{StaticResource ToolButton}" Click="OnPianoRollZoomInClick" ToolTip="Vergrößern (Strg+Mausrad)">
+                            <Button Style="{DynamicResource ToolButton}" Click="OnPianoRollZoomInClick" ToolTip="Vergrößern (Strg+Mausrad)">
                                 <TextBlock Style="{StaticResource Glyph}" Text="&#xE8A3;" />
                             </Button>
-                            <Button Style="{StaticResource ToolButton}" Click="OnPianoRollZoomOutClick" ToolTip="Verkleinern (Strg+Mausrad)">
+                            <Button Style="{DynamicResource ToolButton}" Click="OnPianoRollZoomOutClick" ToolTip="Verkleinern (Strg+Mausrad)">
                                 <TextBlock Style="{StaticResource Glyph}" Text="&#xE71F;" />
                             </Button>
-                            <Button Style="{StaticResource ToolButton}" Click="OnPianoRollZoomFitClick" ToolTip="Ganzen Clip anzeigen">
+                            <Button Style="{DynamicResource ToolButton}" Click="OnPianoRollZoomFitClick" ToolTip="Ganzen Clip anzeigen">
                                 <TextBlock Style="{StaticResource Glyph}" Text="&#xE9A6;" />
                             </Button>
                         </ToolBar>

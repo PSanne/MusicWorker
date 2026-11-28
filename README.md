@@ -8,7 +8,8 @@ Musikliebhaber ohne Vorkenntnisse. **Version 1.0** umfasst:
 - **Editor:** Schneiden, Live-Effekte mit Presets (EQ, Hall, Kompressor, Echo, Chorus, Flanger, Phaser, Tremolo, Noise-Gate, Bandsättigung, Stereo-Breite …), Lautheit in LUFS, Tonhöhen-Werkzeuge mit Autotune, Spektrogramm, Restaurierung (Rauschen, Knackser, Störgeräusche) sowie De-Esser, natürliche Tonhöhenänderung und **KI-Gesangstrennung**
 - **Mischpult:** Spuren mit Fadern, Panorama, Sends, Bussen, Gruppen, Hüllkurven und Auto-Absenkung · Schnitt, Fade-Griffe, Mehrfachauswahl, Kopieren/Einfügen · Takt-Raster mit **Tempospur** · Aufnahme mit Punch-In, Takes/Comping, **geringer Latenz (WASAPI/ASIO) und Mithören** · Mixdown, Einzelspuren und viele Formate (WAV, FLAC, MP3, M4A, OGG)
 - **Noten:** Piano-Roll, Instrumente und SoundFonts, MIDI, **Akkorde, Akkordfolgen, Arpeggiator, Schlagzeug-Raster** und ein **Notenblatt** zum Drucken oder als PDF
-- **Sicherheit & Hilfe:** automatische Sicherung, Marker, Handbuch (F1, 61 Seiten) und Update-Hinweis
+- **Sicherheit & Hilfe:** automatische Sicherung, Marker, Handbuch (F1) und Update-Hinweis
+- **Design (seit 1.1):** *Ansicht → Design* – Hell, Dunkel (dunkles Grau mit heller Schrift) oder wie in Windows eingestellt; wechselt sofort und wird gespeichert
 
 ## Stimme & KI (Version 0.15)
 
@@ -323,7 +324,8 @@ die Oberfläche nur in `MusicWorker.App`. So können Mehrspur- und Noten-Editor 
 - [x] **v0.14 – Notenblatt & Aufnahme (Sprint 7):** Notenblatt mit Druck/PDF, Aufnahme mit geringer Latenz und Mithören
 - [x] **v0.15 – Stimme & KI (Sprint 8):** De-Esser, Tonhöhe mit Formanterhalt, KI-Gesangstrennung
 - [x] **v1.0 – Feinschliff (Sprint 9):** Handbuch auf den neuen Stand, Gesamttest
-- [ ] **Danach – Aussehen:** Gestaltung der Oberfläche (übernimmt der Auftraggeber zum Schluss)
+- [x] **v1.1 – Dunkles Design:** Umschalten zwischen Hell, Dunkel und „Wie Windows“
+- [ ] **Danach – Aussehen:** weitere Gestaltung der Oberfläche (übernimmt der Auftraggeber)
 
 Den Sprint-Plan mit Status gibt es auch als Board in Miro (*MusicWorker – Sprint-Plan*).
 
@@ -669,6 +671,20 @@ was bewusst so gebaut ist und was sich später leicht ändern lässt.
   Original-Modell) und der Kompilier-Check der Oberfläche. Grund: Die Version 1.0 soll als Ganzes stimmig sein.
 - **Gestaltung der Oberfläche bewusst noch nicht verändert.** Grund: Das Aussehen übernimmt der Auftraggeber
   zum Schluss.
+
+### v1.1 – Dunkles Design
+- **Eigene Vorlagen statt eines fertigen Themes.** .NET 8 bringt für WPF kein dunkles Design mit (das neue
+  „Fluent“-Design gibt es erst ab .NET 9 und ist dort noch experimentell). Grund: MusicWorker soll auf .NET 8
+  stabil bleiben; eigene, schlichte Vorlagen für Knöpfe, Menüs, Listen, Felder, Schieberegler, Bildlaufleisten,
+  Rahmen und Reiter geben volle Kontrolle über jede Farbe.
+- **Hell bleibt die unveränderte Windows-Optik.** Das helle Design enthält nur die Farben, die MusicWorker selbst
+  festlegt; alle Bedienelemente sehen aus wie bisher. Grund: Wer nichts umstellt, merkt keinen Unterschied.
+- **Umschalten ohne Neustart** über austauschbare Ressourcen-Wörterbücher (Themes/Light.xaml, Themes/Dark.xaml);
+  offene Fenster und Dialoge wechseln sofort, auch die Titelleiste wird dunkel. „Wie Windows“ folgt dem App-Modus
+  von Windows, auch wenn er sich während des Betriebs ändert.
+- **Akzentfarben im Dunklen heller** (z. B. L blau, R rosa, Effektregler). Grund: Die kräftigen Töne des hellen
+  Designs wären auf dunkelgrauem Grund schlecht lesbar. Die großen Zeichenflächen (Wellenform, Spuren, Piano-Roll,
+  Spektrum) waren schon immer dunkel und bleiben gleich.
 
 ## Verwendete Bibliotheken
 
