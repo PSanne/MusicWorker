@@ -1,6 +1,6 @@
 # 🎵 MusicWorker
 
-**MusicWorker** ist eine Windows-Anwendung zum Bearbeiten von Musik, geschrieben in C# mit WPF und .NET 8.
+**MusicWorker** ist eine Windows-Anwendung zum Bearbeiten von Musik, geschrieben in C# mit WPF und .NET 10.
 
 MusicWorker vereint **Audio-Editor, Mehrspur-Mischpult und Noten-Editor** in einem Programm – gedacht für
 Musikliebhaber ohne Vorkenntnisse. **Version 1.0** umfasst:
@@ -254,7 +254,7 @@ GitHub baut und testet dann automatisch, legt die Versionsmarke `v0.2.0` an und 
 mit ZIP-Download. Alternativ startet das Release auch, wenn eine Marke wie `v0.2.0` per `git push` hochgeladen wird.
 
 ### Selbst bauen
-Voraussetzungen: Windows 10/11 und das [.NET 8 SDK](https://dotnet.microsoft.com/download/dotnet/8.0)
+Voraussetzungen: Windows 10/11 und das [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0)
 (oder Visual Studio 2022 mit der Workload „.NET-Desktopentwicklung“).
 
 ```powershell
@@ -325,6 +325,7 @@ die Oberfläche nur in `MusicWorker.App`. So können Mehrspur- und Noten-Editor 
 - [x] **v0.15 – Stimme & KI (Sprint 8):** De-Esser, Tonhöhe mit Formanterhalt, KI-Gesangstrennung
 - [x] **v1.0 – Feinschliff (Sprint 9):** Handbuch auf den neuen Stand, Gesamttest
 - [x] **v1.1 – Dunkles Design:** Umschalten zwischen Hell, Dunkel und „Wie Windows“
+- [x] **v1.2 – .NET 10:** Umstellung auf die aktuelle Langzeit-Version von .NET
 - [ ] **Danach – Aussehen:** weitere Gestaltung der Oberfläche (übernimmt der Auftraggeber)
 
 Den Sprint-Plan mit Status gibt es auch als Board in Miro (*MusicWorker – Sprint-Plan*).
@@ -673,9 +674,9 @@ was bewusst so gebaut ist und was sich später leicht ändern lässt.
   zum Schluss.
 
 ### v1.1 – Dunkles Design
-- **Eigene Vorlagen statt eines fertigen Themes.** .NET 8 bringt für WPF kein dunkles Design mit (das neue
-  „Fluent“-Design gibt es erst ab .NET 9 und ist dort noch experimentell). Grund: MusicWorker soll auf .NET 8
-  stabil bleiben; eigene, schlichte Vorlagen für Knöpfe, Menüs, Listen, Felder, Schieberegler, Bildlaufleisten,
+- **Eigene Vorlagen statt eines fertigen Themes.** Als das dunkle Design entstand, lief MusicWorker noch auf
+  .NET 8, das für WPF kein dunkles Design mitbringt; das „Fluent“-Design neuerer Versionen hätte zudem das Aussehen
+  aller Bedienelemente verändert. Grund: Das helle Design soll genau so bleiben, wie es ist; eigene, schlichte Vorlagen für Knöpfe, Menüs, Listen, Felder, Schieberegler, Bildlaufleisten,
   Rahmen und Reiter geben volle Kontrolle über jede Farbe.
 - **Hell bleibt die unveränderte Windows-Optik.** Das helle Design enthält nur die Farben, die MusicWorker selbst
   festlegt; alle Bedienelemente sehen aus wie bisher. Grund: Wer nichts umstellt, merkt keinen Unterschied.
@@ -685,6 +686,14 @@ was bewusst so gebaut ist und was sich später leicht ändern lässt.
 - **Akzentfarben im Dunklen heller** (z. B. L blau, R rosa, Effektregler). Grund: Die kräftigen Töne des hellen
   Designs wären auf dunkelgrauem Grund schlecht lesbar. Die großen Zeichenflächen (Wellenform, Spuren, Piano-Roll,
   Spektrum) waren schon immer dunkel und bleiben gleich.
+
+### v1.2 – Umstellung auf .NET 10
+- **Von .NET 8 auf .NET 10 (LTS).** Grund: Microsoft hat die Unterstützung für .NET 8 am 10. November 2026
+  beendet; .NET 10 ist die aktuelle Version mit Langzeit-Unterstützung (bis November 2028) und erhält weiter
+  Sicherheitsupdates. Für Nutzer ändert sich nichts: Das Setup bringt die Laufzeit wie bisher mit, es muss
+  nichts zusätzlich installiert werden.
+- **Bibliotheken unverändert.** Alle verwendeten Pakete laufen auch unter .NET 10. Grund: kleinstmöglicher
+  Umstieg, nur die Zielplattform wechselt.
 
 ## Verwendete Bibliotheken
 
